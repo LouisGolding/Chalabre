@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
   { href: '/dashboard/mes-paiements', label: 'Mes paiements', icon: <Wallet className="h-5 w-5" />, roles: ['admin', 'family', 'friend'] },
   { href: '/dashboard/documents', label: 'Documents', icon: <FileText className="h-5 w-5" />, roles: ['admin', 'family'] },
   { href: '/dashboard/admin', label: 'Administration', icon: <Settings className="h-5 w-5" />, roles: ['admin'] },
+  { href: '/dashboard/admin/paiements', label: 'Suivi paiements', icon: <Wallet className="h-5 w-5" />, roles: ['admin'] },
 ]
 
 interface SidebarProps {
