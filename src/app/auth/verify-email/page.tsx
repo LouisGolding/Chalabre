@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Mail } from 'lucide-react'
 
 export default function VerifyEmailPage() {
@@ -26,9 +25,9 @@ export default function VerifyEmailPage() {
             <p className="text-sm text-stone-400">
               Vous ne trouvez pas l&apos;email ? Vérifiez vos spams.
             </p>
-            <Button variant="outline" asChild className="w-full">
-              <Link href="/auth/login">Retour à la connexion</Link>
-            </Button>
+            <Link href="/auth/login" className="inline-flex items-center justify-center w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+              Retour à la connexion
+            </Link>
           </CardContent>
         </Card>
       </div>

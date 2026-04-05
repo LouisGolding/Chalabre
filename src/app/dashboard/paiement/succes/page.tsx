@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { CheckCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 
 export default function PaiementSuccesPage() {
   return (
@@ -13,16 +12,16 @@ export default function PaiementSuccesPage() {
           </div>
           <CardTitle>Paiement confirmé</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           <p className="text-stone-500 text-sm">
             Votre paiement a bien été reçu. Votre solde a été mis à jour.
           </p>
-          <Button asChild className="w-full">
-            <Link href="/dashboard">Retour à l&apos;accueil</Link>
-          </Button>
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/dashboard/budget">Voir mes paiements</Link>
-          </Button>
+          <Link href="/dashboard" className="inline-flex items-center justify-center w-full rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
+            Retour à l&apos;accueil
+          </Link>
+          <Link href="/dashboard/mes-paiements" className="inline-flex items-center justify-center w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
+            Voir mes paiements
+          </Link>
         </CardContent>
       </Card>
     </div>

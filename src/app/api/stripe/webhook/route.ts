@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   if (event.type === 'checkout.session.completed') {
-    const session = event.data.object as Stripe.CheckoutSession
+    const session = event.data.object as Stripe.Checkout.Session
     const { payment_type, payment_id } = session.metadata ?? {}
 
     if (!payment_type || !payment_id) {

@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 
 export default function PaiementAnnulePage() {
   return (
@@ -13,13 +12,13 @@ export default function PaiementAnnulePage() {
           </div>
           <CardTitle>Paiement annulé</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           <p className="text-stone-500 text-sm">
             Votre paiement n&apos;a pas été effectué. Vous pouvez réessayer depuis votre tableau de bord.
           </p>
-          <Button asChild className="w-full">
-            <Link href="/dashboard">Retour à l&apos;accueil</Link>
-          </Button>
+          <Link href="/dashboard" className="inline-flex items-center justify-center w-full rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 transition-colors">
+            Retour à l&apos;accueil
+          </Link>
         </CardContent>
       </Card>
     </div>
