@@ -2,6 +2,8 @@
 
 Site web et application de gestion de la maison familiale **La Bâtisse**, à Chalabre (Aude).
 
+🌐 **En ligne : [www.labatisse.art](https://www.labatisse.art)**
+
 ---
 
 ## 1. Contexte
@@ -58,8 +60,8 @@ Un site web avec compte personnel permettant de :
 | Paiements | **Stripe Checkout** + webhook | ✅ |
 | UI | Tailwind CSS v4, shadcn/ui, Base UI, lucide-react | ✅ |
 | Dates | date-fns (locale `fr`) | ✅ |
-| Hébergement | Vercel (prévu) | ⬜ non déployé |
-| Nom de domaine | `labatisse.com` (souhaité) | ⬜ non acquis |
+| Hébergement | **Vercel** | ✅ déployé |
+| Nom de domaine | **labatisse.art** (`labatisse.art` → `www.labatisse.art`) | ✅ actif |
 
 ---
 
@@ -132,8 +134,7 @@ Un site web avec compte personnel permettant de :
 - [ ] Notifications / rappels (TM en retard, séjour à venir)
 
 **Technique**
-- [ ] Déploiement sur Vercel + achat du nom de domaine
-- [ ] Configuration du webhook Stripe en production (`STRIPE_WEBHOOK_SECRET` de prod)
+- [ ] Vérifier la configuration de production : webhook Stripe (`STRIPE_WEBHOOK_SECRET` de prod), clés Stripe en mode live et non test, `NEXT_PUBLIC_APP_URL` sur `https://www.labatisse.art`, URL de redirection Google OAuth autorisée dans Supabase
 - [ ] Peuplement initial : liste des **chambres**, des **contacts**, contenu du **guide**
 - [ ] **Durcir la sécurité** (voir §7) : le montant de la TS est aujourd'hui calculé et inséré côté client
 - [ ] Tests et intégration continue
@@ -267,7 +268,7 @@ Ces éléments ont été codés avec des valeurs provisoires ou sont restés en 
 9. **Périmètre exact du mode invité** et de l'accès « Ami de la famille » : que peuvent-ils voir précisément ?
 10. **Validation des inscriptions** — n'importe qui peut aujourd'hui créer un compte en cochant « Famille Lalande ». Faut-il une validation par un administrateur ?
 11. **Compte bancaire** — quelle banque, et l'accès à un agrégateur est-il envisageable pour le rapprochement automatique ?
-12. **Nom de domaine** — `labatisse.com` est-il disponible / à acheter ?
+12. **Ouverture aux utilisateurs** — le site est en ligne sur [www.labatisse.art](https://www.labatisse.art). A-t-il déjà été communiqué à la famille ? Les points de sécurité du §7 devraient être corrigés avant une ouverture large.
 
 ---
 
