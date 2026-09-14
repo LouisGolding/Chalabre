@@ -1,104 +1,106 @@
 # La Bâtisse — Runbook
 
-**For Nicor.** Written 14 September 2026. Everything in "What works" below was checked
-against the live system on that date — nothing is claimed from memory or from reading code.
+**Pour Nicor.** Rédigé le 14 septembre 2026. Tout ce qui figure dans « Ce qui fonctionne »
+a été vérifié sur le système en production à cette date — rien n'est affirmé de mémoire
+ni déduit de la lecture du code.
 
 ---
 
-## 1. What this project is
+## 1. Ce qu'est ce projet
 
-A private web app for the family house at Chalabre (Aude). Members sign in, book dates,
-and the app works out what they owe:
+Une application web privée pour la maison de famille à Chalabre (Aude). Les membres se
+connectent, réservent des dates, et l'application calcule ce qu'ils doivent :
 
-- **TS** (*taxe de séjour*) — per night, per guest. Rate depends on season and age:
-  summer 10 €/night for 16+, 5 € for under-16s with parents; winter 15 € / 10 €.
-  Summer runs 1 April – 30 October; winter 31 October – 31 March.
-- **TM** (*contribution mensuelle*) — a fixed monthly amount per member: 40, 80 or 120 €.
+- **TS** (*taxe de séjour*) — par nuit et par personne. Le tarif dépend de la saison et de
+  l'âge : été 10 €/nuit pour les 16 ans et plus, 5 € pour les moins de 16 ans accompagnés
+  de leurs parents ; hiver 15 € / 10 €. L'été court du 1er avril au 30 octobre, l'hiver du
+  31 octobre au 31 mars.
+- **TM** (*contribution mensuelle*) — un montant fixe par membre et par mois : 40, 80 ou 120 €.
 
-There are also pages for the planning calendar, budget, documents, contacts and a house log.
+S'y ajoutent les pages planning, budget, documents, contacts et journal de la maison.
 
-**Stack:** Next.js 16.2.2 (App Router), Supabase (Postgres + auth), Stripe (test mode only),
-Tailwind, deployed on Vercel. The UI is in French.
+**Stack :** Next.js 16.2.2 (App Router), Supabase (Postgres + authentification), Stripe
+(en mode test uniquement), Tailwind, déployé sur Vercel. L'interface est en français.
 
 ---
 
-## 2. Where things live
+## 2. Où se trouvent les choses
 
-| What | Where |
+| Quoi | Où |
 |---|---|
 | Code | https://github.com/LouisGolding/Chalabre |
-| Live site | https://www.labatisse.art (the bare domain redirects to `www`) |
-| Database + auth | Supabase project `fkkzqdthtepphxbnlgqv` ("Louisko's Project") |
-| Hosting | Vercel, deploys automatically from `main` |
-| Payments | Stripe, **test mode only** |
+| Site en ligne | https://www.labatisse.art (le domaine sans `www` redirige vers `www`) |
+| Base de données + auth | Projet Supabase `fkkzqdthtepphxbnlgqv` (« Louisko's Project ») |
+| Hébergement | Vercel, déploiement automatique depuis `main` |
+| Paiements | Stripe, **mode test uniquement** |
 
 ---
 
-## 3. What happened in September 2026
+## 3. Ce qui s'est passé en septembre 2026
 
-The project sat untouched for about five months. Supabase pauses free-tier projects after
-7 days without a request, and a paused project has its DNS withdrawn — so from the outside
-it looked deleted. Louis restored it; no data was lost.
+Le projet est resté cinq mois sans être touché. Supabase met en pause les projets du plan
+gratuit au bout de 7 jours sans requête, et un projet en pause voit son DNS retiré — vu de
+l'extérieur, il semblait donc supprimé. Louis l'a restauré ; aucune donnée n'a été perdue.
 
-Restoring it revealed a set of real bugs, which have now been fixed:
+La restauration a mis au jour plusieurs bugs bien réels, désormais corrigés :
 
-- The signup trigger only read the fields the **email** signup form sends. Google sends
-  different field names, so every Google account was created with **blank names** and a
-  **birth date equal to the signup date**. Since the booking rate is derived from age, those
-  members would have been charged the under-16 rate.
-- The same trigger gave every Google signup the `family` role even when it had recorded them
-  as `friend`, because a SQL comparison against a missing value returns "unknown" rather than
-  "false" and fell through to the wrong branch.
-- Two database views (`all_payments`, `user_balances`) ignored the access rules and were
-  readable **by anyone on the internet**, with no login — names, family groups and payment
-  balances. This is fixed.
-- A row-level security policy had no write-check, so any member could have set their own
-  `role` to `admin` or lowered their own monthly contribution tier. This is fixed.
-- The Stripe webhook was being redirected to the login page, and when it did run it wrote
-  with a key that the access rules silently blocked. Both fixed.
-- Next.js 16 renamed the `middleware` file convention to `proxy`; done.
+- Le trigger d'inscription ne lisait que les champs envoyés par le formulaire **e-mail**.
+  Google envoie des noms de champs différents : chaque compte Google était donc créé avec un
+  **nom vide** et une **date de naissance égale au jour de l'inscription**. Comme le tarif de
+  réservation se déduit de l'âge, ces membres auraient été facturés au tarif « moins de 16 ans ».
+- Le même trigger attribuait le rôle `family` à toute inscription Google, alors même qu'il les
+  enregistrait comme `friend` : en SQL, une comparaison avec une valeur absente renvoie
+  « inconnu » et non « faux », et le test tombait donc dans la mauvaise branche.
+- Deux vues de la base (`all_payments`, `user_balances`) ignoraient les règles d'accès et
+  étaient lisibles **par n'importe qui sur Internet**, sans connexion : noms, groupes de
+  famille et soldes de paiement. C'est corrigé.
+- Une règle d'accès (RLS) n'avait pas de contrôle en écriture : n'importe quel membre pouvait
+  se donner le rôle `admin` ou baisser sa propre contribution mensuelle. C'est corrigé.
+- Le webhook Stripe était redirigé vers la page de connexion, et lorsqu'il s'exécutait il
+  écrivait avec une clé que les règles d'accès bloquaient silencieusement. Les deux sont corrigés.
+- Next.js 16 a renommé la convention de fichier `middleware` en `proxy` ; c'est fait.
 
 ---
 
-## 4. What works
+## 4. Ce qui fonctionne
 
-**Every item here was checked on 14 September 2026 at ~09:00 UTC.** The check itself is
-written next to each one so you can repeat it.
+**Chaque point ci-dessous a été vérifié le 14 septembre 2026 vers 09h00 UTC.** La vérification
+elle-même est indiquée à côté, pour que tu puisses la refaire.
 
-### Database and access rules
+### Base de données et règles d'accès
 
-| Verified | How it was checked |
+| Vérifié | Comment |
 |---|---|
-| The Supabase project is live and answering | `GET /auth/v1/health` → 200 |
-| Google sign-in and email sign-in are **configured** (see §5 — configured is not the same as tested) | `GET /auth/v1/settings` → `google: true`, `email: true`, signups open, email confirmation required |
-| The public "leak" is closed | `GET /rest/v1/user_balances` and `/all_payments` with only the public key → **401 permission denied** |
-| Ordinary tables correctly return nothing to a stranger | Same request against `profiles`, `bookings`, `ts_payments`, `tm_payments`, `payment_events` → 200 with an empty list `[]` |
-| All four member profiles have real names | Read back via the service key: Louis Golding, Nicolas Lalande, Marius Kronenwett, Roméo Wilsius |
-| Louis holds the `admin` role | Same read — before this work, nobody did |
-| The two new safety triggers are installed | SQL query against `pg_trigger`: `on_auth_user_created` and `profiles_protect_privileges`, both `security definer` with `search_path` pinned |
-| Both views now run as the caller | SQL query against `pg_class`: `security_invoker=on` on both |
-| The two existing bookings are billed correctly | 3 nights in May = 30 €, 9 nights in October = 90 €, both at the adult summer rate of 10 €/night. Both belong to the one account that always had a correct birth date, so **no one was ever undercharged in practice** |
+| Le projet Supabase est actif et répond | `GET /auth/v1/health` → 200 |
+| La connexion Google et la connexion e-mail sont **configurées** (voir §5 — configuré ne veut pas dire testé) | `GET /auth/v1/settings` → `google: true`, `email: true`, inscriptions ouvertes, confirmation e-mail requise |
+| La fuite publique est colmatée | `GET /rest/v1/user_balances` et `/all_payments` avec la seule clé publique → **401 permission denied** |
+| Les tables ordinaires ne renvoient bien rien à un inconnu | Même requête sur `profiles`, `bookings`, `ts_payments`, `tm_payments`, `payment_events` → 200 avec une liste vide `[]` |
+| Les quatre profils ont de vrais noms | Relecture via la clé service : Louis Golding, Nicolas Lalande, Marius Kronenwett, Roméo Wilsius |
+| Louis a le rôle `admin` | Même lecture — avant ces travaux, personne ne l'avait |
+| Les deux nouveaux triggers de sécurité sont installés | Requête SQL sur `pg_trigger` : `on_auth_user_created` et `profiles_protect_privileges`, tous deux `security definer` avec `search_path` figé |
+| Les deux vues s'exécutent désormais avec les droits de l'appelant | Requête SQL sur `pg_class` : `security_invoker=on` sur les deux |
+| Les deux réservations existantes sont facturées correctement | 3 nuits en mai = 30 €, 9 nuits en octobre = 90 €, toutes deux au tarif adulte d'été de 10 €/nuit. Elles appartiennent au seul compte qui a toujours eu une date de naissance correcte : **personne n'a donc été sous-facturé dans les faits** |
 
-### The live site (as a logged-out visitor)
+### Le site en ligne (en visiteur non connecté)
 
-| Path | Result |
+| Chemin | Résultat |
 |---|---|
 | `/` | 307 → `/auth/login` |
 | `/auth/login`, `/auth/register`, `/auth/verify-email` | 200 |
-| `/dashboard`, `/dashboard/admin`, `/auth/completer-profil` | 307 → `/auth/login` (correctly protected) |
-| `POST /api/stripe/webhook` | 400 "no signature" — i.e. it **reaches its own handler** instead of being bounced to the login page, which was the bug |
+| `/dashboard`, `/dashboard/admin`, `/auth/completer-profil` | 307 → `/auth/login` (correctement protégés) |
+| `POST /api/stripe/webhook` | 400 « no signature » — autrement dit il **atteint bien son propre handler** au lieu d'être renvoyé vers la page de connexion, ce qui était le bug |
 
-### The code
+### Le code
 
-| Verified | How |
+| Vérifié | Comment |
 |---|---|
-| TypeScript compiles with no errors | `npx tsc --noEmit` |
-| Production build succeeds | `npm run build` |
-| Everything is committed and pushed | local `HEAD` = `origin/main` = `6ae7e21`, 0 uncommitted files |
+| TypeScript compile sans erreur | `npx tsc --noEmit` |
+| Le build de production réussit | `npm run build` |
+| Tout est commité et poussé | `HEAD` local = `origin/main`, 0 fichier non commité |
 
-### Pushed to GitHub
+### Publié sur Git
 
-Yes — confirmed in sync. Three commits are on `main`:
+Oui — vérifié, le dépôt est à jour. Trois commits de correction sont sur `main` :
 
 ```
 6ae7e21  feat(db): auth trigger, profile repair and view-security migrations
@@ -106,40 +108,41 @@ Yes — confirmed in sync. Three commits are on `main`:
 4d9b95f  fix(auth): repair sign-in flow and migrate middleware to proxy
 ```
 
-Vercel has deployed them — confirmed by `/auth/completer-profil` existing in production,
-which is a route that only exists in this new code.
+Vercel les a déployés — confirmé par l'existence de `/auth/completer-profil` en production,
+une route qui n'existe que dans ce nouveau code.
 
 ---
 
-## 5. What has NOT been tested
+## 5. Ce qui n'a PAS été testé
 
-This section matters more than the last one. **Nobody has actually signed in at any point
-during this work** — there was no password to use. So the following are written, built and
-deployed, but unproven end to end:
+Cette section compte davantage que la précédente. **Personne ne s'est réellement connecté à
+aucun moment pendant ces travaux** — il n'y avait aucun mot de passe à disposition. Les points
+suivants sont donc écrits, compilés et déployés, mais non éprouvés de bout en bout :
 
-- **Signing in with Google.** Configured, never completed.
-- **Signing up or signing in with email.** Same.
-- **The "Compléter mon profil" screen.** The page exists and correctly redirects a
-  logged-out visitor, but the form has never been submitted, so the save path is untested.
-- **Any dashboard page rendering with a real session** — planning, budget, documents,
-  contacts, admin. None has ever been seen with data in it.
-- **Making a booking through the UI.**
-- **Any Stripe payment.** The webhook secret is still a placeholder (see §7), so no Stripe
-  event has ever been verified by this app.
-- **The privilege guard, behaviourally.** It was confirmed *installed* by querying the
-  database, and the logic was reviewed — but proving it actually blocks a member from
-  promoting themselves would need a signed-in session.
+- **La connexion avec Google.** Configurée, jamais menée à son terme.
+- **L'inscription et la connexion par e-mail.** Idem.
+- **L'écran « Compléter mon profil ».** La page existe et redirige correctement un visiteur non
+  connecté, mais le formulaire n'a jamais été soumis : le chemin d'enregistrement est non testé.
+- **L'affichage des pages du tableau de bord avec une vraie session** — planning, budget,
+  documents, contacts, admin. Aucune n'a jamais été vue avec des données dedans.
+- **La création d'une réservation depuis l'interface.**
+- **Tout paiement Stripe.** Le secret du webhook est encore un placeholder (voir §7) : aucun
+  événement Stripe n'a jamais été vérifié par l'application.
+- **Le garde-fou des privilèges, en conditions réelles.** Sa présence a été confirmée en
+  interrogeant la base, et sa logique a été relue — mais prouver qu'il empêche effectivement un
+  membre de se promouvoir demanderait une session connectée.
 
-If you take one thing from this document: **the first job is to sign in and walk through the
-app.** That is the cheapest way to turn most of this section into the previous one.
+Si tu ne retiens qu'une chose de ce document : **la première tâche est de te connecter et de
+parcourir l'application.** C'est le moyen le moins coûteux de faire basculer l'essentiel de
+cette section dans la précédente.
 
 ---
 
-## 6. What exists but is empty
+## 6. Ce qui existe mais est vide
 
-Not bugs — nobody ever entered the data. Checked 14 September:
+Ce ne sont pas des bugs : les données n'ont simplement jamais été saisies. Relevé le 14 septembre :
 
-| Table | Rows |
+| Table | Lignes |
 |---|---|
 | `profiles` | 4 |
 | `bookings` | 2 |
@@ -147,46 +150,50 @@ Not bugs — nobody ever entered the data. Checked 14 September:
 | `rooms` | **0** |
 | `events`, `tasks`, `contacts`, `documents`, `budget_entries`, `house_log`, `booking_guests`, `tm_payments`, `payment_events` | **0** |
 
-Consequences worth knowing:
+Conséquences à connaître :
 
-- **No rooms** means the room dropdown on the booking form is empty. Bookings still save
-  (the room is optional), but nobody can record where they slept.
-- **No `tm_tier` on any member** means no monthly contribution can be raised against anyone.
-- There is **no admin screen** for adding rooms or setting contribution tiers. Both have to
-  be done in SQL today. Building those screens is a good first task.
-
----
-
-## 7. Known issues and rough edges
-
-- **`STRIPE_WEBHOOK_SECRET` is literally a placeholder** (`whsec_placeholder…`). Until a real
-  endpoint is created in Stripe and the signing secret copied in, payments will never be
-  recorded. Everything is on test keys, so no real money has ever moved.
-- **Three members still have a placeholder birth date** of `1900-01-01`. This is deliberate,
-  not a leftover: it reads as an adult, so the booking rate is correct, and it is what makes
-  the app route each of them once through "Compléter mon profil" to enter the real date.
-  It clears itself as each person signs in.
-- **Louis is recorded as `family_group = friend`**, which is probably wrong. It corrects
-  itself when he completes his profile.
-- **12 ESLint errors**, none of them fatal — `npm run build` passes. One is a real bug:
-  `src/components/layout/Sidebar.tsx` defines a component inside its own render function,
-  which remounts the whole navigation on every render.
-- **A stale branch**, `docs/readme-fr`, exists on the remote and is fully merged into `main`.
-  Safe to delete.
-- **The README is out of date** — it lists two SQL files where there are now five, and
-  predates the `middleware` → `proxy` rename.
+- **Aucune chambre** : la liste déroulante des chambres du formulaire de réservation est vide.
+  Les réservations s'enregistrent quand même (la chambre est facultative), mais personne ne peut
+  indiquer où il a dormi.
+- **Aucun `tm_tier` défini** : aucune contribution mensuelle ne peut être appelée auprès de qui
+  que ce soit.
+- Il n'existe **aucun écran d'administration** pour ajouter des chambres ou fixer les paliers de
+  contribution. Les deux se font aujourd'hui en SQL. Construire ces écrans est une bonne première
+  tâche.
 
 ---
 
-## 8. Running it locally
+## 7. Problèmes connus et aspérités
+
+- **`STRIPE_WEBHOOK_SECRET` est littéralement un placeholder** (`whsec_placeholder…`). Tant qu'un
+  vrai endpoint n'est pas créé côté Stripe et sa clé de signature recopiée, aucun paiement ne sera
+  enregistré. Tout est en clés de test : aucun argent réel n'a jamais transité.
+- **Trois membres ont encore une date de naissance provisoire** au `1900-01-01`. C'est
+  volontaire, ce n'est pas un résidu : cette date est lue comme celle d'un adulte, donc le tarif
+  de réservation est correct, et c'est elle qui fait passer chacun une fois par « Compléter mon
+  profil » pour saisir la vraie date. Cela se résorbe à mesure que chacun se connecte.
+- **Louis est enregistré avec `family_group = friend`**, ce qui est probablement faux. Cela se
+  corrigera quand il complétera son profil.
+- **12 erreurs ESLint**, aucune bloquante — `npm run build` passe. L'une d'elles est un vrai bug :
+  `src/components/layout/Sidebar.tsx` définit un composant à l'intérieur de sa propre fonction de
+  rendu, ce qui remonte toute la navigation à chaque rendu.
+- **Une branche morte**, `docs/readme-fr`, subsiste sur le dépôt distant et est entièrement
+  fusionnée dans `main`. Elle peut être supprimée sans risque.
+- **Le README est périmé** — il mentionne deux fichiers SQL là où il y en a désormais cinq, et il
+  est antérieur au renommage `middleware` → `proxy`.
+
+---
+
+## 8. Lancer le projet en local
 
 ```bash
 npm install
 npm run dev      # http://localhost:3000
 ```
 
-You need a `.env.local` file in the project root. **It is not in the repo and must never be
-committed.** Ask Louis for the values, or read them from the Supabase dashboard yourself:
+Il te faut un fichier `.env.local` à la racine du projet. **Il n'est pas dans le dépôt et ne
+doit jamais y être commité.** Demande les valeurs à Louis, ou lis-les toi-même depuis le
+tableau de bord Supabase :
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=
@@ -198,81 +205,89 @@ STRIPE_WEBHOOK_SECRET=
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Two of those are sensitive in different ways. The **anon / publishable** key is designed to
-be public — it is already visible in the site's JavaScript. The **service role** key bypasses
-every access rule in the database; treat it like a password and never put it in client code.
+Deux de ces clés sont sensibles, mais pas de la même manière. La clé **anon / publishable** est
+conçue pour être publique — elle est déjà visible dans le JavaScript du site. La clé **service
+role** contourne toutes les règles d'accès de la base : traite-la comme un mot de passe et ne la
+mets jamais dans du code côté navigateur.
 
 ---
 
-## 9. The database migrations
+## 9. Les migrations de base de données
 
-Files live in `supabase/`. **All five are already applied to the live database.**
+Les fichiers sont dans `supabase/`. **Les cinq sont déjà appliqués à la base en production.**
 
-| File | Status |
+| Fichier | État |
 |---|---|
-| `schema.sql` | Applied. **Never run again** |
-| `migration_payment_tracking.sql` | Applied. **Never run again** |
-| `migration_view_security.sql` | Applied |
-| `migration_auth_fix.sql` | Applied |
-| `migration_profile_repair.sql` | Applied |
+| `schema.sql` | Appliqué. **À ne jamais relancer** |
+| `migration_payment_tracking.sql` | Appliqué. **À ne jamais relancer** |
+| `migration_view_security.sql` | Appliqué |
+| `migration_auth_fix.sql` | Appliqué |
+| `migration_profile_repair.sql` | Appliqué |
 
-> **Why "never again" for the first two:** their `create table` and `create policy` statements
-> have no "if it doesn't already exist" guard, so re-running them fails partway through and
-> leaves you unsure which half took effect. The other three are written to be safely re-runnable.
+> **Pourquoi « jamais » pour les deux premiers :** leurs instructions `create table` et
+> `create policy` n'ont pas de garde « si ça n'existe pas déjà ». Les relancer échoue donc en
+> cours de route et te laisse sans savoir quelle moitié a été appliquée. Les trois autres sont
+> écrits pour pouvoir être rejoués sans risque.
 
-If you need a schema change, write a **new** file rather than editing an existing one, and run
-it in the Supabase SQL editor (Project → SQL Editor → New query).
-
----
-
-## 10. Things that will bite you
-
-1. **The project pauses after 7 days of inactivity.** This is what took the site down for five
-   months. Either it goes on a paid plan, or somebody opens the app at least monthly. This is
-   the single biggest risk to the project.
-2. **Environment variables on Vercel do not take effect until you redeploy.** Anything starting
-   `NEXT_PUBLIC_` is baked into the JavaScript at build time. Change a value, and the live site
-   keeps using the old one until a new build runs.
-3. **Use `www.labatisse.art`, not the bare domain**, anywhere a URL has to be registered
-   (Supabase redirect list, Stripe webhook, Google OAuth). The bare domain 307-redirects, and
-   that breaks sign-in returns.
-4. **This is not the Next.js you may know.** Version 16 renamed `middleware.ts` to `proxy.ts`
-   and made several request APIs async. `AGENTS.md` in the repo says the same thing, and the
-   real documentation is bundled at `node_modules/next/dist/docs/` — read that rather than
-   relying on older knowledge.
+Pour toute modification du schéma, écris un **nouveau** fichier plutôt que de modifier un
+existant, et exécute-le dans l'éditeur SQL de Supabase (Project → SQL Editor → New query).
 
 ---
 
-## 11. Good first tasks
+## 10. Les pièges
 
-Roughly easiest first:
-
-1. **Sign in and walk the whole app.** Turn §5 into §4. Write down anything that breaks.
-2. **Add the rooms** (currently SQL-only — see §6).
-3. **An admin screen for rooms**, so nobody has to touch SQL for this again.
-4. **An admin screen for contribution tiers**, same reasoning.
-5. **Fix the 12 ESLint errors**, starting with the `Sidebar.tsx` one, which is a real bug.
-6. **Refresh the README** so it matches §9.
-
----
-
-## 12. Working on this with Claude Code
-
-Both of us are using it, so a few notes that will save you time:
-
-- The repo has an `AGENTS.md` that Claude Code reads automatically. It warns that this version
-  of Next.js differs from what the model may remember, and points at the bundled docs. Trust
-  that over anything it tells you from memory about Next.js.
-- **Ask it to verify, not just to assert.** The distinction between §4 and §5 in this document
-  is exactly that. "It builds" and "it works" are different claims; a passing build says
-  nothing about whether a user can log in.
-- Claude Code can read the live database through the Supabase REST API if you give it the keys
-  from `.env.local`, which makes checking real state easy. It **cannot** run schema changes that
-  way — those go through the SQL editor in the browser.
-- When it proposes a database change, ask what happens if the file is run twice. That is the
-  difference between the three safe migrations and the two that must never be re-run.
+1. **Le projet se met en pause après 7 jours d'inactivité.** C'est ce qui a mis le site hors
+   ligne pendant cinq mois. Soit il passe sur une formule payante, soit quelqu'un ouvre
+   l'application au moins une fois par mois. C'est le principal risque qui pèse sur le projet.
+2. **Les variables d'environnement Vercel ne prennent effet qu'après un redéploiement.** Tout ce
+   qui commence par `NEXT_PUBLIC_` est figé dans le JavaScript au moment du build. Change une
+   valeur, et le site en ligne continue d'utiliser l'ancienne tant qu'un nouveau build n'a pas
+   tourné.
+3. **Utilise `www.labatisse.art`, pas le domaine nu**, partout où une URL doit être déclarée
+   (liste de redirections Supabase, webhook Stripe, OAuth Google). Le domaine nu fait une
+   redirection 307, et cela casse les retours de connexion.
+4. **Ce n'est pas le Next.js que tu connais peut-être.** La version 16 a renommé `middleware.ts`
+   en `proxy.ts` et rendu plusieurs API de requête asynchrones. Le fichier `AGENTS.md` du dépôt
+   dit la même chose, et la vraie documentation est embarquée dans
+   `node_modules/next/dist/docs/` — lis celle-là plutôt que de te fier à des connaissances plus
+   anciennes.
 
 ---
 
-*Questions about anything above go to Louis. If something in §4 turns out not to be true,
-say so — it was checked once, on one date, and the world moves.*
+## 11. Bonnes premières tâches
+
+De la plus simple à la plus ambitieuse :
+
+1. **Se connecter et parcourir toute l'application.** Faire basculer la §5 dans la §4. Noter tout
+   ce qui casse.
+2. **Ajouter les chambres** (aujourd'hui uniquement en SQL — voir §6).
+3. **Un écran d'administration pour les chambres**, pour que plus personne n'ait à toucher au SQL.
+4. **Un écran d'administration pour les paliers de contribution**, même raisonnement.
+5. **Corriger les 12 erreurs ESLint**, en commençant par celle de `Sidebar.tsx`, qui est un vrai bug.
+6. **Mettre le README à jour** pour qu'il corresponde à la §9.
+
+---
+
+## 12. Travailler sur ce projet avec Claude Code
+
+On l'utilise tous les deux, donc quelques remarques qui te feront gagner du temps :
+
+- Le dépôt contient un `AGENTS.md` que Claude Code lit automatiquement. Il prévient que cette
+  version de Next.js diffère de ce dont le modèle peut se souvenir, et renvoie vers la
+  documentation embarquée. Fais-y confiance plutôt qu'à ce qu'il t'affirmerait de mémoire
+  au sujet de Next.js.
+- **Demande-lui de vérifier, pas seulement d'affirmer.** La distinction entre les §4 et §5 de ce
+  document est exactement celle-là. « Ça compile » et « ça marche » sont deux affirmations
+  différentes : un build qui passe ne dit rien de la capacité d'un utilisateur à se connecter.
+- Claude Code peut lire la base en production via l'API REST de Supabase si tu lui donnes les
+  clés de `.env.local` — c'est très pratique pour vérifier l'état réel. En revanche il **ne peut
+  pas** exécuter de modification de schéma par ce biais : cela passe par l'éditeur SQL dans le
+  navigateur.
+- Quand il propose une modification de base de données, demande-lui ce qui se passe si le fichier
+  est exécuté deux fois. C'est toute la différence entre les trois migrations rejouables et les
+  deux à ne jamais relancer.
+
+---
+
+*Pour toute question sur ce qui précède, vois avec Louis. Si un point de la §4 s'avère faux,
+dis-le — il a été vérifié une fois, à une date donnée, et les choses bougent.*
