@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import Stripe from 'stripe'
 
 export async function POST(request: Request) {
@@ -23,7 +23,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  const supabase = await createClient()
+  // Stripe sends no session cookie, so the anon-key client would be treated as
+  // an unauthenticated user and RLS would silently discard every write below.
+  const supabase = createAdminClient()
+
+  // Returning 200 on a failed write would tell Stripe the event was handled and
+  // it would never retry, so failures have to surface as a 5xx.
+  const failures: string[] = []
+  const check = (label: string) => ({ error }: { error: { message: string } | null }) => {
+    if (error) failures.push(`${label}: ${error.message}`)
+  }
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session
@@ -61,8 +70,10 @@ export async function POST(request: Request) {
 
     if (payment_type === 'ts') {
       await supabase.from('ts_payments').update(updateData).eq('id', payment_id)
+        .then(check('ts_payments.update'))
     } else if (payment_type === 'tm') {
       await supabase.from('tm_payments').update(updateData).eq('id', payment_id)
+        .then(check('tm_payments.update'))
     }
 
     // Logger l'événement dans payment_events
@@ -77,7 +88,7 @@ export async function POST(request: Request) {
       stripe_payment_intent_id: paymentIntentId,
       status: 'success',
       raw_payload: event as unknown as Record<string, unknown>,
-    })
+    }).then(check('payment_events.insert'))
   }
 
   // Gérer les paiements échoués
@@ -92,10 +103,12 @@ export async function POST(request: Request) {
         await supabase.from('ts_payments')
           .update({ status: 'overdue', failure_reason: failureReason })
           .eq('id', payment_id)
+          .then(check('ts_payments.update'))
       } else if (payment_type === 'tm') {
         await supabase.from('tm_payments')
           .update({ status: 'overdue', failure_reason: failureReason })
           .eq('id', payment_id)
+          .then(check('tm_payments.update'))
       }
 
       await supabase.from('payment_events').insert({
@@ -107,8 +120,13 @@ export async function POST(request: Request) {
         stripe_payment_intent_id: pi.id,
         status: 'failed',
         raw_payload: event as unknown as Record<string, unknown>,
-      })
+      }).then(check('payment_events.insert'))
     }
+  }
+
+  if (failures.length > 0) {
+    console.error(`[stripe/webhook] ${event.id} ${event.type}: ${failures.join('; ')}`)
+    return NextResponse.json({ error: 'Database write failed' }, { status: 500 })
   }
 
   return NextResponse.json({ received: true })
