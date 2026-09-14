@@ -35,12 +35,16 @@ export default function RegisterPage() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true)
     setError(null)
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+    if (error) {
+      setError('La connexion Google est indisponible pour le moment.')
+      setGoogleLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,7 +66,7 @@ export default function RegisterPage() {
 
     setLoading(true)
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: {
@@ -79,9 +83,26 @@ export default function RegisterPage() {
     if (error) {
       setError(error.message)
       setLoading(false)
-    } else {
-      router.push('/auth/verify-email')
+      return
     }
+
+    // With confirmations on, an address that already exists comes back as a
+    // decoy user with no identities rather than an error.
+    if (data.user && data.user.identities?.length === 0) {
+      setError('Un compte existe déjà avec cet email. Connectez-vous.')
+      setLoading(false)
+      return
+    }
+
+    // Confirmations disabled in Supabase: signUp already returned a session,
+    // so the "vérifiez votre email" page would be a dead end.
+    if (data.session) {
+      router.push('/dashboard')
+      router.refresh()
+      return
+    }
+
+    router.push('/auth/verify-email')
   }
 
   return (

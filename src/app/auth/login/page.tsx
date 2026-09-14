@@ -1,14 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Eye, EyeOff } from 'lucide-react'
 import { getSeason } from '@/lib/utils'
@@ -21,6 +20,24 @@ const seasonImage: Record<string, string> = {
 function getCurrentSeasonImage() {
   const season = getSeason(new Date())
   return seasonImage[season] ?? seasonImage.summer
+}
+
+// Codes set by /auth/callback when a Google or email link fails.
+const callbackErrors: Record<string, string> = {
+  oauth: 'La connexion Google a échoué. Veuillez réessayer.',
+  exchange: 'Session impossible à ouvrir. Veuillez vous reconnecter.',
+  otp: 'Ce lien a expiré ou a déjà été utilisé.',
+  invalid: 'Lien de connexion invalide.',
+}
+
+function CallbackError() {
+  const code = useSearchParams().get('error')
+  if (!code) return null
+  return (
+    <p className="text-sm text-red-600 mb-4">
+      {callbackErrors[code] ?? 'La connexion a échoué. Veuillez réessayer.'}
+    </p>
+  )
 }
 
 export default function LoginPage() {
@@ -44,16 +61,22 @@ export default function LoginPage() {
       setLoading(false)
     } else {
       router.push('/dashboard')
+      // Server components cached the signed-out session; drop that cache.
+      router.refresh()
     }
   }
 
   const handleGoogleLogin = async () => {
     setGoogleLoading(true)
     setError(null)
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     })
+    if (error) {
+      setError('La connexion Google est indisponible pour le moment.')
+      setGoogleLoading(false)
+    }
   }
 
   return (
@@ -95,6 +118,10 @@ export default function LoginPage() {
 
           <h2 className="text-2xl font-bold text-stone-800 mb-1">Connexion</h2>
           <p className="text-stone-400 text-sm mb-6">Entrez vos identifiants pour accéder à La Bâtisse</p>
+
+          <Suspense fallback={null}>
+            <CallbackError />
+          </Suspense>
 
           <Button
             type="button"
