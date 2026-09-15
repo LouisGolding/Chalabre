@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Home, Calendar, Users, TrendingUp } from 'lucide-react'
+import { Calendar, Users, TrendingUp } from 'lucide-react'
+import { NextStayCard } from '@/components/dashboard/NextStayCard'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -28,7 +29,13 @@ export default async function DashboardPage() {
   const today = new Date()
   const pastBookings = bookings?.filter(b => new Date(b.check_out) < today) ?? []
   const futureBookings = bookings?.filter(b => new Date(b.check_in) >= today) ?? []
-  const nextBooking = futureBookings[0]
+  // Séjour du titulaire du compte (widget principal) vs séjours ajoutés
+  // pour des accompagnants (guest_name renseigné) via le bouton "+".
+  const myFutureBookings = futureBookings.filter(b => !b.guest_name)
+  const guestFutureBookings = futureBookings
+    .filter(b => b.guest_name)
+    .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
+  const nextBooking = myFutureBookings[0]
   const lastBooking = pastBookings[pastBookings.length - 1]
 
   // Get current occupants
@@ -67,8 +74,11 @@ export default async function DashboardPage() {
         <p className="text-stone-500 mt-1">Bienvenue à La Bâtisse</p>
       </div>
 
+      {/* Prochain séjour et taxe de séjour */}
+      <NextStayCard profile={profile} booking={nextBooking ?? null} guestBookings={guestFutureBookings} />
+
       {/* Quick stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Dernier séjour</CardTitle>
@@ -81,25 +91,6 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <p className="text-stone-400 text-sm">Aucun séjour</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Prochain séjour</CardTitle>
-            <Home className="h-4 w-4 text-stone-400" />
-          </CardHeader>
-          <CardContent>
-            {nextBooking ? (
-              <div>
-                <div className="text-lg font-semibold text-stone-700">
-                  {formatDate(nextBooking.check_in)}
-                </div>
-                <p className="text-xs text-stone-400">au {formatDate(nextBooking.check_out)}</p>
-              </div>
-            ) : (
-              <p className="text-stone-400 text-sm">Aucun séjour prévu</p>
             )}
           </CardContent>
         </Card>
@@ -178,6 +169,9 @@ export default async function DashboardPage() {
                 <div key={booking.id} className="flex items-center justify-between py-2 border-b last:border-0">
                   <div>
                     <p className="font-medium text-stone-700">
+                      {booking.guest_name && (
+                        <span className="text-stone-400 font-normal">{booking.guest_name} · </span>
+                      )}
                       {formatDate(booking.check_in)} → {formatDate(booking.check_out)}
                     </p>
                   </div>

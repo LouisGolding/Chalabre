@@ -57,7 +57,13 @@ export default function LoginPage() {
     setError(null)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
-      setError('Email ou mot de passe incorrect.')
+      if (error.message === 'Invalid login credentials') {
+        setError('Email ou mot de passe incorrect.')
+      } else if (error.message === 'Email not confirmed') {
+        setError('Adresse e-mail non confirmée — vérifie ta boîte mail (et les spams).')
+      } else {
+        setError(error.message)
+      }
       setLoading(false)
     } else {
       router.push('/dashboard')
