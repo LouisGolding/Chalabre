@@ -152,7 +152,13 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <p className="mt-6 text-sm text-foreground">
+            <p className="mt-4 text-sm text-foreground">
+              <Link href="/auth/reset-password" className="font-medium hover:opacity-60 transition-opacity">
+                Mot de passe oublié ?
+              </Link>
+            </p>
+
+            <p className="mt-2 text-sm text-foreground">
               Pas encore de compte ?{' '}
               <Link href="/auth/register" className="font-medium hover:opacity-60 transition-opacity">
                 S&apos;inscrire
