@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { HouseLogEntry } from '@/types'
 
@@ -389,44 +389,95 @@ function RealisationCard({
         <p className="mt-3 text-sm text-foreground whitespace-pre-wrap">{entry.content}</p>
       )}
 
-      {(entry.photos.length > 0 || canEdit) && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {entry.photos.map((photo) => (
-            <div key={photo.id} className="relative group">
-              <a href={photo.url} target="_blank" rel="noopener noreferrer">
-                {/* eslint-disable-next-line @next/next/no-img-element -- URLs signées temporaires, next/image n'apporte rien ici */}
-                <img src={photo.url} alt="" className="h-20 w-20 rounded-lg object-cover" />
-              </a>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => onDeletePhoto(photo.id)}
-                  aria-label="Supprimer cette photo"
-                  className="absolute -top-1.5 -right-1.5 rounded-full bg-foreground text-background p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          ))}
-          {canEdit && (
-            <label className="h-20 w-20 flex items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground cursor-pointer hover:text-foreground hover:border-foreground/40 transition-colors">
-              <Plus className="h-5 w-5" />
-              <input
-                ref={addPhotoInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  onAddPhotos(e.target.files)
-                  if (addPhotoInputRef.current) addPhotoInputRef.current.value = ''
-                }}
-              />
-            </label>
-          )}
-        </div>
+      {entry.photos.length > 0 && (
+        <PhotoCarousel photos={entry.photos} canEdit={canEdit} onDeletePhoto={onDeletePhoto} />
+      )}
+
+      {canEdit && (
+        <label className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground hover:border-foreground/40 transition-colors">
+          <Plus className="h-3.5 w-3.5" />
+          Ajouter des photos
+          <input
+            ref={addPhotoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              onAddPhotos(e.target.files)
+              if (addPhotoInputRef.current) addPhotoInputRef.current.value = ''
+            }}
+          />
+        </label>
       )}
     </article>
+  )
+}
+
+// Photos sous le texte du post, pleine largeur du widget, une à la fois —
+// flèches gauche/droite pour parcourir les autres (demandé par Nicolas le
+// 19/09/2026, en remplacement d'une première version en grille de
+// vignettes). L'index local se recale automatiquement si le nombre de
+// photos change (ex. suppression) pour ne jamais pointer hors limites.
+function PhotoCarousel({
+  photos,
+  canEdit,
+  onDeletePhoto,
+}: {
+  photos: { id: string; url: string }[]
+  canEdit: boolean
+  onDeletePhoto: (photoId: string) => void
+}) {
+  const [index, setIndex] = useState(0)
+  const safeIndex = Math.min(index, photos.length - 1)
+  const photo = photos[safeIndex]
+  if (!photo) return null
+
+  const goTo = (delta: number) => {
+    setIndex(((safeIndex + delta) % photos.length + photos.length) % photos.length)
+  }
+
+  return (
+    <div className="relative mt-3 w-full aspect-[4/3] overflow-hidden rounded-lg bg-muted">
+      <a href={photo.url} target="_blank" rel="noopener noreferrer">
+        {/* eslint-disable-next-line @next/next/no-img-element -- URLs signées temporaires, next/image n'apporte rien ici */}
+        <img src={photo.url} alt="" className="h-full w-full object-cover" />
+      </a>
+
+      {photos.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => goTo(-1)}
+            aria-label="Photo précédente"
+            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-foreground/60 p-1.5 text-background hover:bg-foreground/80 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => goTo(1)}
+            aria-label="Photo suivante"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-foreground/60 p-1.5 text-background hover:bg-foreground/80 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-foreground/60 px-2 py-0.5 text-[10px] font-medium text-background">
+            {safeIndex + 1} / {photos.length}
+          </div>
+        </>
+      )}
+
+      {canEdit && (
+        <button
+          type="button"
+          onClick={() => onDeletePhoto(photo.id)}
+          aria-label="Supprimer cette photo"
+          className="absolute right-2 top-2 rounded-full bg-foreground/60 p-1 text-background hover:bg-destructive transition-colors"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
   )
 }
