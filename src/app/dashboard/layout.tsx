@@ -49,21 +49,20 @@ export default async function DashboardLayout({
   // here with placeholder data that feeds the booking rate. Collect it first.
   if (isProfileIncomplete(profile)) redirect('/auth/completer-profil')
 
-  const isAdmin = profile.role === 'admin'
-
   return (
     <div className="min-h-screen">
       <TopBanner role={profile.role} />
       <main className="max-w-5xl mx-auto p-6 pt-20 pb-20 md:pt-32 md:pb-24">
         {children}
       </main>
-      {/* Bandeau du bas : "Adresse" pour tout le monde, "Membres" / "Suivi
-          paiements" en plus pour les admins (jamais dans le bandeau du
-          haut, commun à tout le monde) — voir BottomNav. Rendu pour tout
-          le monde depuis le 18/09/2026 (ajout de "Adresse"), d'où le
+      {/* Bandeau du bas : "Adresse" pour tout le monde, "Réalisations" en
+          plus pour admin/family (jamais les amis), "Membres" / "Suivi
+          paiements" en plus pour les admins seuls (jamais dans le bandeau
+          du haut, commun à tout le monde) — voir BottomNav. Rendu pour
+          tout le monde depuis le 18/09/2026 (ajout de "Adresse"), d'où le
           padding-bas du <main> désormais toujours actif, plus seulement
           pour les admins. */}
-      <BottomNav isAdmin={isAdmin} />
+      <BottomNav role={profile.role} />
     </div>
   )
 }

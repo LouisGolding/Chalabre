@@ -126,5 +126,14 @@ export interface HouseLogEntry {
   entry_type: 'info' | 'travaux' | 'evenement'
   created_by: string
   created_at: string
+  updated_at: string
   profile?: Profile
+  photos?: HouseLogPhoto[]
+}
+
+export interface HouseLogPhoto {
+  id: string
+  house_log_id: string
+  storage_path: string
+  created_at: string
 }
