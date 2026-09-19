@@ -1,7 +1,11 @@
 export type UserRole = 'admin' | 'family' | 'friend'
 export type FamilyGroup = 'lalande' | 'canat' | 'friend'
+// Côté de la maison où dort la personne pour un séjour donné (jamais
+// 'friend' : la maison n'a que deux côtés) — détermine sur quel compte
+// bancaire (Canat ou Lalande) la taxe de séjour du séjour est versée.
+export type HouseSide = 'lalande' | 'canat'
 export type PaymentStatus = 'pending' | 'paid' | 'overdue'
-export type TMTier = 40 | 80 | 120
+export type TMTier = 40 | 80 | 120 // encore utilisé par TMPayment.amount (paiements via Stripe)
 
 export interface Profile {
   id: string
@@ -11,7 +15,7 @@ export interface Profile {
   date_of_birth: string
   family_group: FamilyGroup
   role: UserRole
-  tm_tier: TMTier | null
+  tm_tier: number | null // montant libre depuis migration_tm_amount_libre.sql
   rib: string | null
   avatar_url: string | null
   created_at: string
@@ -32,6 +36,8 @@ export interface Booking {
   check_in: string
   check_out: string
   notes: string | null
+  guest_name?: string | null
+  house_side?: HouseSide | null
   created_at: string
   profile?: Profile
   room?: Room
@@ -86,6 +92,7 @@ export interface Task {
   description: string | null
   category: 'entretien' | 'reparation' | 'autre'
   priority: 'low' | 'medium' | 'high'
+  period: string | null // mois ou saison, voir src/lib/task-periods.ts
   completed: boolean
   created_by: string
   created_at: string
@@ -95,9 +102,12 @@ export interface Contact {
   id: string
   name: string
   role: string
+  category: string // voir src/lib/contact-categories.ts
   phone: string | null
   email: string | null
+  address: string | null
   notes: string | null
+  created_at: string
 }
 
 export interface Document {
