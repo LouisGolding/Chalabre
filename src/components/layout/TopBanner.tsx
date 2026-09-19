@@ -16,26 +16,55 @@ interface NavItem {
   hiddenForFriend?: boolean
 }
 
-// Onglets du site — ordre demandé par Nicolas le 19/09/2026 : Planning,
-// Guide de la maison, Tâches, Réalisations, Contacts, Budget, Documents.
-// Sur bureau, deux lignes séparées par des tirets, alignées à droite (4
-// puis 3, dans cet ordre) ; sur mobile, la même liste à plat dans le menu
-// plein écran. Remplace l'ancien montage fixe 2×3 d'Aurélie : Réalisations
-// ajoutée le 19/09/2026 en fait volontairement un 7e onglet ici plutôt que
-// dans le bandeau noir du bas (BottomNav), à la demande de Nicolas.
-const NAV_ROWS: NavItem[][] = [
-  [
-    { href: '/dashboard/planning', label: 'Planning' },
-    { href: '/dashboard/guide', label: 'Guide de la maison' },
-    { href: '/dashboard/taches', label: 'Tâches' },
-    { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
-  ],
-  [
-    { href: '/dashboard/contacts', label: 'Contact' },
-    { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
-    { href: '/dashboard/documents', label: 'Documents', hiddenForFriend: true },
-  ],
+// Onglets du site, à plat, dans l'ordre demandé par Nicolas le 19/09/2026 :
+// Planning, Guide de la maison, Tâches, Réalisations, Contacts, Budget,
+// Documents. Remplace l'ancien montage fixe 2×3 d'Aurélie — Réalisations,
+// ajoutée le 19/09/2026, en fait volontairement un 7e onglet ici plutôt
+// que dans le bandeau noir du bas (BottomNav), à la demande de Nicolas.
+//
+// Sur bureau, la liste est répartie automatiquement sur 2 lignes par
+// balancedRows() ci-dessous plutôt qu'en un point de coupure fixe : le
+// nombre d'onglets visibles varie selon le compte (un "invité" n'a que 4
+// des 7 onglets, cf. hiddenForFriend), et un découpage figé aurait tantôt
+// laissé une ligne bien plus longue que l'autre (ex. avec les 7 onglets,
+// mettre les 4 premiers sur la 1re ligne colle "Guide de la maison" et
+// "Réalisations" ensemble — bien plus long que la 2e ligne). Sur mobile,
+// la liste reste toujours à plat, dans l'ordre, peu importe la longueur.
+const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard/planning', label: 'Planning' },
+  { href: '/dashboard/guide', label: 'Guide de la maison' },
+  { href: '/dashboard/taches', label: 'Tâches' },
+  { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
+  { href: '/dashboard/contacts', label: 'Contact' },
+  { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
+  { href: '/dashboard/documents', label: 'Documents', hiddenForFriend: true },
 ]
+
+// Répartit une liste ordonnée d'onglets sur 2 lignes en choisissant le
+// point de coupure qui équilibre le mieux leur longueur totale (somme des
+// caractères des libellés, une approximation suffisante de la largeur
+// affichée — pas de mesure DOM réelle). On ne réordonne jamais les
+// onglets, seulement où la ligne se coupe : les points de coupure
+// possibles sont donc en nombre limité (au plus 6 ici), un simple essai de
+// chacun suffit. Ne change ni l'espacement entre les caractères ni entre
+// les mots — seule la répartition entre les deux lignes bouge.
+function balancedRows(items: NavItem[]): NavItem[][] {
+  if (items.length <= 1) return items.length === 1 ? [items] : []
+
+  const weight = (item: NavItem) => item.label.length
+  let bestSplit = 1
+  let bestDiff = Infinity
+  for (let split = 1; split < items.length; split++) {
+    const row1Weight = items.slice(0, split).reduce((sum, item) => sum + weight(item), 0)
+    const row2Weight = items.slice(split).reduce((sum, item) => sum + weight(item), 0)
+    const diff = Math.abs(row1Weight - row2Weight)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      bestSplit = split
+    }
+  }
+  return [items.slice(0, bestSplit), items.slice(bestSplit)]
+}
 
 // Bandeau fixe présent sur toutes les pages connectées.
 // - Bureau / paysage : logo + nom à gauche, onglets en toutes lettres à
@@ -62,10 +91,9 @@ export function TopBanner({ role }: { role: 'admin' | 'family' | 'friend' }) {
   // étendue à Réalisations le 19/09/2026) — les lignes vides possibles
   // s'affichent normalement, la mise en page ne dépend pas d'un nombre
   // fixe d'onglets.
-  const rows = isFriend
-    ? NAV_ROWS.map((row) => row.filter((item) => !item.hiddenForFriend)).filter((row) => row.length > 0)
-    : NAV_ROWS
-  const flatItems = rows.flat()
+  const visibleItems = isFriend ? NAV_ITEMS.filter((item) => !item.hiddenForFriend) : NAV_ITEMS
+  const rows = balancedRows(visibleItems)
+  const flatItems = visibleItems
 
   return (
     <>
