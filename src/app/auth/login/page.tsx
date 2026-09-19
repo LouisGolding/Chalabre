@@ -7,9 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 import { BatisseMark } from '@/components/layout/BatisseMark'
 import { Eye, EyeOff } from 'lucide-react'
 
-// Codes set by /auth/callback when a Google or email link fails.
+// Codes set by /auth/callback quand un lien d'e-mail échoue (connexion par
+// Google retirée le 19/09/2026 — 'oauth' ne devrait plus être déclenché en
+// pratique, gardé par sécurité si Supabase renvoie une erreur générique).
 const callbackErrors: Record<string, string> = {
-  oauth: 'La connexion Google a échoué. Veuillez réessayer.',
+  oauth: 'La connexion a échoué. Veuillez réessayer.',
   exchange: 'Session impossible à ouvrir. Veuillez vous reconnecter.',
   otp: 'Ce lien a expiré ou a déjà été utilisé.',
   invalid: 'Lien de connexion invalide.',

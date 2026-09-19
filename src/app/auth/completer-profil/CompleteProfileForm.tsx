@@ -63,7 +63,7 @@ export function CompleteProfileForm({ profile }: { profile: Profile }) {
           <CardHeader>
             <CardTitle>Compléter mon profil</CardTitle>
             <CardDescription>
-              Votre connexion Google ne transmet ni votre date de naissance ni votre groupe.
+              Il manque votre date de naissance ou votre groupe sur votre profil.
               Ces informations servent à calculer votre taxe de séjour.
             </CardDescription>
           </CardHeader>
