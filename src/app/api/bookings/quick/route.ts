@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { fallbackHueForName, nearbyHue } from '@/lib/colors'
 
 // Crée ou met à jour un séjour saisi depuis le widget "Prochain séjour" de
 // la page d'accueil (celui du titulaire du compte, ou un séjour ajouté pour
@@ -9,6 +10,70 @@ import { createClient } from '@/lib/supabase/server'
 // paiement "en attente" est créé/ajusté pour représenter le solde restant.
 // Si le solde est négatif (trop perçu), aucun paiement n'est créé — seul
 // l'affichage côté client le montre.
+//
+// houseSide ('canat' | 'lalande', demandé par Aurélie le 18/09/2026) :
+// indique de quel côté de la maison la personne dort, pour savoir sur
+// quel compte bancaire (Canat ou Lalande) verser la taxe de séjour de ce
+// séjour. Obligatoire pour enregistrer un séjour (voir migration
+// supabase/migration_bookings_house_side.sql, à appliquer par Louis).
+//
+// Mode développement : tant que NODE_ENV !== 'production' (donc en local,
+// via `npm run dev`), cette route ne touche jamais Supabase. Elle simule la
+// réponse attendue (même forme que la vraie) uniquement pour que l'interface
+// réagisse normalement pendant les tests, sans enregistrer la moindre
+// donnée dans la base partagée. En production (Vercel), le comportement
+// réel ci-dessous s'applique sans changement.
+const isDev = process.env.NODE_ENV !== 'production'
+
+// Couleur persistée par personne (demandé par Nicolas le 19/09/2026) : dès
+// qu'un accompagnant sans compte (ex. Otto) est saisi pour la première
+// fois via guestName, on lui attribue une couleur, proche de celle de la
+// personne qui saisit le séjour, et on la garde en mémoire (table
+// guest_people) pour tous les séjours suivants — voir
+// supabase/migration_guest_people.sql et src/lib/colors.ts. Si le nom
+// saisi correspond en réalité à un compte existant (ex. un enfant inscrit
+// dont un parent saisit les séjours), on ne crée rien : sa couleur de
+// compte (profiles.color_hue) sera utilisée directement à la lecture.
+// Correspondance par nom complet exact (insensible à la casse/espaces) :
+// Nicolas a confirmé que le nom et prénom complets sont toujours saisis,
+// donc pas de risque réel d'homonymie à gérer.
+async function ensureGuestColor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  guestName: string,
+  creatorId: string
+) {
+  const normalized = guestName.trim().toLowerCase()
+
+  const { data: profiles } = await supabase.from('profiles').select('first_name, last_name')
+  const matchesExistingAccount = (profiles ?? []).some(
+    (p) => `${p.first_name} ${p.last_name}`.trim().toLowerCase() === normalized
+  )
+  if (matchesExistingAccount) return
+
+  const { data: existingGuest } = await supabase
+    .from('guest_people')
+    .select('id')
+    .ilike('name', guestName.trim())
+    .maybeSingle()
+  if (existingGuest) return
+
+  const { data: creator } = await supabase
+    .from('profiles')
+    .select('color_hue, family_group')
+    .eq('id', creatorId)
+    .single()
+
+  const anchorHue = creator?.color_hue ?? fallbackHueForName(guestName)
+  const hue = nearbyHue(anchorHue, normalized)
+
+  await supabase.from('guest_people').insert({
+    name: guestName.trim(),
+    color_hue: hue,
+    family_group: creator?.family_group ?? null,
+    created_by: creatorId,
+  })
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,10 +82,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const { checkIn, checkOut, amount, bookingId, guestName } = await request.json()
+  const { checkIn, checkOut, amount, bookingId, guestName, houseSide } = await request.json()
 
   if (!checkIn || !checkOut || typeof amount !== 'number' || amount < 0) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
+  }
+
+  if (houseSide !== 'canat' && houseSide !== 'lalande') {
+    return NextResponse.json({ error: 'Merci d’indiquer le côté de la maison (Canat ou Lalande)' }, { status: 400 })
   }
 
   if (new Date(checkOut) <= new Date(checkIn)) {
@@ -32,6 +101,34 @@ export async function POST(request: Request) {
 
   const normalizedGuestName: string | null =
     typeof guestName === 'string' && guestName.trim() ? guestName.trim() : null
+
+  if (isDev) {
+    // Rien n'est écrit en base : on renvoie une réponse simulée cohérente
+    // avec ce qu'aurait produit le vrai enregistrement, pour que le widget
+    // se comporte normalement à l'écran (montant, statut "en attente"...).
+    const devBookingId = bookingId ?? `dev-${crypto.randomUUID()}`
+    const due = Math.round(amount * 100) / 100
+
+    return NextResponse.json({
+      bookingId: devBookingId,
+      paidAmount: 0,
+      pendingPayment:
+        due > 0
+          ? {
+              id: `dev-pending-${devBookingId}`,
+              booking_id: devBookingId,
+              user_id: user.id,
+              amount: due,
+              status: 'pending',
+            }
+          : null,
+      dev: true,
+    })
+  }
+
+  if (normalizedGuestName) {
+    await ensureGuestColor(supabase, normalizedGuestName, user.id)
+  }
 
   let targetBookingId: string
 
@@ -49,7 +146,7 @@ export async function POST(request: Request) {
 
     const { error: updateError } = await supabase
       .from('bookings')
-      .update({ check_in: checkIn, check_out: checkOut, guest_name: normalizedGuestName })
+      .update({ check_in: checkIn, check_out: checkOut, guest_name: normalizedGuestName, house_side: houseSide })
       .eq('id', bookingId)
 
     if (updateError) {
@@ -65,6 +162,7 @@ export async function POST(request: Request) {
         check_in: checkIn,
         check_out: checkOut,
         guest_name: normalizedGuestName,
+        house_side: houseSide,
       })
       .select()
       .single()
@@ -146,6 +244,11 @@ export async function DELETE(request: Request) {
 
   if (!bookingId) {
     return NextResponse.json({ error: 'Identifiant manquant' }, { status: 400 })
+  }
+
+  if (isDev) {
+    // Séjour simulé (ou jamais enregistré) : rien à supprimer en base.
+    return NextResponse.json({ ok: true, dev: true })
   }
 
   const { data: existing, error: fetchError } = await supabase
