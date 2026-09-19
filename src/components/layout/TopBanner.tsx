@@ -16,18 +16,24 @@ interface NavItem {
   hiddenForFriend?: boolean
 }
 
-// Onglets du site, repris exactement du montage d'Aurélie : deux lignes de
-// trois, séparées par des tirets, alignées à droite, en majuscules.
+// Onglets du site — ordre demandé par Nicolas le 19/09/2026 : Planning,
+// Guide de la maison, Tâches, Réalisations, Contacts, Budget, Documents.
+// Sur bureau, deux lignes séparées par des tirets, alignées à droite (4
+// puis 3, dans cet ordre) ; sur mobile, la même liste à plat dans le menu
+// plein écran. Remplace l'ancien montage fixe 2×3 d'Aurélie : Réalisations
+// ajoutée le 19/09/2026 en fait volontairement un 7e onglet ici plutôt que
+// dans le bandeau noir du bas (BottomNav), à la demande de Nicolas.
 const NAV_ROWS: NavItem[][] = [
   [
     { href: '/dashboard/planning', label: 'Planning' },
     { href: '/dashboard/guide', label: 'Guide de la maison' },
     { href: '/dashboard/taches', label: 'Tâches' },
+    { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
   ],
   [
-    { href: '/dashboard/documents', label: 'Documents', hiddenForFriend: true },
-    { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
     { href: '/dashboard/contacts', label: 'Contact' },
+    { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
+    { href: '/dashboard/documents', label: 'Documents', hiddenForFriend: true },
   ],
 ]
 
@@ -51,10 +57,11 @@ export function TopBanner({ role }: { role: 'admin' | 'family' | 'friend' }) {
   // Les onglets réservés aux admins (Membres, Suivi paiements) ne vivent
   // plus ici : ils sont dans BottomNav, un bandeau séparé en bas de
   // l'écran, sur toutes les pages — y compris le menu mobile plein écran.
-  // Pour les comptes "invité", Documents et Budget sont en plus masqués
-  // (hiérarchie d'accès demandée par Aurélie le 18/09/2026) — les lignes
-  // vides possibles (ex. la 2e ligne ne garde que "Contact") s'affichent
-  // normalement, la mise en page ne dépend pas d'un nombre fixe d'onglets.
+  // Pour les comptes "invité", Réalisations, Documents et Budget sont en
+  // plus masqués (hiérarchie d'accès demandée par Aurélie le 18/09/2026,
+  // étendue à Réalisations le 19/09/2026) — les lignes vides possibles
+  // s'affichent normalement, la mise en page ne dépend pas d'un nombre
+  // fixe d'onglets.
   const rows = isFriend
     ? NAV_ROWS.map((row) => row.filter((item) => !item.hiddenForFriend)).filter((row) => row.length > 0)
     : NAV_ROWS
@@ -103,16 +110,20 @@ export function TopBanner({ role }: { role: 'admin' | 'family' | 'friend' }) {
           </span>
         </Link>
 
-        {/* Bureau : onglets du montage, 2 lignes séparées par des tirets, alignées à droite */}
-        <nav className="hidden md:flex flex-col items-end gap-1.5">
+        {/* Bureau : onglets, 2 lignes séparées par des tirets, alignées à droite.
+            Hauteur calée sur celle du logo (h-9) + justify-between : la 1re
+            ligne colle en haut, la 2e en bas, exactement comme le logo — au
+            lieu d'être centrées comme groupe (demandé par Nicolas le
+            19/09/2026). "Se déconnecter" a été déplacé dans BottomNav. */}
+        <nav className="hidden md:flex md:h-9 flex-col items-end justify-between">
           {rows.map((row, i) => (
-            <div key={i} className="flex items-center gap-2 whitespace-nowrap">
+            <div key={i} className="flex items-center gap-2 whitespace-nowrap leading-none">
               {row.map((item, j) => (
                 <span key={item.href} className="flex items-center gap-2">
-                  {j > 0 && <span className="text-sm font-bold text-foreground">-</span>}
+                  {j > 0 && <span className="text-sm font-bold text-foreground leading-none">-</span>}
                   <Link
                     href={item.href}
-                    className="text-sm font-bold text-foreground uppercase tracking-wide hover:opacity-60 transition-opacity"
+                    className="text-sm font-bold text-foreground uppercase tracking-wide hover:opacity-60 transition-opacity leading-none"
                   >
                     {item.label}
                   </Link>
@@ -120,14 +131,6 @@ export function TopBanner({ role }: { role: 'admin' | 'family' | 'friend' }) {
               ))}
             </div>
           ))}
-          <form action="/auth/signout" method="post" className="pt-1">
-            <button
-              type="submit"
-              className="text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Se déconnecter
-            </button>
-          </form>
         </nav>
 
         {/* Mobile : petit rectangle qui ouvre le bandeau déroulant */}
@@ -180,11 +183,6 @@ export function TopBanner({ role }: { role: 'admin' | 'family' | 'friend' }) {
                 {item.label}
               </Link>
             ))}
-            <form action="/auth/signout" method="post" className="pt-6">
-              <button type="submit" className="text-sm font-medium text-muted-foreground">
-                Se déconnecter
-              </button>
-            </form>
           </nav>
         </div>
       )}
