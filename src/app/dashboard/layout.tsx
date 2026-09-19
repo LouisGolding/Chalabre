@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Sidebar } from '@/components/layout/Sidebar'
+import { TopBanner } from '@/components/layout/TopBanner'
+import { BottomNav } from '@/components/layout/BottomNav'
 import { isProfileIncomplete } from '@/lib/profile'
 
 export default async function DashboardLayout({
@@ -24,7 +25,7 @@ export default async function DashboardLayout({
   // sends a signed-in visitor straight back to /dashboard.
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center space-y-4">
           <h1 className="text-2xl font-bold text-stone-800">Profil introuvable</h1>
           <p className="text-stone-500 text-sm">
@@ -48,12 +49,21 @@ export default async function DashboardLayout({
   // here with placeholder data that feeds the booking rate. Collect it first.
   if (isProfileIncomplete(profile)) redirect('/auth/completer-profil')
 
+  const isAdmin = profile.role === 'admin'
+
   return (
-    <div className="flex min-h-screen bg-stone-50">
-      <Sidebar profile={profile} />
-      <main className="flex-1 p-6 md:ml-64">
+    <div className="min-h-screen">
+      <TopBanner role={profile.role} />
+      <main className="max-w-5xl mx-auto p-6 pt-20 pb-20 md:pt-32 md:pb-24">
         {children}
       </main>
+      {/* Bandeau du bas : "Adresse" pour tout le monde, "Membres" / "Suivi
+          paiements" en plus pour les admins (jamais dans le bandeau du
+          haut, commun à tout le monde) — voir BottomNav. Rendu pour tout
+          le monde depuis le 18/09/2026 (ajout de "Adresse"), d'où le
+          padding-bas du <main> désormais toujours actif, plus seulement
+          pour les admins. */}
+      <BottomNav isAdmin={isAdmin} />
     </div>
   )
 }
