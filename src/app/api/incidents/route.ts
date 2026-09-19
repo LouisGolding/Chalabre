@@ -12,7 +12,6 @@ import { createClient } from '@/lib/supabase/server'
 // Mode développement : tant que NODE_ENV !== 'production', cette route ne
 // touche jamais Supabase — elle simule un identifiant pour que le widget
 // réagisse normalement pendant les tests.
-const isDev = process.env.NODE_ENV !== 'production'
 
 const ALLOWED_CATEGORIES = ['electrique', 'eau']
 const ALLOWED_STATUSES = ['in_progress', 'resolved', 'persistent']
@@ -31,10 +30,6 @@ export async function POST(request: Request) {
     typeof zoneLabel !== 'string' || !zoneLabel
   ) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
-  }
-
-  if (isDev) {
-    return NextResponse.json({ id: `dev-${crypto.randomUUID()}`, dev: true })
   }
 
   const { data, error } = await supabase
@@ -61,7 +56,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
 
-  if (isDev || id.startsWith('dev-')) {
+  if (id.startsWith('dev-')) {
     return NextResponse.json({ ok: true, dev: true })
   }
 

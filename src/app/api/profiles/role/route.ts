@@ -11,10 +11,6 @@ import { createClient } from '@/lib/supabase/server'
 // Aucune nouvelle migration nécessaire ici : un admin peut déjà, dans le
 // trigger existant (migration_auth_fix.sql), modifier le rôle de
 // n'importe quel profil — y compris le sien — sans restriction.
-//
-// Mode développement : comme les autres routes admin, rien n'est écrit
-// dans Supabase tant que NODE_ENV !== 'production'.
-const isDev = process.env.NODE_ENV !== 'production'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -30,10 +26,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
 
-  if (isDev) {
-    return NextResponse.json({ ok: true, role: makeAdmin ? 'admin' : 'family', dev: true })
-  }
-
   const { data: caller } = await supabase
     .from('profiles')
     .select('role')
@@ -42,6 +34,22 @@ export async function POST(request: Request) {
 
   if (caller?.role !== 'admin') {
     return NextResponse.json({ error: 'Réservé aux administrateurs' }, { status: 403 })
+  }
+
+  // Garde-fou (audit 19/09/2026) : le dernier admin ne peut pas se retirer
+  // lui-même le rôle — sinon plus personne ne peut administrer le site, et
+  // il faut repasser par l'éditeur SQL de Supabase pour s'en sortir.
+  if (!makeAdmin && profileId === user.id) {
+    const { count } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'admin')
+    if ((count ?? 0) <= 1) {
+      return NextResponse.json(
+        { error: 'Impossible : vous êtes le dernier administrateur.' },
+        { status: 400 }
+      )
+    }
   }
 
   let newRole: 'admin' | 'family' | 'friend' = 'admin'

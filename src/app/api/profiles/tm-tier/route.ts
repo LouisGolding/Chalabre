@@ -9,19 +9,11 @@ import { createClient } from '@/lib/supabase/server'
 // jamais affichée.
 //
 // Ce verrou côté API n'est que la moitié de l'histoire : la base a son
-// propre verrou (voir migration_auth_fix.sql — protect_profile_privileges),
-// qui jusqu'ici annulait silencieusement tout changement de tm_tier par un
-// non-admin, même sur sa propre ligne. migration_tm_self_edit.sql assouplit
-// ce verrou pour l'auto-édition, mais n'est PAS encore appliquée en
-// production : tant que Louis ne l'a pas validée et exécutée, cette route
-// fonctionnera en local (mode dev, réponse simulée) mais l'écriture réelle
-// en production sera silencieusement ignorée par la base pour un membre
-// modifiant sa propre cotisation.
-//
-// Mode développement : comme pour /api/bookings/quick, tant que
-// NODE_ENV !== 'production' rien n'est écrit dans Supabase — la réponse
-// est simulée pour que l'interface réagisse normalement pendant les tests.
-const isDev = process.env.NODE_ENV !== 'production'
+// propre verrou (protect_profile_privileges, version de
+// migration_tm_self_edit.sql — validée par Louis et appliquée en
+// production le 19/09/2026), qui autorise un membre non-ami à modifier
+// SA PROPRE ligne, et un admin à tout faire. Même si cette route était
+// contournée, la base ferait donc respecter la même règle.
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -37,12 +29,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
 
-  if (amount !== null && (typeof amount !== 'number' || amount < 0)) {
+  // Entier requis : la colonne tm_tier est un integer, un décimal serait
+  // rejeté par Postgres avec une erreur peu lisible. Borne haute large,
+  // simple garde-fou contre les fautes de frappe (ex. un zéro de trop).
+  if (amount !== null && (typeof amount !== 'number' || !Number.isInteger(amount) || amount < 0 || amount > 10000)) {
     return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
-  }
-
-  if (isDev) {
-    return NextResponse.json({ ok: true, dev: true })
   }
 
   const { data: caller } = await supabase

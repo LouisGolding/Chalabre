@@ -1,46 +1,41 @@
 -- ============================================================
 -- MIGRATION : bucket de Storage pour l'onglet "Documents"
 -- À appliquer dans Supabase → SQL Editor, après schema.sql et les
--- migrations déjà en place.
+-- migrations déjà en place. Rejouable sans risque.
 -- ============================================================
 --
--- ⚠️ NE PAS APPLIQUER SANS L'ACCORD DE LOUIS ⚠️
+-- Contexte : Aurélie a demandé, le 17/09/2026, que le compte admin puisse
+-- uploader / mettre à jour / supprimer des documents (contrats, factures,
+-- plans...) dans l'onglet "Documents", non éditables pour les autres.
 --
--- Contexte : Aurélie a demandé, le 17/09/2026, que le compte admin
--- puisse uploader / mettre à jour / supprimer des documents (contrats,
--- factures, plans...) dans l'onglet "Documents", ces documents restant
--- non éditables pour tous les autres comptes.
---
--- La table `public.documents` et ses policies RLS existent déjà dans
--- schema.sql (documents_select : lecture pour admin/family ; documents_admin :
--- tout pour admin) — rien à changer de ce côté. Il ne manque que le bucket
--- de Storage lui-même : c'est lui qui stocke physiquement les fichiers
--- envoyés depuis /api/documents (route déjà écrite côté application,
--- actuellement sans effet réel en production tant que ce bucket n'existe
--- pas — en dev local, la route est simulée et n'y touche jamais).
---
--- Ce script :
---   1. crée le bucket "documents" (public en lecture, pour que les liens
---      de téléchargement affichés dans l'app fonctionnent simplement) ;
---   2. autorise en lecture (select) tout le monde sur ce bucket, puisque
---      les fichiers y sont de toute façon publics une fois l'URL connue,
---      et que l'accès à la liste des documents est déjà filtré par la
---      policy documents_select côté table ;
---   3. réserve l'écriture (insert/update/delete) aux comptes admin,
---      exactement comme documents_admin le fait déjà pour la table.
---
--- Si tu préfères repartir sur un bucket privé (URLs signées plutôt que
--- publiques), dis-le à Louis avant d'appliquer : il faudra alors aussi
--- adapter /api/documents (getPublicUrl → createSignedUrl côté lecture).
+-- ⚠️ RÉÉCRITE LE 19/09/2026 (audit Louis/Claude) : la première version
+-- créait un bucket PUBLIC en lecture — n'importe qui sur Internet ayant
+-- l'URL d'un fichier aurait pu lire des documents notariés, contrats ou
+-- factures de la famille, sans compte. Or la table documents est justement
+-- réservée à admin/family par RLS (documents_select) : le Storage doit
+-- suivre la même règle. Le bucket est donc PRIVÉ, la lecture passe par des
+-- URLs signées à durée limitée générées côté serveur (voir
+-- src/app/dashboard/documents/page.tsx), et les policies Storage
+-- reprennent exactement les règles de la table :
+--   * lecture : admin et family uniquement (jamais les amis, jamais le
+--     public) ;
+--   * écriture (insert/update/delete) : admin uniquement.
+-- La colonne documents.file_url stocke désormais le CHEMIN du fichier dans
+-- le bucket (ex. "notaries/uuid.pdf"), pas une URL publique.
 
 insert into storage.buckets (id, name, public)
-values ('documents', 'documents', true)
-on conflict (id) do nothing;
+values ('documents', 'documents', false)
+on conflict (id) do update set public = false;
 
+drop policy if exists "documents_storage_select" on storage.objects;
 create policy "documents_storage_select" on storage.objects
 for select to authenticated
-using (bucket_id = 'documents');
+using (
+  bucket_id = 'documents'
+  and public.get_user_role(auth.uid()) in ('admin', 'family')
+);
 
+drop policy if exists "documents_storage_admin" on storage.objects;
 create policy "documents_storage_admin" on storage.objects
 for all to authenticated
 using (bucket_id = 'documents' and public.get_user_role(auth.uid()) = 'admin')

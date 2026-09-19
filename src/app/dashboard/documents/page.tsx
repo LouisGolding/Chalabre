@@ -21,6 +21,26 @@ export default async function DocumentsPage() {
     .select('*')
     .order('created_at', { ascending: false })
 
+  // Le bucket "documents" est privé (migration_documents_storage.sql) :
+  // file_url stocke le chemin du fichier, et on génère ici, côté serveur,
+  // une URL signée valable 1 h par document. La signature passe par la
+  // session de l'utilisateur, donc par les policies Storage (admin/family
+  // uniquement) — un lien expiré se régénère au simple rechargement de la
+  // page. Les éventuelles lignes historiques au format URL complète sont
+  // utilisées telles quelles.
+  const paths = (documents ?? [])
+    .map((d) => d.file_url)
+    .filter((u): u is string => typeof u === 'string' && !u.startsWith('http'))
+  const signedByPath = new Map<string, string>()
+  if (paths.length > 0) {
+    const { data: signed } = await supabase.storage.from('documents').createSignedUrls(paths, 60 * 60)
+    for (const entry of signed ?? []) {
+      if (entry.path && entry.signedUrl) signedByPath.set(entry.path, entry.signedUrl)
+    }
+  }
+  const downloadUrl = (doc: Document) =>
+    doc.file_url.startsWith('http') ? doc.file_url : signedByPath.get(doc.file_url) ?? null
+
   const grouped: Record<string, Document[]> = (documents ?? []).reduce((acc: Record<string, Document[]>, doc) => {
     if (!acc[doc.category]) acc[doc.category] = []
     acc[doc.category].push(doc)
@@ -54,15 +74,17 @@ export default async function DocumentsPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          <a
-                            href={doc.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:text-primary/80"
-                            aria-label="Télécharger ce document"
-                          >
-                            <Download className="h-5 w-5" />
-                          </a>
+                          {downloadUrl(doc) && (
+                            <a
+                              href={downloadUrl(doc)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80"
+                              aria-label="Télécharger ce document"
+                            >
+                              <Download className="h-5 w-5" />
+                            </a>
+                          )}
                           {isAdmin && <DeleteDocumentButton id={doc.id} />}
                         </div>
                       </div>

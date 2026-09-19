@@ -6,15 +6,18 @@ import { DOCUMENT_CATEGORY_IDS } from '@/lib/document-categories'
 // Réservé aux admins : les autres comptes peuvent uniquement consulter
 // (lecture via la page elle-même, RLS "documents_select"). Les policies
 // "documents_admin" côté base autorisent déjà l'admin à tout faire sur la
-// table `documents` — il faut en plus un bucket de Storage nommé
-// "documents" (voir supabase/migration_documents_storage.sql, à appliquer
-// par Louis) pour que l'upload fonctionne réellement en production.
+// table `documents` ; côté Storage, le bucket "documents" est PRIVÉ
+// (migration_documents_storage.sql) et ses policies reprennent les mêmes
+// règles — la lecture passe par des URLs signées générées dans
+// src/app/dashboard/documents/page.tsx.
 //
-// Mode développement : tant que NODE_ENV !== 'production', cette route ne
-// touche jamais Supabase (ni la base, ni le Storage). Elle simule la
-// réponse attendue pour que l'interface réagisse normalement pendant les
-// tests, sans écrire dans la base partagée.
-const isDev = process.env.NODE_ENV !== 'production'
+// documents.file_url stocke le CHEMIN du fichier dans le bucket
+// (ex. "notaries/uuid.pdf"), pas une URL : le bucket étant privé, une URL
+// n'aurait de sens qu'à durée limitée.
+//
+// Tout est réel, y compris en local : les simulations "mode dev" ont été
+// retirées le 19/09/2026 — elles faisaient croire que des fonctionnalités
+// marchaient alors que rien n'était jamais écrit nulle part.
 
 const BUCKET = 'documents'
 const ALLOWED_CATEGORIES = DOCUMENT_CATEGORY_IDS
@@ -38,23 +41,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 })
   }
 
-  if (isDev) {
-    // Rien n'est écrit (ni Storage, ni base) : on renvoie un document
-    // simulé pour que la liste se mette à jour normalement à l'écran.
-    return NextResponse.json({
-      document: {
-        id: `dev-${crypto.randomUUID()}`,
-        title: title.trim(),
-        category,
-        file_url: '#',
-        file_name: file.name,
-        uploaded_by: user.id,
-        created_at: new Date().toISOString(),
-      },
-      dev: true,
-    })
-  }
-
   const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (caller?.role !== 'admin') {
     return NextResponse.json({ error: 'Réservé aux administrateurs' }, { status: 403 })
@@ -71,14 +57,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
   }
 
-  const { data: publicUrlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath)
-
   const { data: document, error: insertError } = await supabase
     .from('documents')
     .insert({
       title: title.trim(),
       category,
-      file_url: publicUrlData.publicUrl,
+      file_url: storagePath,
       file_name: file.name,
       uploaded_by: user.id,
     })
@@ -109,10 +93,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Paramètre "id" manquant' }, { status: 400 })
   }
 
-  if (isDev) {
-    return NextResponse.json({ ok: true, dev: true })
-  }
-
   const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (caller?.role !== 'admin') {
     return NextResponse.json({ error: 'Réservé aux administrateurs' }, { status: 403 })
@@ -132,10 +112,14 @@ export async function DELETE(request: Request) {
   // échouer la requête si ça ne marche pas (la ligne en base est déjà
   // supprimée, ce qui est ce qui compte pour l'utilisateur).
   try {
+    // file_url est normalement un chemin ("notaries/uuid.pdf"). On garde le
+    // décodage de l'ancien format URL publique par prudence, au cas où une
+    // ligne aurait été créée avec la première version du code.
+    let storagePath = doc.file_url as string
     const marker = `/storage/v1/object/public/${BUCKET}/`
-    const idx = doc.file_url.indexOf(marker)
-    if (idx !== -1) {
-      const storagePath = doc.file_url.slice(idx + marker.length)
+    const idx = storagePath.indexOf(marker)
+    if (idx !== -1) storagePath = storagePath.slice(idx + marker.length)
+    if (storagePath && !storagePath.startsWith('http')) {
       await supabase.storage.from(BUCKET).remove([storagePath])
     }
   } catch {

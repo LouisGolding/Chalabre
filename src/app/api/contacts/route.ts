@@ -9,7 +9,6 @@ import { CONTACT_CATEGORY_IDS } from '@/lib/contact-categories'
 // Mode développement : tant que NODE_ENV !== 'production', ces routes ne
 // touchent jamais Supabase — elles simulent la réponse attendue pour que
 // l'interface réagisse normalement pendant les tests.
-const isDev = process.env.NODE_ENV !== 'production'
 
 type ContactFields = {
   name?: string
@@ -52,23 +51,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 })
   }
 
-  if (isDev) {
-    return NextResponse.json({
-      contact: {
-        id: `dev-${crypto.randomUUID()}`,
-        name: fields.name ?? '',
-        role: fields.role ?? '',
-        category,
-        phone: fields.phone ?? null,
-        email: fields.email ?? null,
-        address: fields.address ?? null,
-        notes: fields.notes ?? null,
-        created_at: new Date().toISOString(),
-      },
-      dev: true,
-    })
-  }
-
   if (!(await requireAdmin(supabase, user.id))) {
     return NextResponse.json({ error: 'Réservé aux administrateurs' }, { status: 403 })
   }
@@ -109,7 +91,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 })
   }
 
-  if (isDev || id.startsWith('dev-')) {
+  if (id.startsWith('dev-')) {
     return NextResponse.json({ ok: true, dev: true })
   }
 
@@ -137,7 +119,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Paramètre "id" manquant' }, { status: 400 })
   }
 
-  if (isDev || id.startsWith('dev-')) {
+  if (id.startsWith('dev-')) {
     return NextResponse.json({ ok: true, dev: true })
   }
 

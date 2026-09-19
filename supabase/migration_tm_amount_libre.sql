@@ -23,3 +23,13 @@ alter table public.profiles
 
 alter table public.profiles
   add constraint profiles_tm_tier_check check (tm_tier is null or tm_tier >= 0);
+
+-- Complément (audit du 19/09/2026) : tm_payments.amount portait la même
+-- contrainte à paliers (40/80/120) que profiles.tm_tier. La laisser en
+-- place aurait fait échouer l'enregistrement d'un paiement dès qu'une
+-- cotisation à montant libre (ex. 100 €) aurait été appelée. On aligne.
+alter table public.tm_payments
+  drop constraint if exists tm_payments_amount_check;
+
+alter table public.tm_payments
+  add constraint tm_payments_amount_check check (amount >= 0);

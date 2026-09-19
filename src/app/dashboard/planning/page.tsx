@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { colorForName, oklchForHue } from '@/lib/colors'
 
@@ -138,7 +139,23 @@ export default async function PlanningPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Planning</h1>
+      {/* Point 3 des remarques de Nicolas (19/09/2026) : la refonte du menu
+          (2 lignes de 3 onglets, montage d'Aurélie) avait laissé la page
+          "Réserver" orpheline — elle existait toujours mais plus aucun lien
+          n'y menait. Plutôt que d'ajouter un 7e onglet au menu, on la
+          raccroche ici : le planning est l'endroit où on regarde les dates
+          avant de réserver. Le widget "Prochain séjour" de l'accueil reste
+          la voie rapide ; cette page reste la réservation complète
+          (chambres, accompagnants, calcul détaillé de la taxe de séjour). */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Planning</h1>
+        <Link
+          href="/dashboard/reserver"
+          className="inline-flex h-9 items-center rounded-lg bg-foreground px-3.5 text-sm font-medium text-background transition-opacity hover:opacity-85"
+        >
+          Réserver un séjour
+        </Link>
+      </div>
       <PlanningView bookings={planningBookings} events={planningEvents} />
     </div>
   )

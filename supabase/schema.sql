@@ -248,26 +248,43 @@ create policy "budget_admin" on public.budget_entries for all to authenticated u
   get_user_role(auth.uid()) = 'admin'
 );
 
--- Trigger to auto-create profile on signup
+-- Trigger to auto-create profile on signup.
+--
+-- ⚠️ NE JAMAIS COPIER CETTE FONCTION DEPUIS CE FICHIER. ⚠️
+-- La version qui fait foi est celle de la DERNIÈRE migration qui la
+-- redéfinit (migration_auth_fix.sql, puis migration_profile_colors.sql).
+-- Le 19/09/2026, une migration écrite en la copiant d'ici a failli
+-- réintroduire en production trois bugs corrigés (comptes Google aux noms
+-- vides, date de naissance = jour d'inscription donc tarif enfant, rôle
+-- 'family' attribué à tort). La version ci-dessous est un stub minimal
+-- pour une installation neuve : appliquer les migrations juste après.
 create or replace function public.handle_new_user()
-returns trigger as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  meta jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
 begin
-  insert into public.profiles (id, email, first_name, last_name, date_of_birth, family_group, role)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'first_name', ''),
-    coalesce(new.raw_user_meta_data->>'last_name', ''),
-    coalesce((new.raw_user_meta_data->>'date_of_birth')::date, now()::date),
-    coalesce(new.raw_user_meta_data->>'family_group', 'friend'),
-    case
-      when new.raw_user_meta_data->>'family_group' = 'friend' then 'friend'
-      else 'family'
-    end
-  );
+  begin
+    insert into public.profiles (id, email, first_name, last_name, date_of_birth, family_group, role)
+    values (
+      new.id,
+      coalesce(new.email, meta->>'email'),
+      coalesce(nullif(meta->>'first_name', ''), nullif(meta->>'given_name', ''), ''),
+      coalesce(nullif(meta->>'last_name', ''), nullif(meta->>'family_name', ''), ''),
+      coalesce(nullif(meta->>'date_of_birth', '')::date, date '1900-01-01'),
+      case when meta->>'family_group' in ('lalande', 'canat') then meta->>'family_group' else 'friend' end,
+      case when meta->>'family_group' in ('lalande', 'canat') then 'family' else 'friend' end
+    )
+    on conflict (id) do nothing;
+  exception when others then
+    raise warning 'handle_new_user failed for %: %', new.id, sqlerrm;
+  end;
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
 
 create trigger on_auth_user_created
   after insert on auth.users

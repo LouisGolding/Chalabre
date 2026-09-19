@@ -15,14 +15,12 @@ interface CotisationPillProps {
 // (comme les autres pastilles "blanches" du widget), pour deviner le fond
 // derrière — cohérent avec "+ Ajouter un séjour" / "- Supprimer ce séjour".
 //
-// Important : coté serveur, /api/profiles/tm-tier et le trigger Supabase
-// protect_profile_privileges() n'autorisaient jusqu'ici que les admins à
-// modifier tm_tier (voir migration_auth_fix.sql). La route a été ouverte
-// pour qu'un membre (non-ami) modifie sa PROPRE cotisation, mais le
-// verrou côté base ne change qu'avec migration_tm_self_edit.sql, pas
-// encore appliquée en production — en attendant, cette pastille fonctionne
-// en local (mode dev, réponse simulée) mais l'enregistrement réel échoue
-// silencieusement tant que Louis n'a pas validé et appliqué la migration.
+// Côté serveur, /api/profiles/tm-tier autorise un admin (tout profil) ou
+// le membre lui-même (non-ami, sa propre ligne) ; le trigger Supabase
+// protect_profile_privileges applique la même règle en base
+// (migration_tm_self_edit.sql, validée par Louis et appliquée en
+// production le 19/09/2026). L'enregistrement est réel partout, y compris
+// en local — plus aucune réponse simulée.
 export function CotisationPill({ profileId, initialAmount }: CotisationPillProps) {
   const [amount, setAmount] = useState(initialAmount)
   const [editing, setEditing] = useState(false)

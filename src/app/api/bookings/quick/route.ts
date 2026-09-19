@@ -23,7 +23,6 @@ import { fallbackHueForName, nearbyHue } from '@/lib/colors'
 // réagisse normalement pendant les tests, sans enregistrer la moindre
 // donnée dans la base partagée. En production (Vercel), le comportement
 // réel ci-dessous s'applique sans changement.
-const isDev = process.env.NODE_ENV !== 'production'
 
 // Couleur persistée par personne (demandé par Nicolas le 19/09/2026) : dès
 // qu'un accompagnant sans compte (ex. Otto) est saisi pour la première
@@ -101,30 +100,6 @@ export async function POST(request: Request) {
 
   const normalizedGuestName: string | null =
     typeof guestName === 'string' && guestName.trim() ? guestName.trim() : null
-
-  if (isDev) {
-    // Rien n'est écrit en base : on renvoie une réponse simulée cohérente
-    // avec ce qu'aurait produit le vrai enregistrement, pour que le widget
-    // se comporte normalement à l'écran (montant, statut "en attente"...).
-    const devBookingId = bookingId ?? `dev-${crypto.randomUUID()}`
-    const due = Math.round(amount * 100) / 100
-
-    return NextResponse.json({
-      bookingId: devBookingId,
-      paidAmount: 0,
-      pendingPayment:
-        due > 0
-          ? {
-              id: `dev-pending-${devBookingId}`,
-              booking_id: devBookingId,
-              user_id: user.id,
-              amount: due,
-              status: 'pending',
-            }
-          : null,
-      dev: true,
-    })
-  }
 
   if (normalizedGuestName) {
     await ensureGuestColor(supabase, normalizedGuestName, user.id)
@@ -244,11 +219,6 @@ export async function DELETE(request: Request) {
 
   if (!bookingId) {
     return NextResponse.json({ error: 'Identifiant manquant' }, { status: 400 })
-  }
-
-  if (isDev) {
-    // Séjour simulé (ou jamais enregistré) : rien à supprimer en base.
-    return NextResponse.json({ ok: true, dev: true })
   }
 
   const { data: existing, error: fetchError } = await supabase

@@ -7,7 +7,6 @@ import { createClient } from '@/lib/supabase/server'
 //
 // Mode développement : comme les autres routes d'écriture de l'app, rien
 // n'est enregistré dans Supabase tant que NODE_ENV !== 'production'.
-const isDev = process.env.NODE_ENV !== 'production'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -19,23 +18,6 @@ export async function POST(request: Request) {
   const { title, category, priority, period } = await request.json()
   if (!title || typeof title !== 'string' || !title.trim()) {
     return NextResponse.json({ error: 'Titre requis' }, { status: 400 })
-  }
-
-  if (isDev) {
-    return NextResponse.json({
-      task: {
-        id: `dev-${crypto.randomUUID()}`,
-        title: title.trim(),
-        description: null,
-        category: category ?? 'entretien',
-        priority: priority ?? 'medium',
-        period: period ?? null,
-        completed: false,
-        created_by: user.id,
-        created_at: new Date().toISOString(),
-      },
-      dev: true,
-    })
   }
 
   const { data, error } = await supabase
@@ -67,10 +49,6 @@ export async function PATCH(request: Request) {
   const { id, completed } = await request.json()
   if (!id || typeof completed !== 'boolean') {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
-  }
-
-  if (isDev) {
-    return NextResponse.json({ ok: true, dev: true })
   }
 
   const { error } = await supabase.from('tasks').update({ completed }).eq('id', id)
