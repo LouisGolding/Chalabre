@@ -48,6 +48,15 @@ export default async function GuidePage() {
       <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Guide de la maison</h1>
       <p className="text-muted-foreground">Toutes les informations pratiques pour votre séjour à La Bâtisse.</p>
 
+      {/* Adresse de la maison — reprise ici depuis l'ancien onglet "Adresse"
+          (retiré le 19/09/2026, jugé redondant par Nicolas une fois cette
+          info replacée juste sous le titre du Guide). Contenu statique :
+          l'adresse ne change pas, pas besoin d'aller la chercher en base. */}
+      <div>
+        <p className="text-lg font-semibold text-foreground">La Bâtisse</p>
+        <p className="text-sm text-muted-foreground">15, route de Lavelanet · Chalabre, 11230</p>
+      </div>
+
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">
           <Badge variant="outline" className="text-base px-3 py-1">Arrivée</Badge>

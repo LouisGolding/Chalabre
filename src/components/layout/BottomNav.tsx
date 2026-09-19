@@ -9,26 +9,21 @@ const ADMIN_ITEMS = [
   { href: '/dashboard/admin/paiements', label: 'Suivi paiements' },
 ]
 
-// "Adresse" est commun à tous les comptes (demandé par Aurélie le
-// 18/09/2026) ; Membres et Suivi paiements restent réservés aux admins.
-const COMMON_ITEMS = [
-  { href: '/dashboard/adresse', label: 'Adresse' },
-]
-
 // Bandeau fixe en BAS de l'écran. Aurélie a demandé le 17/09/2026 que les
 // onglets réservés aux admins n'apparaissent jamais dans le bandeau du
 // haut (commun à tout le monde), mais dans ce second bandeau, en bas, pour
 // bien les distinguer du reste du site — Membres et Suivi paiements n'y
 // figurent donc que pour role === 'admin'.
 //
-// "Réalisations" (19/09/2026) est finalement rangé dans le menu du haut
-// (TopBanner) avec les autres onglets, pas ici, à la demande de Nicolas.
-// "Se déconnecter" (19/09/2026) a été déplacé ici, en dernier, depuis le
-// bandeau du haut — pour libérer ce dernier des 2 lignes de tirets + une
-// 3e ligne, et permettre d'aligner ses onglets pile sur la hauteur du logo.
+// "Adresse" (retiré le 19/09/2026, à la demande de Nicolas) vivait ici :
+// l'adresse de la maison est désormais affichée directement en haut de
+// "Guide de la maison" (src/app/dashboard/guide/page.tsx), jugé plus
+// pertinent qu'un onglet à part entière. "Réalisations" est rangé dans le
+// menu du haut (TopBanner) avec les autres onglets, pas ici. "Se
+// déconnecter" (19/09/2026) reste ici, en dernier, pour tous les comptes.
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
-  const items = [...(role === 'admin' ? ADMIN_ITEMS : []), ...COMMON_ITEMS]
+  const items = role === 'admin' ? ADMIN_ITEMS : []
 
   const linkClass = (active: boolean) =>
     `text-xs md:text-sm font-bold uppercase tracking-wide transition-opacity ${

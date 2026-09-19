@@ -55,13 +55,14 @@ export default async function DashboardLayout({
       <main className="max-w-5xl mx-auto p-6 pt-20 pb-20 md:pt-32 md:pb-24">
         {children}
       </main>
-      {/* Bandeau du bas : "Adresse" pour tout le monde, "Réalisations" en
-          plus pour admin/family (jamais les amis), "Membres" / "Suivi
-          paiements" en plus pour les admins seuls (jamais dans le bandeau
-          du haut, commun à tout le monde) — voir BottomNav. Rendu pour
-          tout le monde depuis le 18/09/2026 (ajout de "Adresse"), d'où le
-          padding-bas du <main> désormais toujours actif, plus seulement
-          pour les admins. */}
+      {/* Bandeau du bas : "Membres" / "Suivi paiements" pour les admins
+          seuls, "Se déconnecter" en dernier pour tout le monde (jamais
+          dans le bandeau du haut) — voir BottomNav. "Adresse" y a vécu du
+          18/09 au 19/09/2026 avant d'être repris dans "Guide de la
+          maison" ; "Réalisations" est resté dans le bandeau du haut
+          (TopBanner) avec les autres onglets. Rendu pour tout le monde
+          depuis le 18/09/2026, d'où le padding-bas du <main> toujours
+          actif, plus seulement pour les admins. */}
       <BottomNav role={profile.role} />
     </div>
   )
