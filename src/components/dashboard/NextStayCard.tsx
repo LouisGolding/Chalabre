@@ -36,11 +36,14 @@ interface NextStayCardProps {
 // montant en semi-léger — comme sur le montage envoyé par Aurélie.
 //
 // Caché par défaut (20/09/2026, demandé par Nicolas) derrière une pastille
-// "RÉSERVER" : noire mais translucide (bg-foreground/70 + flou) pour
-// deviner la photo derrière, texte en majuscules dans la graisse la plus
-// forte disponible (font-black). Un clic dessus révèle tout le widget
-// (dates, âge, côté de la maison, taxe de séjour) — pas de bouton pour la
-// re-masquer ensuite, non demandé.
+// "RÉSERVER" : pas de fond du tout (juste un espace cliquable) — c'est la
+// TYPOGRAPHIE elle-même qui est noire et translucide (text-foreground/45),
+// pour deviner la photo au travers des lettres. En majuscules, et dans la
+// graisse la plus épaisse possible : au-delà de font-black (900, déjà le
+// maximum que Tailwind propose), un contour (-webkit-text-stroke, même
+// couleur que le texte) épaissit encore le tracé des lettres. Un clic
+// dessus révèle tout le widget (dates, âge, côté de la maison, taxe de
+// séjour) — pas de bouton pour la re-masquer ensuite, non demandé.
 export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayCardProps) {
   const [revealed, setRevealed] = useState(false)
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
@@ -81,7 +84,8 @@ export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayC
       <button
         type="button"
         onClick={() => setRevealed(true)}
-        className="inline-flex items-center justify-center rounded-full bg-foreground/70 backdrop-blur-sm px-7 py-3 text-sm md:text-base font-black uppercase tracking-widest text-background hover:bg-foreground/80 transition-colors"
+        className="inline-flex items-center justify-center rounded-full px-7 py-3 text-sm md:text-base font-black uppercase tracking-widest text-foreground/45 hover:text-foreground/65 transition-colors"
+        style={{ WebkitTextStroke: '0.6px currentColor', paintOrder: 'stroke fill' }}
       >
         Réserver
       </button>
