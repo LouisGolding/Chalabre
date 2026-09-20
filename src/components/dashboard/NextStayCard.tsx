@@ -34,7 +34,15 @@ interface NextStayCardProps {
 // Fond transparent (on voit la photo de l'accueil derrière), typographie
 // Bahnschrift : "Prochain séjour" / "Taxe de séjour" en semi-gras, dates et
 // montant en semi-léger — comme sur le montage envoyé par Aurélie.
+//
+// Caché par défaut (20/09/2026, demandé par Nicolas) derrière une pastille
+// "RÉSERVER" : noire mais translucide (bg-foreground/70 + flou) pour
+// deviner la photo derrière, texte en majuscules dans la graisse la plus
+// forte disponible (font-black). Un clic dessus révèle tout le widget
+// (dates, âge, côté de la maison, taxe de séjour) — pas de bouton pour la
+// re-masquer ensuite, non demandé.
 export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayCardProps) {
+  const [revealed, setRevealed] = useState(false)
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
   const [guestEntries, setGuestEntries] = useState<{ localId: string; booking: BookingData | null }[]>(
@@ -66,6 +74,18 @@ export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayC
     setPrimaryBooking(null)
     setPrimaryState({ bookingId: null, hasData: false })
     setPrimaryResetKey((k) => k + 1)
+  }
+
+  if (!revealed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setRevealed(true)}
+        className="inline-flex items-center justify-center rounded-full bg-foreground/70 backdrop-blur-sm px-7 py-3 text-sm md:text-base font-black uppercase tracking-widest text-background hover:bg-foreground/80 transition-colors"
+      >
+        Réserver
+      </button>
+    )
   }
 
   return (
