@@ -36,14 +36,19 @@ interface NextStayCardProps {
 // montant en semi-léger — comme sur le montage envoyé par Aurélie.
 //
 // Caché par défaut (20/09/2026, demandé par Nicolas) derrière une pastille
-// "RÉSERVER" : pas de fond du tout (juste un espace cliquable) — c'est la
-// TYPOGRAPHIE elle-même qui est noire et translucide (text-foreground/45),
-// pour deviner la photo au travers des lettres. En majuscules, et dans la
-// graisse la plus épaisse possible : au-delà de font-black (900, déjà le
-// maximum que Tailwind propose), un contour (-webkit-text-stroke, même
-// couleur que le texte) épaissit encore le tracé des lettres. Un clic
-// dessus révèle tout le widget (dates, âge, côté de la maison, taxe de
-// séjour) — pas de bouton pour la re-masquer ensuite, non demandé.
+// "RÉSERVER" : pastille bien noire et opaque, mais les LETTRES sont un
+// découpage transparent qui laisse deviner la vraie photo de fond au
+// travers — pas un à-plat de couleur. Technique : bg-clip-text sur le
+// texte, avec en arrière-plan de ce texte la même image que la vraie
+// photo de fond (même fichier, mêmes réglages mobile/bureau, et surtout
+// background-attachment: fixed comme la vraie photo) — le texte devient
+// une "fenêtre" pixel-parfaite sur cette photo, y compris pendant un
+// scroll. En majuscules, dans la graisse la plus épaisse que propose
+// Tailwind (font-black, 900) — un contour ajouterait une couleur pleine
+// autour des lettres et casserait l'effet de découpe, donc pas ajouté ici
+// sans le revalider avec Nicolas. Un clic dessus révèle tout le widget
+// (dates, âge, côté de la maison, taxe de séjour) — pas de bouton pour la
+// re-masquer ensuite, non demandé.
 export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayCardProps) {
   const [revealed, setRevealed] = useState(false)
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
@@ -84,10 +89,30 @@ export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayC
       <button
         type="button"
         onClick={() => setRevealed(true)}
-        className="inline-flex items-center justify-center rounded-full px-7 py-3 text-sm md:text-base font-black uppercase tracking-widest text-foreground/45 hover:text-foreground/65 transition-colors"
-        style={{ WebkitTextStroke: '0.6px currentColor', paintOrder: 'stroke fill' }}
+        className="relative inline-flex items-center justify-center overflow-hidden rounded-full bg-foreground px-7 py-3 hover:opacity-80 transition-opacity"
       >
-        Réserver
+        <span
+          className="md:hidden bg-clip-text text-transparent text-sm font-black uppercase tracking-widest"
+          style={{
+            backgroundImage: "url('/images/accueil-bg-mobile.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: '43% 38%',
+            backgroundAttachment: 'fixed',
+          }}
+        >
+          Réserver
+        </span>
+        <span
+          className="hidden md:inline bg-clip-text text-transparent text-base font-black uppercase tracking-widest"
+          style={{
+            backgroundImage: "url('/images/accueil-bg-desktop.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: '39% 40%',
+            backgroundAttachment: 'fixed',
+          }}
+        >
+          Réserver
+        </span>
       </button>
     )
   }
