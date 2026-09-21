@@ -26,7 +26,7 @@ import {
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn, calculateTotalTS } from '@/lib/utils'
+import { cn, calculateTotalTS, firstNameOnly } from '@/lib/utils'
 import { colorForName } from '@/lib/colors'
 import { BookingEditModal } from '@/components/planning/BookingEditModal'
 import type { HouseSide } from '@/types'
@@ -132,15 +132,6 @@ const WHEEL_COOLDOWN_MS = 500
 // colorée est considéré comme un simple clic (ouvre la modale d'édition)
 // plutôt qu'un déplacement/redimensionnement — voir handlePointerUpOnSegment.
 const DRAG_CLICK_THRESHOLD_PX = 4
-
-// Le champ de saisie d'un accompagnant (StayEntry, voir NextStayCard.tsx)
-// s'appelle "Nom Prénom" et peut donc contenir un nom de famille — mais
-// seul le prénom doit apparaître sur le planning (jamais le nom de
-// famille), comme pour les titulaires de compte (profiles.first_name).
-// On ne garde donc que le premier mot saisi.
-function firstNameOnly(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] ?? fullName
-}
 
 function clampDateToRange(date: Date, rangeStart: Date, rangeEnd: Date): Date {
   if (date < rangeStart) return rangeStart

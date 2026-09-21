@@ -55,3 +55,12 @@ export function formatCurrency(amount: number): string {
 export function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat('fr-FR').format(new Date(date))
 }
+
+// Certains champs de saisie (ex. "Nom Prénom" d'un accompagnant, voir
+// StayEntry dans NextStayCard.tsx) peuvent contenir un nom de famille,
+// mais celui-ci ne doit jamais s'afficher ailleurs sur le site (planning,
+// pastilles de solde TS...) — seul le prénom, comme pour les titulaires de
+// compte (profile.first_name). On ne garde donc que le premier mot saisi.
+export function firstNameOnly(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName
+}

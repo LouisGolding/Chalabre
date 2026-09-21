@@ -116,17 +116,36 @@ export default async function PlanningPage() {
     .select('*')
     .order('start_date', { ascending: true })
 
-  // Solde de taxe de séjour en attente pour le compte connecté (déplacé ici
-  // depuis la page d'accueil le 21/09/2026, demandé par Aurélie — voir
-  // ReserverSejour.tsx, à côté de "Prochain séjour"). Rafraîchi ensuite en
-  // direct via /api/ts-balance sans recharger la page.
-  const { data: tsPayments } = await supabase
-    .from('ts_payments')
-    .select('amount, status')
-    .eq('user_id', user.id)
-  const initialSoldeTS = (tsPayments ?? [])
-    .filter((p) => p.status === 'pending')
-    .reduce((sum, p) => sum + Number(p.amount), 0)
+  // Solde de taxe de séjour en attente pour le compte connecté, réparti
+  // entre son propre séjour ("Votre solde TS") et chacun de ses
+  // accompagnants le cas échéant ("TS - <prénom>", une pastille par
+  // accompagnant, demandé par Aurélie le 21/09/2026 — voir
+  // ReserverSejour.tsx). Calculé ici à partir de myBookings, déjà chargé
+  // ci-dessus avec ses ts_payments — même logique que /api/ts-balance, qui
+  // prend ensuite le relai pour les rafraîchissements en direct sans
+  // recharger la page.
+  let initialOwnSoldeTS = 0
+  const initialGuestSoldeMap = new Map<string, number>()
+  const initialGuestOrder: string[] = []
+  for (const b of myBookings ?? []) {
+    const pending = ((b.ts_payments ?? []) as { amount: number; status: string }[])
+      .filter((p) => p.status === 'pending')
+      .reduce((sum, p) => sum + Number(p.amount), 0)
+    const guestName = b.guest_name?.trim()
+    if (!guestName) {
+      initialOwnSoldeTS += pending
+      continue
+    }
+    if (!initialGuestSoldeMap.has(guestName)) {
+      initialGuestSoldeMap.set(guestName, 0)
+      initialGuestOrder.push(guestName)
+    }
+    initialGuestSoldeMap.set(guestName, initialGuestSoldeMap.get(guestName)! + pending)
+  }
+  const initialGuestSoldeTS = initialGuestOrder.map((name) => ({
+    name,
+    pending: initialGuestSoldeMap.get(name)!,
+  }))
 
   const { data: allProfilesForColor } = await supabase
     .from('profiles')
@@ -203,7 +222,8 @@ export default async function PlanningPage() {
         profile={profile}
         nextBooking={nextBooking}
         guestFutureBookings={guestFutureBookings}
-        initialSoldeTS={initialSoldeTS}
+        initialOwnSoldeTS={initialOwnSoldeTS}
+        initialGuestSoldeTS={initialGuestSoldeTS}
         initialPlanningBookings={planningBookings}
         planningEvents={planningEvents}
         currentUserId={user.id}

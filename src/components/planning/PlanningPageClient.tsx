@@ -20,7 +20,8 @@ interface PlanningPageClientProps {
   profile: Profile
   nextBooking: BookingData | null
   guestFutureBookings: BookingData[]
-  initialSoldeTS: number
+  initialOwnSoldeTS: number
+  initialGuestSoldeTS: { name: string; pending: number }[]
   initialPlanningBookings: PlanningBooking[]
   planningEvents: PlanningEvent[]
   currentUserId: string
@@ -40,7 +41,8 @@ export function PlanningPageClient({
   profile,
   nextBooking,
   guestFutureBookings,
-  initialSoldeTS,
+  initialOwnSoldeTS,
+  initialGuestSoldeTS,
   initialPlanningBookings,
   planningEvents,
   currentUserId,
@@ -90,7 +92,8 @@ export function PlanningPageClient({
         profile={profile}
         booking={nextBooking}
         guestBookings={guestFutureBookings}
-        initialSoldeTS={initialSoldeTS}
+        initialOwnSoldeTS={initialOwnSoldeTS}
+        initialGuestSoldeTS={initialGuestSoldeTS}
         onBookingSaved={handleBookingSaved}
         onBookingDeleted={handleBookingDeleted}
       />
