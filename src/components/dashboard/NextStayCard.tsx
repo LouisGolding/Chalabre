@@ -356,11 +356,15 @@ function StayEntry({
     </div>
   )
 
-  // Côté de la maison (Canat / Lalande) où dort la personne pour ce
-  // séjour — détermine sur quel compte bancaire la taxe de séjour est
-  // versée. Même pastille que le sélecteur d'âge, juste à côté.
+  // Côté de la maison (Canat / Lalande / Petite maison) où dort la
+  // personne pour ce séjour — détermine sur quel compte bancaire la taxe
+  // de séjour est versée. Même pastille que le sélecteur d'âge, juste à
+  // côté. "Petite maison" (demandé par Aurélie le 21/09/2026) : une
+  // dépendance distincte de la maison principale, même tarif de taxe de
+  // séjour que Canat/Lalande, mais son paiement suit le même circuit que
+  // Lalande (voir HouseSide dans src/types/index.ts).
   const houseSideToggle = (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <Button
         type="button"
         size="sm"
@@ -386,6 +390,19 @@ function StayEntry({
         onClick={() => setHouseSide('lalande')}
       >
         Lalande
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={houseSide === 'petite_maison' ? 'default' : 'outline'}
+        className={
+          houseSide === 'petite_maison'
+            ? 'bg-foreground text-background hover:bg-foreground/80'
+            : 'bg-card/40 backdrop-blur-sm'
+        }
+        onClick={() => setHouseSide('petite_maison')}
+      >
+        Petite maison
       </Button>
     </div>
   )

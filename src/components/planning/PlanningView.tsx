@@ -111,9 +111,14 @@ interface Row {
   segments: Segment[]
 }
 
-const SECTIONS: { key: 'lalande' | 'canat'; title: string }[] = [
+// "Petite maison" (demandé par Aurélie le 21/09/2026) : une dépendance
+// distincte de la maison principale, avec sa propre section sur le
+// planning — même forme que Lalande/Canat (voir HouseSide dans
+// src/types/index.ts).
+const SECTIONS: { key: 'lalande' | 'canat' | 'petite_maison'; title: string }[] = [
   { key: 'lalande', title: 'Lalande' },
   { key: 'canat', title: 'Canat' },
+  { key: 'petite_maison', title: 'Petite maison' },
 ]
 
 // Seuils des gestes de navigation (glisser au trackpad/souris ou au doigt)
@@ -310,18 +315,23 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   // côté serveur — voir page.tsx), toujours la même d'une période à
   // l'autre ; à défaut (données de test), calculée depuis le nom.
   const rowsBySection = useMemo(() => {
-    const bySection = new Map<'lalande' | 'canat', Map<string, Row>>([
+    const bySection = new Map<'lalande' | 'canat' | 'petite_maison', Map<string, Row>>([
       ['lalande', new Map()],
       ['canat', new Map()],
+      ['petite_maison', new Map()],
     ])
 
     for (const booking of bookings) {
+      // Le repli sur profiles.family_group (séjours enregistrés avant
+      // l'ajout de house_side) ne peut jamais donner "petite_maison" — ce
+      // n'est pas un family_group, uniquement un house_side choisi
+      // explicitement pour ce séjour.
       const side =
         booking.house_side ??
         (booking.profiles?.family_group === 'canat' || booking.profiles?.family_group === 'lalande'
           ? booking.profiles.family_group
           : null)
-      if (side !== 'lalande' && side !== 'canat') continue
+      if (side !== 'lalande' && side !== 'canat' && side !== 'petite_maison') continue
 
       const checkIn = parseISO(booking.check_in)
       const checkOut = parseISO(booking.check_out)

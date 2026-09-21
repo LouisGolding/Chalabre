@@ -87,8 +87,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
 
-  if (houseSide !== 'canat' && houseSide !== 'lalande') {
-    return NextResponse.json({ error: 'Merci d’indiquer le côté de la maison (Canat ou Lalande)' }, { status: 400 })
+  if (houseSide !== 'canat' && houseSide !== 'lalande' && houseSide !== 'petite_maison') {
+    return NextResponse.json(
+      { error: 'Merci d’indiquer le côté de la maison (Canat, Lalande ou Petite maison)' },
+      { status: 400 }
+    )
   }
 
   if (new Date(checkOut) <= new Date(checkIn)) {

@@ -189,19 +189,16 @@ export default async function PlanningPage() {
 
   return (
     <div className="space-y-6">
-      {/* Point 3 des remarques de Nicolas (19/09/2026) : la refonte du menu
-          (2 lignes de 3 onglets, montage d'Aurélie) avait laissé la page
-          "Réserver" orpheline — elle existait toujours mais plus aucun lien
-          n'y menait. Un bouton "Réserver un séjour" a été ajouté ici, sur
-          le planning : l'endroit où on regarde les dates avant de réserver.
-          Le 21/09/2026, à la demande de Nicolas, ce bouton a arrêté de
-          mener vers /dashboard/reserver (ancien formulaire BookingForm,
-          retiré) : il fait maintenant apparaître directement ici le widget
-          "Prochain séjour + Taxe de séjour" qui vivait jusque-là sur la
-          page d'accueil. Le titre "Planning" a été remonté dans
-          ReserverSejour.tsx, à côté du bouton, pour que cette ligne garde
-          une hauteur fixe et que le widget s'affiche en dessous, sur toute
-          la largeur (2e demande de Nicolas, le même jour). */}
+      {/* Historique du widget "Prochain séjour" sur cet onglet (voir
+          ReserverSejour.tsx) : ajouté le 19/09/2026 derrière un bouton
+          "Réserver un séjour" qui menait à /dashboard/reserver (ancien
+          formulaire BookingForm) ; le 21/09/2026, ce bouton a d'abord
+          arrêté de naviguer pour à la place déplier directement ici le
+          widget "Prochain séjour + Taxe de séjour" qui vivait jusque-là sur
+          la page d'accueil (demandé par Nicolas) ; puis, le même jour,
+          Aurélie a demandé de retirer ce bouton entièrement ("elle n'est
+          plus utile") — le widget s'affiche donc maintenant directement dès
+          l'arrivée sur l'onglet, sans étape intermédiaire. */}
       <PlanningPageClient
         profile={profile}
         nextBooking={nextBooking}

@@ -26,19 +26,20 @@ interface ReserverSejourProps {
   onBookingDeleted?: (bookingId: string) => void
 }
 
-// En-tête de l'onglet Planning : titre "Planning" + bouton "Réserver un
-// séjour" sur une première ligne, puis, une fois le widget déplié, "Prochain
-// séjour" + la pastille "Solde taxe de séjour" sur une seconde ligne — les
-// deux lignes partagent une même grille à 2 colonnes (1fr / auto) pour que
-// le bouton et la pastille démarrent exactement à la même abscisse, quelle
-// que soit la largeur de chacun (demandé par Aurélie le 21/09/2026).
+// En-tête de l'onglet Planning : titre "Planning", puis "Prochain séjour" +
+// la pastille "Solde taxe de séjour" sur leur propre ligne (justify-between),
+// puis le widget lui-même (NextStayCard) — affiché directement, sans
+// pastille "Réserver un séjour" pour le déplier (retirée le 21/09/2026,
+// demandé par Aurélie : "elle n'est plus utile", le widget s'affichant
+// désormais dès l'arrivée sur l'onglet).
 //
-// Jusqu'au 21/09/2026 le bouton menait à /dashboard/reserver, une page
-// séparée avec un vieux formulaire (BookingForm) — retirée. Le widget
-// "Prochain séjour + Taxe de séjour", qui vivait sur la page d'accueil, a
-// migré ici à la place (demandé par Nicolas) : un clic sur le bouton le
-// fait apparaître, pas de navigation, pas de bouton pour le re-masquer
-// ensuite (non demandé).
+// Jusqu'au 21/09/2026 un bouton "Réserver un séjour" menait à
+// /dashboard/reserver, une page séparée avec un vieux formulaire
+// (BookingForm) — retirée. Le widget "Prochain séjour + Taxe de séjour",
+// qui vivait sur la page d'accueil, a migré ici à la place le même jour ;
+// il était d'abord caché derrière ce bouton (2e demande de Nicolas), avant
+// que le bouton lui-même ne soit retiré (3e demande, celle d'Aurélie
+// ci-dessus).
 //
 // La pastille "Solde taxe de séjour" vivait jusqu'ici sur la page
 // d'accueil, à côté de "Cotisation mensuelle" (18/09/2026) — déplacée ici
@@ -52,7 +53,6 @@ export function ReserverSejour({
   onBookingSaved,
   onBookingDeleted,
 }: ReserverSejourProps) {
-  const [revealed, setRevealed] = useState(false)
   const [soldeTS, setSoldeTS] = useState(initialSoldeTS)
 
   // Rappelle le solde exact depuis la base plutôt que de le recalculer côté
@@ -82,46 +82,25 @@ export function ReserverSejour({
 
   return (
     <>
-      <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2">
-        <h1 className="col-start-1 row-start-1 text-2xl md:text-3xl font-semibold text-foreground">
-          Planning
-        </h1>
-        <div className="col-start-2 row-start-1 justify-self-start">
-          <button
-            type="button"
-            onClick={() => setRevealed(true)}
-            className="inline-flex h-9 items-center rounded-lg bg-foreground px-3.5 text-sm font-medium text-background transition-opacity hover:opacity-85"
-          >
-            Réserver un séjour
-          </button>
-        </div>
+      <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Planning</h1>
 
-        {revealed && (
-          <>
-            <h2 className="col-start-1 row-start-2 font-normal text-xl md:text-2xl text-foreground">
-              Prochain séjour
-            </h2>
-            <div className="col-start-2 row-start-2 justify-self-start">
-              <span className="inline-flex h-8 w-fit items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm">
-                Solde taxe de séjour :
-                <span className={`ml-1 ${soldeTS > 0 ? 'text-red-600' : 'text-foreground'}`}>
-                  {soldeTS > 0 ? `-${formatCurrency(soldeTS)}` : formatCurrency(0)}
-                </span>
-              </span>
-            </div>
-          </>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-normal text-xl md:text-2xl text-foreground">Prochain séjour</h2>
+        <span className="inline-flex h-8 w-fit items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm">
+          Solde taxe de séjour :
+          <span className={`ml-1 ${soldeTS > 0 ? 'text-red-600' : 'text-foreground'}`}>
+            {soldeTS > 0 ? `-${formatCurrency(soldeTS)}` : formatCurrency(0)}
+          </span>
+        </span>
       </div>
 
-      {revealed && (
-        <NextStayCard
-          profile={profile}
-          booking={booking}
-          guestBookings={guestBookings}
-          onBookingSaved={handleSaved}
-          onBookingDeleted={handleDeleted}
-        />
-      )}
+      <NextStayCard
+        profile={profile}
+        booking={booking}
+        guestBookings={guestBookings}
+        onBookingSaved={handleSaved}
+        onBookingDeleted={handleDeleted}
+      />
     </>
   )
 }

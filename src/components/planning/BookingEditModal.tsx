@@ -138,7 +138,7 @@ export function BookingEditModal({ booking, editable, saving, error, onClose, on
               17 ans et +
             </Button>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               size="sm"
@@ -158,6 +158,16 @@ export function BookingEditModal({ booking, editable, saving, error, onClose, on
               onClick={() => setHouseSide('lalande')}
             >
               Lalande
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={!editable}
+              variant={houseSide === 'petite_maison' ? 'default' : 'outline'}
+              className={houseSide === 'petite_maison' ? 'bg-foreground text-background hover:bg-foreground/80' : ''}
+              onClick={() => setHouseSide('petite_maison')}
+            >
+              Petite maison
             </Button>
           </div>
         </div>

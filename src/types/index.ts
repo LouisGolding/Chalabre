@@ -1,9 +1,15 @@
 export type UserRole = 'admin' | 'family' | 'friend'
 export type FamilyGroup = 'lalande' | 'canat' | 'friend'
-// Côté de la maison où dort la personne pour un séjour donné (jamais
-// 'friend' : la maison n'a que deux côtés) — détermine sur quel compte
-// bancaire (Canat ou Lalande) la taxe de séjour du séjour est versée.
-export type HouseSide = 'lalande' | 'canat'
+// Côté de la maison (ou dépendance) où dort la personne pour un séjour
+// donné (jamais 'friend') — détermine sur quel compte bancaire la taxe de
+// séjour du séjour est versée. "petite_maison" (demandé par Aurélie le
+// 21/09/2026) : une dépendance distincte de la maison principale — sa taxe
+// de séjour suit le même circuit de paiement que "lalande", pour arriver
+// sur le même compte (aucun routage Stripe par compte n'existe encore dans
+// le code à ce jour — un seul compte Stripe pour tous les paiements, voir
+// src/app/api/stripe/checkout/route.ts — cette règle s'appliquera donc
+// telle quelle le jour où ce routage sera mis en place).
+export type HouseSide = 'lalande' | 'canat' | 'petite_maison'
 export type PaymentStatus = 'pending' | 'paid' | 'overdue'
 export type TMTier = 40 | 80 | 120 // encore utilisé par TMPayment.amount (paiements via Stripe)
 
