@@ -108,7 +108,7 @@ export default async function PlanningPage() {
 
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('*, profiles(first_name, last_name, family_group, color_hue), rooms(name)')
+    .select('*, profiles(first_name, last_name, family_group, color_hue, date_of_birth), rooms(name)')
     .order('check_in', { ascending: true })
 
   const { data: events } = await supabase
@@ -141,19 +141,32 @@ export default async function PlanningPage() {
     const roomLabel = Array.isArray(roomsField) ? roomsField[0]?.name ?? null : roomsField?.name ?? null
 
     const profilesField = (
-      b as { profiles?: { first_name: string; last_name: string; family_group: string; color_hue?: number } | { first_name: string; last_name: string; family_group: string; color_hue?: number }[] | null }
+      b as {
+        profiles?:
+          | { first_name: string; last_name: string; family_group: string; color_hue?: number; date_of_birth?: string | null }
+          | { first_name: string; last_name: string; family_group: string; color_hue?: number; date_of_birth?: string | null }[]
+          | null
+      }
     ).profiles
     const profileObj = Array.isArray(profilesField) ? profilesField[0] : profilesField
 
     return {
       id: b.id,
+      // Pour savoir qui peut éditer ce séjour depuis le planning (voir
+      // canEditBooking dans PlanningView.tsx : son titulaire, ou un admin).
+      user_id: b.user_id,
       check_in: b.check_in,
       check_out: b.check_out,
       guest_name: b.guest_name,
       house_side: b.house_side ?? null,
       room_label: roomLabel,
       profiles: profileObj
-        ? { first_name: profileObj.first_name, last_name: profileObj.last_name, family_group: profileObj.family_group }
+        ? {
+            first_name: profileObj.first_name,
+            last_name: profileObj.last_name,
+            family_group: profileObj.family_group,
+            date_of_birth: profileObj.date_of_birth ?? null,
+          }
         : null,
       color: resolveColor(b.guest_name ?? null, profileObj?.color_hue),
     }
@@ -178,7 +191,12 @@ export default async function PlanningPage() {
           une hauteur fixe et que le widget s'affiche en dessous, sur toute
           la largeur (2e demande de Nicolas, le même jour). */}
       <ReserverSejour profile={profile} booking={nextBooking} guestBookings={guestFutureBookings} />
-      <PlanningView bookings={planningBookings} events={planningEvents} />
+      <PlanningView
+        bookings={planningBookings}
+        events={planningEvents}
+        currentUserId={user.id}
+        isAdmin={profile.role === 'admin'}
+      />
     </div>
   )
 }

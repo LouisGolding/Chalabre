@@ -108,17 +108,36 @@ export async function POST(request: Request) {
   let targetBookingId: string
 
   if (bookingId) {
+    // Un séjour est modifiable par son titulaire, ou par un admin pour le
+    // compte de quelqu'un d'autre (demandé par Nicolas le 21/09/2026, pour
+    // l'édition depuis la barre colorée du planning — voir PlanningView.tsx
+    // et BookingEditModal.tsx) — même règle que la RLS bookings_update
+    // (user_id = auth.uid() or role admin), vérifiée ici en plus pour
+    // renvoyer une erreur claire plutôt qu'une mise à jour silencieusement
+    // ignorée à 0 ligne.
     const { data: existing, error: fetchError } = await supabase
       .from('bookings')
-      .select('id')
+      .select('id, user_id')
       .eq('id', bookingId)
-      .eq('user_id', user.id)
       .single()
 
     if (fetchError || !existing) {
       return NextResponse.json({ error: 'Séjour introuvable' }, { status: 404 })
     }
 
+    if (existing.user_id !== user.id) {
+      const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+      if (caller?.role !== 'admin') {
+        return NextResponse.json({ error: 'Non autorisé à modifier ce séjour' }, { status: 403 })
+      }
+    }
+
+    // Aucune accumulation possible : on écrase simplement les dates de la
+    // même ligne (pas de nouvelle ligne créée), et le total de TS ci-dessous
+    // est toujours recalculé en intégralité pour les nouvelles dates — rien
+    // n'est jamais ajouté à ce qui existait pour les anciennes dates (voir
+    // remarque de Nicolas du 21/09/2026 : modifier un séjour du 10-20 vers
+    // le 15-24 ne doit pas comptabiliser 2 taxes de séjour sur le 15-20).
     const { error: updateError } = await supabase
       .from('bookings')
       .update({ check_in: checkIn, check_out: checkOut, guest_name: normalizedGuestName, house_side: houseSide })
@@ -221,15 +240,23 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Identifiant manquant' }, { status: 400 })
   }
 
+  // Même règle que pour la mise à jour ci-dessus (POST) : le titulaire du
+  // séjour, ou un admin.
   const { data: existing, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, ts_payments(status)')
+    .select('id, user_id, ts_payments(status)')
     .eq('id', bookingId)
-    .eq('user_id', user.id)
     .single()
 
   if (fetchError || !existing) {
     return NextResponse.json({ error: 'Séjour introuvable' }, { status: 404 })
+  }
+
+  if (existing.user_id !== user.id) {
+    const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (caller?.role !== 'admin') {
+      return NextResponse.json({ error: 'Non autorisé à supprimer ce séjour' }, { status: 403 })
+    }
   }
 
   const hasPaidPayment = (existing.ts_payments ?? []).some(

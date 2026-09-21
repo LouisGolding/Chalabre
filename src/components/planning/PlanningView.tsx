@@ -14,6 +14,8 @@ import {
   isWeekend,
   parseISO,
   differenceInCalendarDays,
+  differenceInYears,
+  addDays,
   addMonths,
   subMonths,
   addWeeks,
@@ -24,17 +26,32 @@ import {
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { cn, calculateTotalTS } from '@/lib/utils'
 import { colorForName } from '@/lib/colors'
+import { BookingEditModal } from '@/components/planning/BookingEditModal'
+import type { HouseSide } from '@/types'
 
 export interface PlanningBooking {
   id: string
+  // Titulaire du compte sur lequel ce séjour est enregistré (jamais
+  // renseigné sur les données de test — voir canEditBooking ci-dessous,
+  // qui les laisse alors non modifiables). Sert à savoir qui peut éditer
+  // ce séjour depuis le planning (lui-même, ou un admin).
+  user_id?: string
   check_in: string
   check_out: string
   guest_name?: string | null
-  house_side?: 'lalande' | 'canat' | null
+  house_side?: HouseSide | null
   room_label?: string | null
-  profiles?: { first_name: string; last_name: string; family_group: string } | null
+  profiles?: {
+    first_name: string
+    last_name: string
+    family_group: string
+    // Pour déduire une tranche d'âge par défaut (enfant/adulte) à l'édition
+    // depuis le planning, faute de tranche d'âge mémorisée en base pour un
+    // séjour déjà saisi — voir inferAgeRate plus bas.
+    date_of_birth?: string | null
+  } | null
   // Couleur de la personne, déjà résolue côté serveur (compte ou
   // accompagnant mémorisé — voir src/app/dashboard/planning/page.tsx et
   // src/lib/colors.ts). Toujours la même pour une personne donnée, quelle
@@ -53,6 +70,13 @@ export interface PlanningEvent {
 interface PlanningViewProps {
   bookings: PlanningBooking[]
   events: PlanningEvent[]
+  // Pour savoir quelles lignes colorées l'utilisateur courant peut éditer
+  // depuis le planning (cliquer/glisser) : les siennes, ou toutes si admin
+  // — même règle que la RLS bookings_update/delete (voir schema.sql) et que
+  // /api/bookings/quick, qui la vérifie aussi côté serveur. Demandé par
+  // Nicolas le 21/09/2026.
+  currentUserId: string
+  isAdmin: boolean
 }
 
 type ViewMode = 'week' | 'month' | 'year'
@@ -65,11 +89,19 @@ type ViewMode = 'week' | 'month' | 'year'
 // scroll horizontal pour voir le reste de la période affichée.
 const LABEL_COL = 'clamp(96px, 22vw, 190px)'
 
+interface Segment {
+  id: string
+  start: number
+  end: number
+  startsInRange: boolean
+  endsInRange: boolean
+}
+
 interface Row {
   key: string
   label: string
   color: string
-  segments: { id: string; start: number; end: number; startsInRange: boolean; endsInRange: boolean }[]
+  segments: Segment[]
 }
 
 const SECTIONS: { key: 'lalande' | 'canat'; title: string }[] = [
@@ -84,7 +116,73 @@ const WHEEL_THRESHOLD = 40
 const TOUCH_THRESHOLD = 50
 const WHEEL_COOLDOWN_MS = 500
 
-export function PlanningView({ bookings, events }: PlanningViewProps) {
+// En dessous de ce déplacement (en pixels), un glisser sur une ligne
+// colorée est considéré comme un simple clic (ouvre la modale d'édition)
+// plutôt qu'un déplacement/redimensionnement — voir handlePointerUpOnSegment.
+const DRAG_CLICK_THRESHOLD_PX = 4
+
+function clampDateToRange(date: Date, rangeStart: Date, rangeEnd: Date): Date {
+  if (date < rangeStart) return rangeStart
+  if (date > rangeEnd) return rangeEnd
+  return date
+}
+
+// Même logique que la construction des segments dans rowsBySection
+// ci-dessous, réutilisée pour l'aperçu en direct d'un glisser en cours
+// (voir DragState) : convertit une paire de dates réelles en position dans
+// la grille (colonnes de jours) pour la période actuellement affichée.
+function segmentFromDates(checkIn: Date, checkOut: Date, rangeStart: Date, rangeEnd: Date) {
+  const clampedStart = clampDateToRange(checkIn, rangeStart, rangeEnd)
+  const clampedEnd = clampDateToRange(checkOut, rangeStart, rangeEnd)
+  return {
+    start: differenceInCalendarDays(clampedStart, rangeStart),
+    end: differenceInCalendarDays(clampedEnd, rangeStart),
+    startsInRange: !(checkIn < rangeStart),
+    endsInRange: !(checkOut > rangeEnd),
+  }
+}
+
+// Un séjour est modifiable depuis le planning par son titulaire, ou par un
+// admin — même règle que la RLS bookings_update/delete (voir schema.sql).
+// Les données de test (isDev, voir planning/page.tsx) n'ont pas de user_id
+// : jamais modifiables, cohérent avec le commentaire qui les accompagne
+// ("à retirer une fois la mise en forme validée").
+function canEditBooking(booking: PlanningBooking, currentUserId: string, isAdmin: boolean): boolean {
+  return !!booking.user_id && (isAdmin || booking.user_id === currentUserId)
+}
+
+// Tranche d'âge par défaut pour recalculer la taxe de séjour d'un séjour
+// existant (glisser ou modale) : déduite de la date de naissance du
+// titulaire du compte, comme sur la page d'accueil (NextStayCard.tsx) ; à
+// défaut (accompagnant sans compte, ou date de naissance absente) —
+// "adulte" par défaut, comme StayEntry pour un accompagnant. Aucune
+// tranche d'âge n'est mémorisée en base pour un séjour déjà saisi, d'où ce
+// recalcul systématique plutôt qu'une valeur mémorisée qui pourrait dater
+// de l'ancienne période du séjour.
+function inferAgeRate(booking: PlanningBooking): number {
+  if (booking.guest_name) return 20
+  const dob = booking.profiles?.date_of_birth
+  if (!dob) return 20
+  const age = differenceInYears(new Date(), parseISO(dob))
+  return age >= 16 ? 20 : 10
+}
+
+type DragMode = 'move' | 'resize-left' | 'resize-right'
+
+interface DragState {
+  bookingId: string
+  mode: DragMode
+  pointerId: number
+  startClientX: number
+  pxPerDay: number
+  trueCheckIn: Date
+  trueCheckOut: Date
+  currentCheckIn: Date
+  currentCheckOut: Date
+  moved: boolean
+}
+
+export function PlanningView({ bookings: initialBookings, events, currentUserId, isAdmin }: PlanningViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   // Direction du dernier changement de période, pour l'animation de
@@ -93,6 +191,29 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
   const [slideDir, setSlideDir] = useState<'next' | 'prev'>('next')
   const wheelLocked = useRef(false)
   const touchStartX = useRef<number | null>(null)
+
+  // Copie locale des séjours (demandé par Nicolas le 21/09/2026, pour
+  // l'édition directe depuis la ligne colorée) : mise à jour optimiste dès
+  // qu'un glisser ou la modale d'édition enregistre une modification, sans
+  // recharger toute la page. La source de vérité reste Supabase — un
+  // rechargement de page reprend toujours les données à jour du serveur.
+  const [bookings, setBookings] = useState(initialBookings)
+  const bookingsById = useMemo(() => new Map(bookings.map((b) => [b.id, b])), [bookings])
+
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const [editingBookingId, setEditingBookingId] = useState<string | null>(null)
+  const [savingBookingId, setSavingBookingId] = useState<string | null>(null)
+  const [modalError, setModalError] = useState<string | null>(null)
+  // Largeur d'une colonne de jour, mesurée au clic/glisser sur une ligne
+  // colorée (voir handlePointerDownOnSegment) : les colonnes de jours étant
+  // réparties à parts égales (minmax(0, 1fr)), la largeur de la première
+  // suffit à convertir un déplacement en pixels en un nombre de jours.
+  const firstDayCellRef = useRef<HTMLDivElement | null>(null)
+  // Évite qu'un clic natif, qui peut survenir juste après un glisser réel
+  // selon les navigateurs (le préventDefault sur pointerup ne le garantit
+  // pas toujours), ne rouvre la modale d'édition juste après un
+  // déplacement/redimensionnement déjà enregistré.
+  const justDraggedRef = useRef(false)
 
   // Plage de dates actuellement affichée — une semaine, un mois ou une
   // année entière selon le bouton choisi à côté de "Aujourd'hui".
@@ -218,16 +339,7 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
       }
 
       const row = sectionRows.get(rowKey)!
-
-      const clampedStart = checkIn < rangeStart ? rangeStart : checkIn
-      const clampedEnd = checkOut > rangeEnd ? rangeEnd : checkOut
-      row.segments.push({
-        id: booking.id,
-        start: differenceInCalendarDays(clampedStart, rangeStart),
-        end: differenceInCalendarDays(clampedEnd, rangeStart),
-        startsInRange: !(checkIn < rangeStart),
-        endsInRange: !(checkOut > rangeEnd),
-      })
+      row.segments.push({ id: booking.id, ...segmentFromDates(checkIn, checkOut, rangeStart, rangeEnd) })
     }
 
     return bySection
@@ -242,21 +354,11 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
       const start = parseISO(event.start_date)
       const end = parseISO(event.end_date)
       if (end < rangeStart || start > rangeEnd) continue
-      const clampedStart = start < rangeStart ? rangeStart : start
-      const clampedEnd = end > rangeEnd ? rangeEnd : end
       rows.push({
         key: event.id,
         label: event.title,
         color: colorForName(event.title),
-        segments: [
-          {
-            id: event.id,
-            start: differenceInCalendarDays(clampedStart, rangeStart),
-            end: differenceInCalendarDays(clampedEnd, rangeStart),
-            startsInRange: !(start < rangeStart),
-            endsInRange: !(end > rangeEnd),
-          },
-        ],
+        segments: [{ id: event.id, ...segmentFromDates(start, end, rangeStart, rangeEnd) }],
       })
     }
     return rows
@@ -271,9 +373,19 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
   const headerRow = rowCursor + 1
   rowCursor = headerRow
 
-  const sectionDefs: { key: string; title: string; rows: Row[]; showEmptyState: boolean; showDayCounts: boolean }[] = [
+  const sectionDefs: {
+    key: string
+    title: string
+    rows: Row[]
+    showEmptyState: boolean
+    showDayCounts: boolean
+    // Seules les sections Lalande/Canat correspondent à de vrais séjours
+    // (bookingsById) : les événements ne sont ni cliquables ni glissables
+    // ici (hors périmètre de cette fonctionnalité).
+    interactive: boolean
+  }[] = [
     ...(eventRows.length > 0
-      ? [{ key: 'events', title: 'Événements', rows: eventRows, showEmptyState: false, showDayCounts: false }]
+      ? [{ key: 'events', title: 'Événements', rows: eventRows, showEmptyState: false, showDayCounts: false, interactive: false }]
       : []),
     ...SECTIONS.map(({ key, title }) => ({
       key,
@@ -281,6 +393,7 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
       rows: Array.from(rowsBySection.get(key)?.values() ?? []),
       showEmptyState: true,
       showDayCounts: true,
+      interactive: true,
     })),
   ]
 
@@ -311,7 +424,7 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
         }
       }
     }
-    return { key: def.key, title: def.title, rows: def.rows, sectionHeaderRow, rowStarts, emptyRow, dayCounts }
+    return { key: def.key, title: def.title, rows: def.rows, sectionHeaderRow, rowStarts, emptyRow, dayCounts, interactive: def.interactive }
   })
 
   const totalRows = rowCursor
@@ -320,6 +433,176 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
   const todayIndex = differenceInCalendarDays(new Date(), rangeStart)
   const emptyLabel =
     viewMode === 'week' ? 'Aucun séjour cette semaine.' : viewMode === 'year' ? 'Aucun séjour cette année.' : 'Aucun séjour ce mois-ci.'
+
+  // ============================================================
+  // Édition directe depuis la ligne colorée (demandé par Nicolas le
+  // 21/09/2026) : cliquer ouvre la modale d'édition (dates exactes, âge,
+  // côté de la maison, suppression) ; glisser le corps de la barre la
+  // déplace (mêmes dates décalées d'autant) ; glisser un de ses bords
+  // l'étend ou la raccourcit de ce côté. Fonctionne aussi sur un séjour
+  // déjà passé — aucune restriction de date ici ni côté API.
+  // ============================================================
+
+  const persistDates = async (bookingId: string, newCheckIn: Date, newCheckOut: Date) => {
+    const booking = bookingsById.get(bookingId)
+    if (!booking) return
+    setSavingBookingId(bookingId)
+    setModalError(null)
+    const ageRate = inferAgeRate(booking)
+    const amount = calculateTotalTS(newCheckIn, newCheckOut, ageRate, true)
+    const checkInStr = format(newCheckIn, 'yyyy-MM-dd')
+    const checkOutStr = format(newCheckOut, 'yyyy-MM-dd')
+    try {
+      const res = await fetch('/api/bookings/quick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkIn: checkInStr,
+          checkOut: checkOutStr,
+          amount,
+          bookingId,
+          guestName: booking.guest_name ?? undefined,
+          houseSide: booking.house_side,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l’enregistrement')
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkInStr, check_out: checkOutStr } : b))
+      )
+      return true
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement')
+      return false
+    } finally {
+      setSavingBookingId(null)
+    }
+  }
+
+  const handleModalSave = async (
+    bookingId: string,
+    checkIn: string,
+    checkOut: string,
+    houseSide: HouseSide,
+    ageBracket: 'child' | 'adult'
+  ) => {
+    const booking = bookingsById.get(bookingId)
+    if (!booking) return
+    setSavingBookingId(bookingId)
+    setModalError(null)
+    const amount = calculateTotalTS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
+    try {
+      const res = await fetch('/api/bookings/quick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkIn,
+          checkOut,
+          amount,
+          bookingId,
+          guestName: booking.guest_name ?? undefined,
+          houseSide,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l’enregistrement')
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkIn, check_out: checkOut, house_side: houseSide } : b))
+      )
+      setEditingBookingId(null)
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement')
+    } finally {
+      setSavingBookingId(null)
+    }
+  }
+
+  const handleModalDelete = async (bookingId: string) => {
+    setSavingBookingId(bookingId)
+    setModalError(null)
+    try {
+      const res = await fetch(`/api/bookings/quick?id=${bookingId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erreur lors de la suppression')
+      setBookings((prev) => prev.filter((b) => b.id !== bookingId))
+      setEditingBookingId(null)
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Erreur lors de la suppression')
+    } finally {
+      setSavingBookingId(null)
+    }
+  }
+
+  const handlePointerDownOnSegment = (e: React.PointerEvent, bookingId: string, mode: DragMode) => {
+    if (e.pointerType === 'touch') return // pas de glisser tactile : voir onClick, qui reste disponible
+    if (viewMode === 'year') return
+    const booking = bookingsById.get(bookingId)
+    if (!booking || !canEditBooking(booking, currentUserId, isAdmin)) return
+    const pxPerDay = firstDayCellRef.current?.getBoundingClientRect().width || 0
+    if (!pxPerDay) return
+
+    e.stopPropagation()
+    const trueCheckIn = parseISO(booking.check_in)
+    const trueCheckOut = parseISO(booking.check_out)
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({
+      bookingId,
+      mode,
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      pxPerDay,
+      trueCheckIn,
+      trueCheckOut,
+      currentCheckIn: trueCheckIn,
+      currentCheckOut: trueCheckOut,
+      moved: false,
+    })
+  }
+
+  const handlePointerMoveOnSegment = (e: React.PointerEvent) => {
+    if (!drag || e.pointerId !== drag.pointerId) return
+    const deltaPx = e.clientX - drag.startClientX
+    const deltaDays = Math.round(deltaPx / drag.pxPerDay)
+
+    let newCheckIn = drag.trueCheckIn
+    let newCheckOut = drag.trueCheckOut
+    if (drag.mode === 'move') {
+      newCheckIn = addDays(drag.trueCheckIn, deltaDays)
+      newCheckOut = addDays(drag.trueCheckOut, deltaDays)
+    } else if (drag.mode === 'resize-left') {
+      newCheckIn = addDays(drag.trueCheckIn, deltaDays)
+      if (newCheckIn >= drag.trueCheckOut) newCheckIn = addDays(drag.trueCheckOut, -1)
+    } else {
+      newCheckOut = addDays(drag.trueCheckOut, deltaDays)
+      if (newCheckOut <= drag.trueCheckIn) newCheckOut = addDays(drag.trueCheckIn, 1)
+    }
+
+    setDrag((prev) =>
+      prev
+        ? {
+            ...prev,
+            currentCheckIn: newCheckIn,
+            currentCheckOut: newCheckOut,
+            moved: prev.moved || Math.abs(deltaPx) > DRAG_CLICK_THRESHOLD_PX,
+          }
+        : prev
+    )
+  }
+
+  const handlePointerUpOnSegment = (e: React.PointerEvent) => {
+    if (!drag || e.pointerId !== drag.pointerId) return
+    const finished = drag
+    setDrag(null)
+    if (!finished.moved) return // pas de déplacement réel : laisse le clic natif ouvrir la modale
+    e.preventDefault()
+    justDraggedRef.current = true
+    setTimeout(() => {
+      justDraggedRef.current = false
+    }, 0)
+    void persistDates(finished.bookingId, finished.currentCheckIn, finished.currentCheckOut)
+  }
+
+  const editingBooking = editingBookingId ? bookingsById.get(editingBookingId) ?? null : null
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -398,7 +681,10 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
           key={rangeStart.getTime()}
           className={cn(
             'relative grid animate-in fade-in-0 duration-200',
-            slideDir === 'next' ? 'slide-in-from-right-2' : 'slide-in-from-left-2'
+            slideDir === 'next' ? 'slide-in-from-right-2' : 'slide-in-from-left-2',
+            // Évite la sélection de texte (nom de la ligne, numéros de
+            // jour...) pendant qu'on glisse une barre de séjour.
+            drag ? 'select-none' : ''
           )}
           style={{ gridTemplateColumns }}
         >
@@ -440,6 +726,7 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
             : days.map((day, i) => (
                 <div
                   key={i}
+                  ref={i === 0 ? firstDayCellRef : undefined}
                   className="flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden border-b border-border py-2"
                   style={{ gridColumn: i + 2, gridRow: headerRow }}
                 >
@@ -516,28 +803,109 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
                         {row.label}
                       </span>
                     </div>
-                    {row.segments.map((seg) => (
-                      <div
-                        key={seg.id}
-                        className={cn(
-                          'h-4 min-w-0 self-center overflow-hidden',
-                          seg.startsInRange ? 'rounded-l-full' : '',
-                          seg.endsInRange ? 'rounded-r-full' : ''
-                        )}
-                        style={{
-                          gridColumn: `${seg.start + 2} / ${seg.end + 3}`,
-                          gridRow,
-                          backgroundColor: row.color,
-                        }}
-                        title={`${row.label} · du ${format(
-                          days[Math.min(seg.start, dayCount - 1)] ?? rangeStart,
-                          'd MMM',
-                          { locale: fr }
-                        )} au ${format(days[Math.min(seg.end, dayCount - 1)] ?? rangeEnd, 'd MMM', {
-                          locale: fr,
-                        })}`}
-                      />
-                    ))}
+                    {row.segments.map((seg) => {
+                      if (!section.interactive) {
+                        // Ligne d'événement : affichage seul, inchangé.
+                        return (
+                          <div
+                            key={seg.id}
+                            className={cn(
+                              'h-4 min-w-0 self-center overflow-hidden',
+                              seg.startsInRange ? 'rounded-l-full' : '',
+                              seg.endsInRange ? 'rounded-r-full' : ''
+                            )}
+                            style={{
+                              gridColumn: `${seg.start + 2} / ${seg.end + 3}`,
+                              gridRow,
+                              backgroundColor: row.color,
+                            }}
+                            title={`${row.label} · du ${format(
+                              days[Math.min(seg.start, dayCount - 1)] ?? rangeStart,
+                              'd MMM',
+                              { locale: fr }
+                            )} au ${format(days[Math.min(seg.end, dayCount - 1)] ?? rangeEnd, 'd MMM', {
+                              locale: fr,
+                            })}`}
+                          />
+                        )
+                      }
+
+                      const booking = bookingsById.get(seg.id)
+                      const editable = !!booking && canEditBooking(booking, currentUserId, isAdmin)
+                      const isDragging = drag?.bookingId === seg.id
+                      const displaySeg = isDragging
+                        ? { ...segmentFromDates(drag!.currentCheckIn, drag!.currentCheckOut, rangeStart, rangeEnd) }
+                        : seg
+                      const tooltipCheckIn = isDragging ? drag!.currentCheckIn : days[Math.min(seg.start, dayCount - 1)] ?? rangeStart
+                      const tooltipCheckOut = isDragging ? drag!.currentCheckOut : days[Math.min(seg.end, dayCount - 1)] ?? rangeEnd
+                      const canDrag = editable && viewMode !== 'year'
+
+                      // La zone cliquable/glissable ("déplacer") couvre toute la
+                      // hauteur de la ligne (pas seulement la barre visuelle de 16px,
+                      // trop fine à viser précisément) : les poignées de redimensionnement
+                      // (bords gauche/droit) sont posées par-dessus et interceptent leurs
+                      // propres clics en premier (stopPropagation dans
+                      // handlePointerDownOnSegment).
+                      return (
+                        <div
+                          key={seg.id}
+                          role="button"
+                          tabIndex={0}
+                          onPointerDown={(e) => handlePointerDownOnSegment(e, seg.id, 'move')}
+                          onPointerMove={handlePointerMoveOnSegment}
+                          onPointerUp={handlePointerUpOnSegment}
+                          onClick={() => {
+                            if (justDraggedRef.current) return
+                            setModalError(null)
+                            setEditingBookingId(seg.id)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              setModalError(null)
+                              setEditingBookingId(seg.id)
+                            }
+                          }}
+                          className={cn(
+                            'relative flex h-full min-w-0 items-center outline-none',
+                            canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                          )}
+                          style={{ gridColumn: `${displaySeg.start + 2} / ${displaySeg.end + 3}`, gridRow }}
+                          title={`${row.label} · du ${format(tooltipCheckIn, 'd MMM', { locale: fr })} au ${format(
+                            tooltipCheckOut,
+                            'd MMM',
+                            { locale: fr }
+                          )}`}
+                        >
+                          <div
+                            className={cn(
+                              'h-4 min-w-0 w-full overflow-hidden',
+                              displaySeg.startsInRange ? 'rounded-l-full' : '',
+                              displaySeg.endsInRange ? 'rounded-r-full' : ''
+                            )}
+                            style={{ backgroundColor: row.color, opacity: isDragging ? 0.75 : 1 }}
+                          />
+                          {canDrag && displaySeg.startsInRange && (
+                            <div
+                              onPointerDown={(e) => handlePointerDownOnSegment(e, seg.id, 'resize-left')}
+                              onPointerMove={handlePointerMoveOnSegment}
+                              onPointerUp={handlePointerUpOnSegment}
+                              className="absolute inset-y-0 left-0 w-2 cursor-ew-resize"
+                              aria-hidden="true"
+                            />
+                          )}
+                          {canDrag && displaySeg.endsInRange && (
+                            <div
+                              onPointerDown={(e) => handlePointerDownOnSegment(e, seg.id, 'resize-right')}
+                              onPointerMove={handlePointerMoveOnSegment}
+                              onPointerUp={handlePointerUpOnSegment}
+                              className="absolute inset-y-0 right-0 w-2 cursor-ew-resize"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </div>
+                      )
+                    })}
                   </Fragment>
                 )
               })}
@@ -545,6 +913,30 @@ export function PlanningView({ bookings, events }: PlanningViewProps) {
           ))}
         </div>
       </div>
+
+      {editingBooking && (
+        <BookingEditModal
+          booking={{
+            id: editingBooking.id,
+            check_in: editingBooking.check_in,
+            check_out: editingBooking.check_out,
+            house_side: editingBooking.house_side,
+            label: editingBooking.guest_name?.trim() || editingBooking.profiles?.first_name || 'Séjour',
+            ageRateHint: inferAgeRate(editingBooking),
+          }}
+          editable={canEditBooking(editingBooking, currentUserId, isAdmin)}
+          saving={savingBookingId === editingBooking.id}
+          error={modalError}
+          onClose={() => {
+            setEditingBookingId(null)
+            setModalError(null)
+          }}
+          onSave={(checkIn, checkOut, houseSide, ageBracket) =>
+            handleModalSave(editingBooking.id, checkIn, checkOut, houseSide, ageBracket)
+          }
+          onDelete={() => handleModalDelete(editingBooking.id)}
+        />
+      )}
     </div>
   )
 }
