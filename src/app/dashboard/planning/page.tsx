@@ -171,13 +171,13 @@ export default async function PlanningPage() {
           le planning : l'endroit où on regarde les dates avant de réserver.
           Le 21/09/2026, à la demande de Nicolas, ce bouton a arrêté de
           mener vers /dashboard/reserver (ancien formulaire BookingForm,
-          retiré) : il fait maintenant apparaître directement ici, en
-          dessous, le widget "Prochain séjour + Taxe de séjour" qui vivait
-          jusque-là sur la page d'accueil (voir ReserverSejour.tsx). */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Planning</h1>
-        <ReserverSejour profile={profile} booking={nextBooking} guestBookings={guestFutureBookings} />
-      </div>
+          retiré) : il fait maintenant apparaître directement ici le widget
+          "Prochain séjour + Taxe de séjour" qui vivait jusque-là sur la
+          page d'accueil. Le titre "Planning" a été remonté dans
+          ReserverSejour.tsx, à côté du bouton, pour que cette ligne garde
+          une hauteur fixe et que le widget s'affiche en dessous, sur toute
+          la largeur (2e demande de Nicolas, le même jour). */}
+      <ReserverSejour profile={profile} booking={nextBooking} guestBookings={guestFutureBookings} />
       <PlanningView bookings={planningBookings} events={planningEvents} />
     </div>
   )
