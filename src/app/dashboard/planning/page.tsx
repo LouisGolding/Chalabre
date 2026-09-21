@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
+import { ReserverSejour } from '@/components/planning/ReserverSejour'
 import { colorForName, oklchForHue } from '@/lib/colors'
 
 // ============================================================
@@ -81,6 +81,31 @@ export default async function PlanningPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) redirect('/auth/login')
+
+  // Séjour à venir du titulaire du compte + ceux déjà saisis pour des
+  // accompagnants (bouton "+") : mêmes données que l'ex-widget de
+  // l'accueil, pour alimenter ReserverSejour ci-dessous (widget migré ici
+  // le 21/09/2026, demandé par Nicolas).
+  const { data: myBookings } = await supabase
+    .from('bookings')
+    .select('*, ts_payments(*)')
+    .eq('user_id', user.id)
+    .order('check_in', { ascending: true })
+
+  const todayForReserver = new Date()
+  const myFutureBookings = (myBookings ?? []).filter((b) => new Date(b.check_in) >= todayForReserver)
+  const nextBooking = myFutureBookings.find((b) => !b.guest_name) ?? null
+  const guestFutureBookings = myFutureBookings
+    .filter((b) => b.guest_name)
+    .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
+
   const { data: bookings } = await supabase
     .from('bookings')
     .select('*, profiles(first_name, last_name, family_group, color_hue), rooms(name)')
@@ -142,19 +167,16 @@ export default async function PlanningPage() {
       {/* Point 3 des remarques de Nicolas (19/09/2026) : la refonte du menu
           (2 lignes de 3 onglets, montage d'Aurélie) avait laissé la page
           "Réserver" orpheline — elle existait toujours mais plus aucun lien
-          n'y menait. Plutôt que d'ajouter un 7e onglet au menu, on la
-          raccroche ici : le planning est l'endroit où on regarde les dates
-          avant de réserver. Le widget "Prochain séjour" de l'accueil reste
-          la voie rapide ; cette page reste la réservation complète
-          (chambres, accompagnants, calcul détaillé de la taxe de séjour). */}
+          n'y menait. Un bouton "Réserver un séjour" a été ajouté ici, sur
+          le planning : l'endroit où on regarde les dates avant de réserver.
+          Le 21/09/2026, à la demande de Nicolas, ce bouton a arrêté de
+          mener vers /dashboard/reserver (ancien formulaire BookingForm,
+          retiré) : il fait maintenant apparaître directement ici, en
+          dessous, le widget "Prochain séjour + Taxe de séjour" qui vivait
+          jusque-là sur la page d'accueil (voir ReserverSejour.tsx). */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Planning</h1>
-        <Link
-          href="/dashboard/reserver"
-          className="inline-flex h-9 items-center rounded-lg bg-foreground px-3.5 text-sm font-medium text-background transition-opacity hover:opacity-85"
-        >
-          Réserver un séjour
-        </Link>
+        <ReserverSejour profile={profile} booking={nextBooking} guestBookings={guestFutureBookings} />
       </div>
       <PlanningView bookings={planningBookings} events={planningEvents} />
     </div>

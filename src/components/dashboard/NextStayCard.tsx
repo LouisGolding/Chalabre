@@ -31,26 +31,17 @@ interface NextStayCardProps {
   guestBookings?: BookingData[]
 }
 
-// Fond transparent (on voit la photo de l'accueil derrière), typographie
-// Bahnschrift : "Prochain séjour" / "Taxe de séjour" en semi-gras, dates et
-// montant en semi-léger — comme sur le montage envoyé par Aurélie.
+// Fond transparent (l'arrière-plan de la page transparaît derrière),
+// typographie Bahnschrift : "Prochain séjour" / "Taxe de séjour" en
+// semi-gras, dates et montant en semi-léger — comme sur le montage
+// envoyé par Aurélie.
 //
-// Caché par défaut (20/09/2026, demandé par Nicolas) derrière une pastille
-// "RÉSERVER" : pastille bien noire et opaque, mais les LETTRES sont un
-// découpage transparent qui laisse deviner la vraie photo de fond au
-// travers — pas un à-plat de couleur. Technique : bg-clip-text sur le
-// texte, avec en arrière-plan de ce texte la même image que la vraie
-// photo de fond (même fichier, mêmes réglages mobile/bureau, et surtout
-// background-attachment: fixed comme la vraie photo) — le texte devient
-// une "fenêtre" pixel-parfaite sur cette photo, y compris pendant un
-// scroll. En majuscules, dans la graisse la plus épaisse que propose
-// Tailwind (font-black, 900) — un contour ajouterait une couleur pleine
-// autour des lettres et casserait l'effet de découpe, donc pas ajouté ici
-// sans le revalider avec Nicolas. Un clic dessus révèle tout le widget
-// (dates, âge, côté de la maison, taxe de séjour) — pas de bouton pour la
-// re-masquer ensuite, non demandé.
+// Migré le 21/09/2026 (demandé par Nicolas) depuis la page d'accueil vers
+// l'onglet Planning, où il apparaît sous le bouton "Réserver un séjour"
+// déjà présent là-bas (voir ReserverSejour.tsx) — ce composant n'a donc
+// plus sa propre pastille de déclenchement, contrairement à la version
+// du 20/09/2026 : il s'affiche directement, tel quel.
 export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayCardProps) {
-  const [revealed, setRevealed] = useState(false)
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
   const [guestEntries, setGuestEntries] = useState<{ localId: string; booking: BookingData | null }[]>(
@@ -82,39 +73,6 @@ export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayC
     setPrimaryBooking(null)
     setPrimaryState({ bookingId: null, hasData: false })
     setPrimaryResetKey((k) => k + 1)
-  }
-
-  if (!revealed) {
-    return (
-      <button
-        type="button"
-        onClick={() => setRevealed(true)}
-        className="relative inline-flex items-center justify-center overflow-hidden rounded-full bg-foreground px-7 py-3 hover:opacity-80 transition-opacity"
-      >
-        <span
-          className="md:hidden bg-clip-text text-transparent text-sm font-black uppercase tracking-widest"
-          style={{
-            backgroundImage: "url('/images/accueil-bg-mobile.jpg')",
-            backgroundSize: 'cover',
-            backgroundPosition: '43% 38%',
-            backgroundAttachment: 'fixed',
-          }}
-        >
-          Réserver
-        </span>
-        <span
-          className="hidden md:inline bg-clip-text text-transparent text-base font-black uppercase tracking-widest"
-          style={{
-            backgroundImage: "url('/images/accueil-bg-desktop.jpg')",
-            backgroundSize: 'cover',
-            backgroundPosition: '39% 40%',
-            backgroundAttachment: 'fixed',
-          }}
-        >
-          Réserver
-        </span>
-      </button>
-    )
   }
 
   return (

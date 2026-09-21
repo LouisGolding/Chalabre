@@ -5,7 +5,6 @@ import { formatCurrency } from '@/lib/utils'
 // utilisés que par les deux widgets masqués plus bas (18/09/2026) : Card
 // depuis @/components/ui/card, Badge depuis @/components/ui/badge, Users
 // depuis lucide-react. À réimporter avec eux si on les remet.
-import { NextStayCard } from '@/components/dashboard/NextStayCard'
 import { CotisationPill } from '@/components/dashboard/CotisationPill'
 
 export default async function DashboardPage() {
@@ -21,26 +20,23 @@ export default async function DashboardPage() {
 
   if (!profile) redirect('/auth/login')
 
-  // Get user's bookings
+  // Get user's past bookings (le widget "Prochain séjour" et le calcul de
+  // taxe de séjour ont migré vers l'onglet Planning le 21/09/2026 — voir
+  // ReserverSejour.tsx — donc seuls les séjours PASSÉS du titulaire du
+  // compte sont encore utiles ici, pour "Vous n'êtes pas venu depuis...").
   const { data: bookings } = await supabase
     .from('bookings')
-    .select('*, ts_payments(*)')
+    .select('check_out, check_in, guest_name')
     .eq('user_id', user.id)
     .order('check_in', { ascending: true })
 
   const today = new Date()
   const pastBookings = bookings?.filter(b => new Date(b.check_out) < today) ?? []
-  const futureBookings = bookings?.filter(b => new Date(b.check_in) >= today) ?? []
   // Séjour du titulaire du compte (widgets principaux) vs séjours ajoutés
   // pour des accompagnants (guest_name renseigné) via le bouton "+" : pour
-  // "Prochain séjour" comme pour "vous n'êtes pas venu depuis...", seuls
-  // les séjours du titulaire lui-même comptent.
-  const myFutureBookings = futureBookings.filter(b => !b.guest_name)
+  // "Vous n'êtes pas venu depuis...", seuls les séjours du titulaire
+  // lui-même comptent.
   const myPastBookings = pastBookings.filter(b => !b.guest_name)
-  const guestFutureBookings = futureBookings
-    .filter(b => b.guest_name)
-    .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
-  const nextBooking = myFutureBookings[0]
   const lastBooking = myPastBookings[myPastBookings.length - 1]
 
   // Widget "Vous n'êtes pas venu depuis X jours" (demandé par Aurélie le
@@ -169,12 +165,13 @@ export default async function DashboardPage() {
           </span>
         </div>
 
-      {/* Prochain séjour et taxe de séjour */}
-      <NextStayCard profile={profile} booking={nextBooking ?? null} guestBookings={guestFutureBookings} />
-
-      {/* Quick stats — "Solde TS" est parti dans la pastille de NextStayCard,
-          à côté de "Taxe de séjour" (demandé par Aurélie le 18/09/2026). Le
-          widget "Dernier séjour" qui suivait ici a été masqué à sa demande
+      {/* Quick stats — "Solde TS" est dans la pastille juste au-dessus, à
+          côté de "Cotisation mensuelle" (demandé par Aurélie le
+          18/09/2026). Le widget "Prochain séjour + Taxe de séjour" qui
+          s'affichait ici a migré vers l'onglet Planning le 21/09/2026
+          (demandé par Nicolas — voir ReserverSejour.tsx, sous le bouton
+          "Réserver un séjour"). Le widget "Dernier séjour" qui suivait ici
+          a été masqué à sa demande
           le 18/09/2026 (le const lastBooking est réutilisé depuis, pour la
           phrase "Vous n'êtes pas venu depuis..." sous "Bonjour, ...") :
           <Card className="md:max-w-xs">
