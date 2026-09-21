@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
-import { ReserverSejour } from '@/components/planning/ReserverSejour'
+import { PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
+import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
 import { colorForName, oklchForHue } from '@/lib/colors'
 
 // ============================================================
@@ -116,6 +116,18 @@ export default async function PlanningPage() {
     .select('*')
     .order('start_date', { ascending: true })
 
+  // Solde de taxe de séjour en attente pour le compte connecté (déplacé ici
+  // depuis la page d'accueil le 21/09/2026, demandé par Aurélie — voir
+  // ReserverSejour.tsx, à côté de "Prochain séjour"). Rafraîchi ensuite en
+  // direct via /api/ts-balance sans recharger la page.
+  const { data: tsPayments } = await supabase
+    .from('ts_payments')
+    .select('amount, status')
+    .eq('user_id', user.id)
+  const initialSoldeTS = (tsPayments ?? [])
+    .filter((p) => p.status === 'pending')
+    .reduce((sum, p) => sum + Number(p.amount), 0)
+
   const { data: allProfilesForColor } = await supabase
     .from('profiles')
     .select('first_name, last_name, color_hue')
@@ -190,10 +202,13 @@ export default async function PlanningPage() {
           ReserverSejour.tsx, à côté du bouton, pour que cette ligne garde
           une hauteur fixe et que le widget s'affiche en dessous, sur toute
           la largeur (2e demande de Nicolas, le même jour). */}
-      <ReserverSejour profile={profile} booking={nextBooking} guestBookings={guestFutureBookings} />
-      <PlanningView
-        bookings={planningBookings}
-        events={planningEvents}
+      <PlanningPageClient
+        profile={profile}
+        nextBooking={nextBooking}
+        guestFutureBookings={guestFutureBookings}
+        initialSoldeTS={initialSoldeTS}
+        initialPlanningBookings={planningBookings}
+        planningEvents={planningEvents}
         currentUserId={user.id}
         isAdmin={profile.role === 'admin'}
       />

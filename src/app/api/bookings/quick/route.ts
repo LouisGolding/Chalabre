@@ -17,12 +17,6 @@ import { fallbackHueForName, nearbyHue } from '@/lib/colors'
 // séjour. Obligatoire pour enregistrer un séjour (voir migration
 // supabase/migration_bookings_house_side.sql, à appliquer par Louis).
 //
-// Mode développement : tant que NODE_ENV !== 'production' (donc en local,
-// via `npm run dev`), cette route ne touche jamais Supabase. Elle simule la
-// réponse attendue (même forme que la vraie) uniquement pour que l'interface
-// réagisse normalement pendant les tests, sans enregistrer la moindre
-// donnée dans la base partagée. En production (Vercel), le comportement
-// réel ci-dessous s'applique sans changement.
 
 // Couleur persistée par personne (demandé par Nicolas le 19/09/2026) : dès
 // qu'un accompagnant sans compte (ex. Otto) est saisi pour la première
@@ -36,25 +30,29 @@ import { fallbackHueForName, nearbyHue } from '@/lib/colors'
 // Correspondance par nom complet exact (insensible à la casse/espaces) :
 // Nicolas a confirmé que le nom et prénom complets sont toujours saisis,
 // donc pas de risque réel d'homonymie à gérer.
+// Renvoie la teinte (color_hue) résolue pour ce nom, pour que le client
+// puisse afficher immédiatement la bonne couleur sur la ligne du planning
+// dès l'enregistrement (demandé par Aurélie le 21/09/2026 — voir
+// PlanningPageClient.tsx), sans attendre un rechargement de page.
 async function ensureGuestColor(
   supabase: Awaited<ReturnType<typeof createClient>>,
   guestName: string,
   creatorId: string
-) {
+): Promise<number | null> {
   const normalized = guestName.trim().toLowerCase()
 
-  const { data: profiles } = await supabase.from('profiles').select('first_name, last_name')
-  const matchesExistingAccount = (profiles ?? []).some(
+  const { data: profiles } = await supabase.from('profiles').select('first_name, last_name, color_hue')
+  const matchingAccount = (profiles ?? []).find(
     (p) => `${p.first_name} ${p.last_name}`.trim().toLowerCase() === normalized
   )
-  if (matchesExistingAccount) return
+  if (matchingAccount) return matchingAccount.color_hue ?? null
 
   const { data: existingGuest } = await supabase
     .from('guest_people')
-    .select('id')
+    .select('color_hue')
     .ilike('name', guestName.trim())
     .maybeSingle()
-  if (existingGuest) return
+  if (existingGuest) return existingGuest.color_hue ?? null
 
   const { data: creator } = await supabase
     .from('profiles')
@@ -71,6 +69,8 @@ async function ensureGuestColor(
     family_group: creator?.family_group ?? null,
     created_by: creatorId,
   })
+
+  return hue
 }
 
 export async function POST(request: Request) {
@@ -101,8 +101,15 @@ export async function POST(request: Request) {
   const normalizedGuestName: string | null =
     typeof guestName === 'string' && guestName.trim() ? guestName.trim() : null
 
+  // Teinte résolue pour l'affichage instantané côté client (voir
+  // ensureGuestColor ci-dessus) : celle de l'accompagnant s'il en saisit
+  // un, sinon celle du titulaire du compte lui-même.
+  let colorHue: number | null = null
   if (normalizedGuestName) {
-    await ensureGuestColor(supabase, normalizedGuestName, user.id)
+    colorHue = await ensureGuestColor(supabase, normalizedGuestName, user.id)
+  } else {
+    const { data: ownProfile } = await supabase.from('profiles').select('color_hue').eq('id', user.id).single()
+    colorHue = ownProfile?.color_hue ?? null
   }
 
   let targetBookingId: string
@@ -219,6 +226,7 @@ export async function POST(request: Request) {
     bookingId: targetBookingId,
     paidAmount,
     pendingPayment,
+    colorHue,
   })
 }
 

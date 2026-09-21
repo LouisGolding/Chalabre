@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { formatCurrency } from '@/lib/utils'
-// formatDate, Card/CardContent/CardHeader/CardTitle et Badge ne sont plus
-// utilisés que par les deux widgets masqués plus bas (18/09/2026) : Card
-// depuis @/components/ui/card, Badge depuis @/components/ui/badge, Users
-// depuis lucide-react. À réimporter avec eux si on les remet.
+// formatCurrency, formatDate, Card/CardContent/CardHeader/CardTitle et
+// Badge ne sont plus utilisés que par les widgets masqués plus bas
+// (18/09/2026) ou déplacés depuis (21/09/2026, voir ReserverSejour.tsx) :
+// formatCurrency et formatDate depuis @/lib/utils, Card depuis
+// @/components/ui/card, Badge depuis @/components/ui/badge, Users depuis
+// lucide-react. À réimporter avec eux si on les remet.
 import { CotisationPill } from '@/components/dashboard/CotisationPill'
 
 export default async function DashboardPage() {
@@ -75,14 +76,6 @@ export default async function DashboardPage() {
         ? `${presentNames[0]} est en ce moment à la Bâtisse.`
         : `${presentNames.slice(0, -1).join(', ')} & ${presentNames[presentNames.length - 1]} sont en ce moment à la Bâtisse.`
 
-  // Get TS balance
-  const { data: tsPayments } = await supabase
-    .from('ts_payments')
-    .select('amount, status')
-    .eq('user_id', user.id)
-
-  const tsPending = tsPayments?.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0) ?? 0
-
   const isFriend = profile.role === 'friend'
 
   return (
@@ -124,16 +117,16 @@ export default async function DashboardPage() {
             quadruplé en mb-8, quadruplé une seconde fois en mb-32, puis
             réduit d'un tiers (128px → 85px) le même jour. */}
         {/* Welcome, en grille à 2 colonnes / 2 lignes partagées : ligne 1
-            "Bonjour, ..." (gauche) / "Cotisation mensuelle" (droite),
-            ligne 2 "Vous n'êtes pas venu depuis..." (gauche) / "Solde taxe
-            de séjour" (droite) — une seule grille (plutôt que deux blocs
-            indépendants) pour que la hauteur de chaque ligne soit partagée
-            entre les deux colonnes et que "Vous n'êtes pas venu..." et
-            "Solde taxe de séjour" tombent bien sur la même ligne, quel que
-            soit l'écart réel entre les tailles de police (demandé par
-            Aurélie le 18/09/2026). col-start/row-start explicites : sans
-            ça, l'absence de "Vous n'êtes pas venu..." (aucun séjour passé)
-            décalerait "Solde taxe de séjour" dans la mauvaise colonne. */}
+            "Bonjour, ..." (gauche) / "Cotisation mensuelle" (droite), ligne
+            2 "Vous n'êtes pas venu depuis..." seule (gauche) — la pastille
+            "Solde taxe de séjour" qui occupait la colonne de droite de
+            cette 2e ligne a déménagé sur l'onglet Planning le 21/09/2026,
+            à côté de "Prochain séjour" (demandé par Aurélie — voir
+            ReserverSejour.tsx), puisque tout ce qui concerne les séjours et
+            leur taxe de séjour est désormais réuni là-bas. col-start/
+            row-start explicites conservés malgré tout : sans ça, l'absence
+            de "Vous n'êtes pas venu..." (aucun séjour passé) décalerait la
+            grille de façon imprévisible. */}
         <div className="mb-[85px] grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-2">
           <h1 className="col-start-1 row-start-1 text-xl md:text-2xl font-semibold text-foreground">
             Bonjour, {profile.first_name} {profile.last_name}
@@ -151,18 +144,6 @@ export default async function DashboardPage() {
               {lastStaySentence}
             </p>
           )}
-
-          {/* "Solde taxe de séjour" (déplacé ici depuis NextStayCard le
-              18/09/2026) juste sous "Cotisation mensuelle" — pour les
-              comptes "invité"/"ami" qui n'ont pas cette pastille (voir
-              isFriend), "Solde taxe de séjour" prend simplement sa place,
-              seule dans cette colonne. */}
-          <span className="col-start-2 row-start-2 self-center inline-flex h-8 w-fit items-center justify-self-end whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm">
-            Solde taxe de séjour :
-            <span className={`ml-1 ${tsPending > 0 ? 'text-red-600' : 'text-foreground'}`}>
-              {tsPending > 0 ? `-${formatCurrency(tsPending)}` : formatCurrency(0)}
-            </span>
-          </span>
         </div>
 
       {/* Quick stats — "Solde TS" est dans la pastille juste au-dessus, à

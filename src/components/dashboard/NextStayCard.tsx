@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { differenceInYears, parseISO } from 'date-fns'
 import { calculateTotalTS, formatCurrency, formatDate } from '@/lib/utils'
 import { HouseSide, Profile, TSPayment } from '@/types'
@@ -23,12 +23,28 @@ interface BookingData {
   ts_payments?: TSPayment[]
 }
 
+// Séjour enregistré (créé ou mis à jour) par un StayEntry, remonté au
+// planning (voir PlanningPageClient.tsx) pour que la ligne colorée
+// correspondante apparaisse instantanément, sans recharger la page
+// (demandé par Aurélie le 21/09/2026). colorHue vient de la réponse de
+// /api/bookings/quick (voir src/lib/colors.ts, oklchForHue).
+export interface SavedStayInfo {
+  id: string
+  check_in: string
+  check_out: string
+  guest_name: string | null
+  house_side: HouseSide | null
+  colorHue: number | null
+}
+
 interface NextStayCardProps {
   profile: Profile
   // Séjour à venir du titulaire du compte, ou null.
   booking: BookingData | null
   // Séjours déjà saisis pour des accompagnants (bouton "+"), le cas échéant.
   guestBookings?: BookingData[]
+  onBookingSaved?: (booking: SavedStayInfo) => void
+  onBookingDeleted?: (bookingId: string) => void
 }
 
 // Fond transparent (l'arrière-plan de la page transparaît derrière),
@@ -40,8 +56,11 @@ interface NextStayCardProps {
 // l'onglet Planning, où il apparaît sous le bouton "Réserver un séjour"
 // déjà présent là-bas (voir ReserverSejour.tsx) — ce composant n'a donc
 // plus sa propre pastille de déclenchement, contrairement à la version
-// du 20/09/2026 : il s'affiche directement, tel quel.
-export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayCardProps) {
+// du 20/09/2026 : il s'affiche directement, tel quel. Le titre "Prochain
+// séjour" est affiché par ReserverSejour (même ligne que la pastille
+// "Solde taxe de séjour", alignée avec le bouton "Réserver un séjour" —
+// 2e demande d'Aurélie le 21/09/2026), donc plus ici.
+export function NextStayCard({ profile, booking, guestBookings = [], onBookingSaved, onBookingDeleted }: NextStayCardProps) {
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
   const [guestEntries, setGuestEntries] = useState<{ localId: string; booking: BookingData | null }[]>(
@@ -69,6 +88,7 @@ export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayC
       } finally {
         setDeletingPrimary(false)
       }
+      onBookingDeleted?.(primaryState.bookingId)
     }
     setPrimaryBooking(null)
     setPrimaryState({ bookingId: null, hasData: false })
@@ -84,6 +104,7 @@ export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayC
         defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
         showNameField={false}
         onStateChange={setPrimaryState}
+        onSaved={onBookingSaved}
       />
 
       {guestEntries.map((entry) => (
@@ -95,6 +116,8 @@ export function NextStayCard({ profile, booking, guestBookings = [] }: NextStayC
             onRemoved={() =>
               setGuestEntries((prev) => prev.filter((e) => e.localId !== entry.localId))
             }
+            onSaved={onBookingSaved}
+            onDeleted={onBookingDeleted}
           />
         </div>
       ))}
@@ -140,9 +163,20 @@ interface StayEntryProps {
   showNameField: boolean
   onRemoved?: () => void
   onStateChange?: (state: { bookingId: string | null; hasData: boolean }) => void
+  onSaved?: (booking: SavedStayInfo) => void
+  onDeleted?: (bookingId: string) => void
 }
 
-function StayEntry({ booking, defaultAgeBracket, defaultHouseSide, showNameField, onRemoved, onStateChange }: StayEntryProps) {
+function StayEntry({
+  booking,
+  defaultAgeBracket,
+  defaultHouseSide,
+  showNameField,
+  onRemoved,
+  onStateChange,
+  onSaved,
+  onDeleted,
+}: StayEntryProps) {
   const initialPayments = booking?.ts_payments ?? []
   const initialPaidAmount = initialPayments
     .filter((p) => p.status === 'paid')
@@ -161,6 +195,20 @@ function StayEntry({ booking, defaultAgeBracket, defaultHouseSide, showNameField
   const [removing, setRemoving] = useState(false)
   const [synced, setSynced] = useState(initialPayments.length > 0)
   const [error, setError] = useState<string | null>(null)
+
+  // bookingId "vu" par le prochain enregistrement (voir l'effet ci-dessous) :
+  // un ref plutôt que l'état React seul, pour être lu/écrit de façon
+  // synchrone dans la file d'enregistrements (saveQueueRef) sans dépendre
+  // d'un re-rendu.
+  const bookingIdRef = useRef(bookingId)
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const isMountedRef = useRef(true)
+  useEffect(
+    () => () => {
+      isMountedRef.current = false
+    },
+    []
+  )
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0
@@ -184,46 +232,67 @@ function StayEntry({ booking, defaultAgeBracket, defaultHouseSide, showNameField
 
   const readyToSave = checkIn && checkOut && nights > 0 && !!houseSide && (!showNameField || guestName.trim())
 
-  // Enregistrement automatique (avec un léger débounce) dès que les champs sont valides.
-  // Se déclenche aussi si le séjour est déjà (partiellement) payé, pour recalculer le solde.
+  // Enregistrement automatique (avec un léger débounce) dès que les champs
+  // sont valides. Se déclenche aussi si le séjour est déjà (partiellement)
+  // payé, pour recalculer le solde.
+  //
+  // Les enregistrements sont mis à la file (saveQueueRef) plutôt qu'envoyés
+  // en parallèle : si un enregistrement précédent est encore en cours
+  // (requête réseau pas encore terminée) quand un nouveau se déclenche, ce
+  // dernier attend que le précédent se termine et pose le véritable
+  // bookingId (bookingIdRef) avant de partir à son tour. Sans ça, les deux
+  // partiraient avec bookingId=null (le premier n'ayant pas encore reçu sa
+  // réponse) et créeraient deux séjours en base au lieu d'un seul mis à
+  // jour — doublon repéré par Aurélie le 21/09/2026 sur le planning
+  // (compteur de présence à "2" pour une seule personne).
   useEffect(() => {
     if (!readyToSave) return
 
     setSynced(false)
     setSaving(true)
     setError(null)
-    let cancelled = false
 
-    const timeout = setTimeout(async () => {
-      try {
-        const res = await fetch('/api/bookings/quick', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            checkIn,
-            checkOut,
-            amount,
-            bookingId,
-            guestName: showNameField ? guestName.trim() : undefined,
-            houseSide,
-          }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l’enregistrement')
-        if (cancelled) return
-        setBookingId(data.bookingId)
-        setPaidAmount(data.paidAmount ?? 0)
-        setPendingPayment(data.pendingPayment ?? null)
-        setSynced(true)
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Erreur')
-      } finally {
-        if (!cancelled) setSaving(false)
-      }
+    const timeout = setTimeout(() => {
+      saveQueueRef.current = saveQueueRef.current.then(async () => {
+        try {
+          const res = await fetch('/api/bookings/quick', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              checkIn,
+              checkOut,
+              amount,
+              bookingId: bookingIdRef.current,
+              guestName: showNameField ? guestName.trim() : undefined,
+              houseSide,
+            }),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l’enregistrement')
+
+          bookingIdRef.current = data.bookingId
+          if (!isMountedRef.current) return
+          setBookingId(data.bookingId)
+          setPaidAmount(data.paidAmount ?? 0)
+          setPendingPayment(data.pendingPayment ?? null)
+          setSynced(true)
+          onSaved?.({
+            id: data.bookingId,
+            check_in: checkIn,
+            check_out: checkOut,
+            guest_name: showNameField ? guestName.trim() || null : null,
+            house_side: houseSide,
+            colorHue: typeof data.colorHue === 'number' ? data.colorHue : null,
+          })
+        } catch (err) {
+          if (isMountedRef.current) setError(err instanceof Error ? err.message : 'Erreur')
+        } finally {
+          if (isMountedRef.current) setSaving(false)
+        }
+      })
     }, 600)
 
     return () => {
-      cancelled = true
       clearTimeout(timeout)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -240,6 +309,7 @@ function StayEntry({ booking, defaultAgeBracket, defaultHouseSide, showNameField
       const res = await fetch(`/api/bookings/quick?id=${bookingId}`, { method: 'DELETE' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erreur lors de la suppression')
+      onDeleted?.(bookingId)
       onRemoved?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
@@ -339,15 +409,13 @@ function StayEntry({ booking, defaultAgeBracket, defaultHouseSide, showNameField
 
   // Grille "dates / âge" + "Taxe de séjour", strictement identique pour le
   // séjour principal et pour les séjours d'accompagnants (bouton "+") :
-  // fond transparent, dates soulignées, montant en semi-léger. Seul le
-  // titre "Prochain séjour" ne s'affiche que pour le séjour principal.
+  // fond transparent, dates soulignées, montant en semi-léger. Le titre
+  // "Prochain séjour" est affiché par ReserverSejour.tsx (voir plus haut),
+  // pas ici.
   const stayFields = (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-5">
       <div>
-        {!showNameField && (
-          <h2 className="font-normal text-xl md:text-2xl text-foreground">Prochain séjour</h2>
-        )}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-light text-base md:text-lg text-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-light text-base md:text-lg text-foreground">
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
             Du
             <input
@@ -376,8 +444,9 @@ function StayEntry({ booking, defaultAgeBracket, defaultHouseSide, showNameField
       </div>
 
       {/* Pastille "Solde taxe de séjour" déplacée sous "Cotisation
-          mensuelle" en haut de la page d'accueil le 18/09/2026 (voir
-          src/app/dashboard/page.tsx) — ne s'affiche donc plus ici. */}
+          mensuelle" en haut de la page d'accueil le 18/09/2026, puis sur
+          l'onglet Planning (à côté de "Prochain séjour") le 21/09/2026 —
+          voir ReserverSejour.tsx — ne s'affiche donc plus ici. */}
       {checkIn && checkOut && nights > 0 && (
         <div>
           <h2 className="font-normal text-xl md:text-2xl text-foreground">Taxe de séjour</h2>

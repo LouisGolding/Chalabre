@@ -69,6 +69,13 @@ export interface PlanningEvent {
 
 interface PlanningViewProps {
   bookings: PlanningBooking[]
+  // Sous le contrôle du parent (PlanningPageClient.tsx) plutôt qu'un état
+  // interne : le widget "Prochain séjour" (ReserverSejour.tsx, juste
+  // au-dessus sur la page) enregistre aussi des séjours, et sa ligne
+  // colorée doit apparaître ici instantanément — les deux partagent donc
+  // la même source de vérité côté client (demandé par Aurélie le
+  // 21/09/2026).
+  onBookingsChange: (updater: PlanningBooking[] | ((prev: PlanningBooking[]) => PlanningBooking[])) => void
   events: PlanningEvent[]
   // Pour savoir quelles lignes colorées l'utilisateur courant peut éditer
   // depuis le planning (cliquer/glisser) : les siennes, ou toutes si admin
@@ -182,7 +189,7 @@ interface DragState {
   moved: boolean
 }
 
-export function PlanningView({ bookings: initialBookings, events, currentUserId, isAdmin }: PlanningViewProps) {
+export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin }: PlanningViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   // Direction du dernier changement de période, pour l'animation de
@@ -192,12 +199,11 @@ export function PlanningView({ bookings: initialBookings, events, currentUserId,
   const wheelLocked = useRef(false)
   const touchStartX = useRef<number | null>(null)
 
-  // Copie locale des séjours (demandé par Nicolas le 21/09/2026, pour
-  // l'édition directe depuis la ligne colorée) : mise à jour optimiste dès
-  // qu'un glisser ou la modale d'édition enregistre une modification, sans
-  // recharger toute la page. La source de vérité reste Supabase — un
+  // Mise à jour optimiste des séjours (glisser, modale d'édition, ou widget
+  // "Prochain séjour" au-dessus) directement dans l'état du parent — voir
+  // onBookingsChange ci-dessus. La source de vérité reste Supabase — un
   // rechargement de page reprend toujours les données à jour du serveur.
-  const [bookings, setBookings] = useState(initialBookings)
+  const setBookings = onBookingsChange
   const bookingsById = useMemo(() => new Map(bookings.map((b) => [b.id, b])), [bookings])
 
   const [drag, setDrag] = useState<DragState | null>(null)
