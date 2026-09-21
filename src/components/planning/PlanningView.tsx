@@ -133,6 +133,15 @@ const WHEEL_COOLDOWN_MS = 500
 // plutôt qu'un déplacement/redimensionnement — voir handlePointerUpOnSegment.
 const DRAG_CLICK_THRESHOLD_PX = 4
 
+// Le champ de saisie d'un accompagnant (StayEntry, voir NextStayCard.tsx)
+// s'appelle "Nom Prénom" et peut donc contenir un nom de famille — mais
+// seul le prénom doit apparaître sur le planning (jamais le nom de
+// famille), comme pour les titulaires de compte (profiles.first_name).
+// On ne garde donc que le premier mot saisi.
+function firstNameOnly(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName
+}
+
 function clampDateToRange(date: Date, rangeStart: Date, rangeEnd: Date): Date {
   if (date < rangeStart) return rangeStart
   if (date > rangeEnd) return rangeEnd
@@ -341,7 +350,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
       // Nicolas le 19/09/2026. Le choix de chambre (room_label) n'est pas
       // affiché sur le planning pour l'instant : cette fonctionnalité n'est
       // pas encore développée (voir points-a-regler-avec-louis.md).
-      const label = booking.guest_name?.trim() || booking.profiles?.first_name || 'Séjour'
+      const label = (booking.guest_name?.trim() && firstNameOnly(booking.guest_name)) || booking.profiles?.first_name || 'Séjour'
       const rowKey = `${side}::${label}`
       const sectionRows = bySection.get(side)!
 
@@ -937,7 +946,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
             check_in: editingBooking.check_in,
             check_out: editingBooking.check_out,
             house_side: editingBooking.house_side,
-            label: editingBooking.guest_name?.trim() || editingBooking.profiles?.first_name || 'Séjour',
+            label: (editingBooking.guest_name?.trim() && firstNameOnly(editingBooking.guest_name)) || editingBooking.profiles?.first_name || 'Séjour',
             ageRateHint: inferAgeRate(editingBooking),
           }}
           editable={canEditBooking(editingBooking, currentUserId, isAdmin)}

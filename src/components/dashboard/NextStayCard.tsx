@@ -107,6 +107,24 @@ export function NextStayCard({ profile, booking, guestBookings = [], onBookingSa
         onSaved={onBookingSaved}
       />
 
+      {/* Rendu juste sous le séjour principal (et non plus au niveau de la
+          rangée "Ajouter un séjour" tout en bas) : sinon, dès qu'un
+          accompagnant est ajouté, cette pastille se retrouvait éloignée du
+          séjour qu'elle supprime — demandé par Aurélie le 21/09/2026. */}
+      {primaryState.hasData && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 bg-card/40 backdrop-blur-sm"
+          onClick={handleDeletePrimary}
+          disabled={deletingPrimary}
+        >
+          <Minus className="h-4 w-4" />
+          Supprimer ce séjour
+        </Button>
+      )}
+
       {guestEntries.map((entry) => (
         <div key={entry.localId} className="pt-5 border-t border-foreground/10">
           <StayEntry
@@ -133,19 +151,6 @@ export function NextStayCard({ profile, booking, guestBookings = [], onBookingSa
       ))}
 
       <div className="flex items-center gap-2">
-        {primaryState.hasData && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 bg-card/40 backdrop-blur-sm"
-            onClick={handleDeletePrimary}
-            disabled={deletingPrimary}
-          >
-            <Minus className="h-4 w-4" />
-            Supprimer ce séjour
-          </Button>
-        )}
         <Button
           type="button"
           variant="outline"
