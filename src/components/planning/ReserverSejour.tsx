@@ -71,8 +71,13 @@ export function ReserverSejour({
   onBookingSaved,
   onBookingDeleted,
 }: ReserverSejourProps) {
-  const [ownSoldeTS, setOwnSoldeTS] = useState(initialOwnSoldeTS)
-  const [guestSoldeTS, setGuestSoldeTS] = useState<GuestSolde[]>(initialGuestSoldeTS)
+  // Filet de sécurité : si ces props arrivent undefined (ex. cache de dev
+  // Turbopack pas encore resynchronisé après un changement de leur forme
+  // côté serveur, voir page.tsx), on évite un crash "Cannot read
+  // properties of undefined (reading 'map')" plutôt que de forcer les
+  // props en non-nullable.
+  const [ownSoldeTS, setOwnSoldeTS] = useState(initialOwnSoldeTS ?? 0)
+  const [guestSoldeTS, setGuestSoldeTS] = useState<GuestSolde[]>(initialGuestSoldeTS ?? [])
 
   // Rappelle les soldes exacts depuis la base plutôt que de les recalculer
   // côté client à partir d'un seul séjour : ils couvrent TOUS les séjours
