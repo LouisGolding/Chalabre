@@ -116,8 +116,8 @@ interface Row {
 // planning — même forme que Lalande/Canat (voir HouseSide dans
 // src/types/index.ts).
 const SECTIONS: { key: 'lalande' | 'canat' | 'petite_maison'; title: string }[] = [
-  { key: 'lalande', title: 'Lalande' },
   { key: 'canat', title: 'Canat' },
+  { key: 'lalande', title: 'Lalande' },
   { key: 'petite_maison', title: 'Petite maison' },
 ]
 

@@ -112,6 +112,16 @@ export function NextStayCard({ profile, booking, guestBookings = [], onBookingSa
           <StayEntry
             booking={entry.booking}
             defaultAgeBracket="adult"
+            // Un accompagnant (ex. Otto, un enfant sans compte) est saisi
+            // par un titulaire qui dort forcément du même côté que lui à
+            // cette occasion : on présume donc le même côté de la maison
+            // que le titulaire, comme pour son propre séjour ci-dessus,
+            // plutôt que de laisser ce choix vide. Avant ce correctif,
+            // rien ne se sauvegardait tant que ce choix n'était pas fait à
+            // la main (readyToSave restait faux) — bug repéré par Aurélie
+            // le 21/09/2026 : "j'inscris le séjour d'Otto, rien ne se
+            // produit".
+            defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
             showNameField
             onRemoved={() =>
               setGuestEntries((prev) => prev.filter((e) => e.localId !== entry.localId))
