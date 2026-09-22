@@ -1,11 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Plus, Trash2, ChevronDown, Phone, Mail } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Phone, Mail, Globe, ArrowRightLeft } from 'lucide-react'
 import { CONTACT_CATEGORIES } from '@/lib/contact-categories'
 import { Contact } from '@/types'
 
 type SortKey = 'nom' | 'service'
+
+// Ajoute https:// devant un site web saisi sans protocole (ex.
+// "brocantemirepoix.fr"), pour que le lien fonctionne tel quel.
+function toHref(url: string) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`
+}
 
 // Une cellule éditable en place : un admin clique dessus, elle devient un
 // champ de saisie, l'enregistrement se fait à la perte du focus ou sur
@@ -73,6 +79,7 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
   const [rows, setRows] = useState(contacts)
   const [sortKey, setSortKey] = useState<SortKey>('nom')
   const [adding, setAdding] = useState(false)
+  const [movingId, setMovingId] = useState<string | null>(null)
 
   const sorted = useMemo(() => {
     const copy = [...rows]
@@ -100,6 +107,23 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
     setRows((prev) => prev.filter((r) => r.id !== id))
     try {
       await fetch(`/api/contacts?id=${id}`, { method: 'DELETE' })
+    } catch {
+      // silencieux
+    }
+  }
+
+  // Déplace un contact vers une autre catégorie : il disparaît de cette
+  // pastille-ci (comme une suppression côté affichage), et réapparaîtra
+  // dans la pastille de destination à sa prochaine ouverture.
+  const moveToCategory = async (id: string, newCategory: string) => {
+    setRows((prev) => prev.filter((r) => r.id !== id))
+    setMovingId(null)
+    try {
+      await fetch('/api/contacts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, category: newCategory }),
+      })
     } catch {
       // silencieux
     }
@@ -140,16 +164,17 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
 
       {sorted.length > 0 ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
               <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-1.5 py-1.5 font-medium">Type de service</th>
                 <th className="px-1.5 py-1.5 font-medium">Nom</th>
+                <th className="px-1.5 py-1.5 font-medium">Commentaire</th>
                 <th className="px-1.5 py-1.5 font-medium">Téléphone</th>
                 <th className="px-1.5 py-1.5 font-medium">Adresse</th>
                 <th className="px-1.5 py-1.5 font-medium">Email</th>
-                <th className="px-1.5 py-1.5 font-medium">Commentaire</th>
-                {isAdmin && <th className="w-8" />}
+                <th className="px-1.5 py-1.5 font-medium">Website</th>
+                {isAdmin && <th className="w-14" />}
               </tr>
             </thead>
             <tbody>
@@ -160,6 +185,9 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                   </td>
                   <td className="px-1.5 py-1">
                     <EditableCell value={c.name} editable={isAdmin} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
+                  </td>
+                  <td className="px-1.5 py-1">
+                    <EditableCell value={c.notes ?? ''} editable={isAdmin} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
                   </td>
                   <td className="px-1.5 py-1">
                     {isAdmin ? (
@@ -189,13 +217,54 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                     )}
                   </td>
                   <td className="px-1.5 py-1">
-                    <EditableCell value={c.notes ?? ''} editable={isAdmin} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
+                    {isAdmin ? (
+                      <EditableCell value={c.website ?? ''} editable placeholder="Site web" onSave={(v) => patch(c.id, 'website', v)} />
+                    ) : c.website ? (
+                      <a href={toHref(c.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
+                        <Globe className="h-3.5 w-3.5" />
+                        {c.website}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground/60">—</span>
+                    )}
                   </td>
                   {isAdmin && (
                     <td className="px-1.5 py-1">
-                      <button type="button" onClick={() => remove(c.id)} aria-label="Supprimer ce contact" className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {movingId === c.id ? (
+                          <select
+                            autoFocus
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value) moveToCategory(c.id, e.target.value)
+                              else setMovingId(null)
+                            }}
+                            onBlur={() => setMovingId(null)}
+                            className="h-7 max-w-[140px] rounded-md border border-border bg-background px-1 text-xs text-foreground outline-none"
+                          >
+                            <option value="" disabled>
+                              Déplacer vers…
+                            </option>
+                            {CONTACT_CATEGORIES.filter((cat) => cat.id !== categoryId).map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setMovingId(c.id)}
+                            aria-label="Déplacer vers une autre catégorie"
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <ArrowRightLeft className="h-4 w-4" />
+                          </button>
+                        )}
+                        <button type="button" onClick={() => remove(c.id)} aria-label="Supprimer ce contact" className="text-muted-foreground hover:text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>

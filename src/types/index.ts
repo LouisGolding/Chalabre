@@ -111,6 +111,7 @@ export interface Contact {
   category: string // voir src/lib/contact-categories.ts
   phone: string | null
   email: string | null
+  website: string | null
   address: string | null
   notes: string | null
   created_at: string

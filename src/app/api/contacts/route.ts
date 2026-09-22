@@ -16,6 +16,7 @@ type ContactFields = {
   category?: string
   phone?: string | null
   email?: string | null
+  website?: string | null
   address?: string | null
   notes?: string | null
 }
@@ -27,6 +28,7 @@ function sanitize(fields: ContactFields) {
   if (typeof fields.category === 'string') out.category = fields.category
   if (fields.phone === null || typeof fields.phone === 'string') out.phone = fields.phone?.trim() || null
   if (fields.email === null || typeof fields.email === 'string') out.email = fields.email?.trim() || null
+  if (fields.website === null || typeof fields.website === 'string') out.website = fields.website?.trim() || null
   if (fields.address === null || typeof fields.address === 'string') out.address = fields.address?.trim() || null
   if (fields.notes === null || typeof fields.notes === 'string') out.notes = fields.notes?.trim() || null
   return out
@@ -63,6 +65,7 @@ export async function POST(request: Request) {
       category,
       phone: fields.phone ?? null,
       email: fields.email ?? null,
+      website: fields.website ?? null,
       address: fields.address ?? null,
       notes: fields.notes ?? null,
     })

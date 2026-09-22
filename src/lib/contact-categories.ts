@@ -1,13 +1,15 @@
 // Catégories de contacts (pastilles de l'onglet "Contacts"). Liste donnée
-// par Aurélie le 17/09/2026.
+// par Aurélie le 17/09/2026, puis revue le 22/09/2026 : "Maraîchers" et
+// "Fromagers & produits laitiers" fusionnées en "Producteurs locaux", et
+// nouvelle catégorie "Visites & Rando".
 export const CONTACT_CATEGORIES = [
   { id: 'services', label: 'Services' },
   { id: 'restaurants_bar', label: 'Restaurants & Bar' },
-  { id: 'maraichers', label: 'Maraîchers' },
-  { id: 'fromagers', label: 'Fromagers & produits laitiers' },
+  { id: 'producteurs_locaux', label: 'Producteurs locaux' },
   { id: 'marches_boulangers', label: 'Marchés & boulangers' },
   { id: 'boutiques', label: 'Boutiques, brocantes, potiers' },
   { id: 'bonnes_adresses', label: 'Bonnes adresses' },
+  { id: 'visites_rando', label: 'Visites & Rando' },
 ] as const
 
 export type ContactCategoryId = (typeof CONTACT_CATEGORIES)[number]['id']
