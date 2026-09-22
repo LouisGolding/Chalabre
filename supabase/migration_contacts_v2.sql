@@ -13,12 +13,14 @@
 --    laitiers" en une seule, "Producteurs locaux" ;
 -- 3/ nouvelle catégorie "Visites & Rando".
 --
--- Ordre important : les lignes existantes sont d'abord remises dans les
--- bonnes catégories AVANT que la nouvelle contrainte ne soit posée,
--- sinon Postgres refuserait la contrainte (lignes encore sur
--- 'maraichers'/'fromagers', valeurs qui n'existeront plus).
+-- Ordre important : l'ancienne contrainte de catégorie est retirée
+-- AVANT de changer les catégories des lignes existantes, sinon Postgres
+-- la refuse (elle ne connaît pas encore 'producteurs_locaux'/
+-- 'visites_rando' tant que la nouvelle contrainte n'est pas posée).
 
 alter table public.contacts add column if not exists website text;
+
+alter table public.contacts drop constraint if exists contacts_category_check;
 
 -- Regroupe Maraîchers + Fromagers dans "Producteurs locaux"
 update public.contacts set category = 'producteurs_locaux'
@@ -32,7 +34,6 @@ update public.contacts set category = 'visites_rando'
 
 -- Nouvelle liste de catégories (toujours 7) : remplace maraichers/
 -- fromagers par producteurs_locaux, ajoute visites_rando
-alter table public.contacts drop constraint if exists contacts_category_check;
 alter table public.contacts add constraint contacts_category_check
   check (category in (
     'services', 'restaurants_bar', 'producteurs_locaux',
