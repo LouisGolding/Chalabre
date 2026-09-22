@@ -16,15 +16,28 @@ const guideContent = [
   {
     category: 'Départ',
     items: [
-      { title: 'Fermeture de la maison', content: 'Fermer toutes les portes · Vérifier les fenêtres · Fermer les volets · Couper l\'eau si hors saison.' },
-    ]
-  },
-  {
-    category: 'Installations',
-    items: [
-      { title: 'Arrivée gaz', content: 'Emplacement à compléter.' },
-      { title: 'Arrivée eau', content: 'Emplacement à compléter.' },
-      { title: 'Tableaux électriques', content: 'Emplacements à compléter.' },
+      {
+        title: 'Maison encore occupée',
+        content: [
+          '1. Lavez / séchez / rangez vos draps',
+          '2. Faites le ménage de votre chambre à fond : poussière au-dessus / en dessous des meubles. Passez l\'aspirateur partout / sous le lit / sur les plinthes.',
+          '3. Replacez 2 oreillers, 1 couette pliée en 4 sur le lit',
+          '4. Replacez votre couvre-lit',
+          '5. Fermez vos volets',
+          '6. Fermez vos fenêtres',
+          '7. Fermez la porte de la chambre correctement',
+        ].join('\n'),
+      },
+      {
+        title: 'Dernier occupant',
+        content: [
+          '1. Mêmes actions pour votre chambre',
+          '2. Vérifiez que chaque chambre ait un couvre-lit, des volets et fenêtres fermées',
+          '3. Videz les 3 réfrigérateurs (Cave / Cuisine RDC / Cuisine 2ème)',
+          '4. Rentrez et rangez le mobilier de jardin',
+          '5. Prévoyez un passage de la femme de ménage si nécessaire',
+        ].join('\n'),
+      },
     ]
   },
   {
@@ -83,7 +96,9 @@ export default async function GuidePage() {
     .limit(1)
     .maybeSingle()
 
-  const organisationItems = guideContent[3].items
+  const arriveeItems = guideContent.find((c) => c.category === 'Arrivée')!.items
+  const departItems = guideContent.find((c) => c.category === 'Départ')!.items
+  const organisationItems = guideContent.find((c) => c.category === 'Organisation')!.items
   // "Bouteilles de gaz" est un widget éditable (voir GasBottlesCard),
   // inséré entre "Déchetterie" et "Cheminée" — ordre demandé par Aurélie.
   const dechetterieIndex = organisationItems.findIndex((item) => item.title === 'Déchetterie')
@@ -108,7 +123,7 @@ export default async function GuidePage() {
           <Badge variant="outline" className="text-base px-3 py-1">Arrivée</Badge>
         </h2>
         <div className="space-y-3">
-          {guideContent[0].items.map(item => (
+          {arriveeItems.map(item => (
             <Card key={item.title}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">{item.title}</CardTitle>
@@ -126,7 +141,7 @@ export default async function GuidePage() {
           <Badge variant="outline" className="text-base px-3 py-1">Départ</Badge>
         </h2>
         <div className="space-y-3">
-          {guideContent[1].items.map(item => (
+          {departItems.map(item => (
             <Card key={item.title}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">{item.title}</CardTitle>
@@ -144,24 +159,6 @@ export default async function GuidePage() {
           <Badge variant="outline" className="text-base px-3 py-1">Urgences</Badge>
         </h2>
         <EmergencyGuide categories={EMERGENCY_CATEGORIES} contacts={contacts ?? []} />
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-base px-3 py-1">Installations</Badge>
-        </h2>
-        <div className="space-y-3">
-          {guideContent[2].items.map(item => (
-            <Card key={item.title}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{item.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       </div>
 
       <div>
