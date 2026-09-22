@@ -6,6 +6,7 @@ import { ReserverSejour } from '@/components/planning/ReserverSejour'
 import { SavedStayInfo } from '@/components/dashboard/NextStayCard'
 import { oklchForHue, colorForName } from '@/lib/colors'
 import type { HouseSide, Profile, TSPayment } from '@/types'
+import type { TsBalanceResult } from '@/lib/ts-balance'
 
 interface BookingData {
   id: string
@@ -20,8 +21,7 @@ interface PlanningPageClientProps {
   profile: Profile
   nextBooking: BookingData | null
   guestFutureBookings: BookingData[]
-  initialOwnSoldeTS: number
-  initialGuestSoldeTS: { name: string; pending: number }[]
+  initialTsBalance: TsBalanceResult
   initialPlanningBookings: PlanningBooking[]
   planningEvents: PlanningEvent[]
   currentUserId: string
@@ -41,8 +41,7 @@ export function PlanningPageClient({
   profile,
   nextBooking,
   guestFutureBookings,
-  initialOwnSoldeTS,
-  initialGuestSoldeTS,
+  initialTsBalance,
   initialPlanningBookings,
   planningEvents,
   currentUserId,
@@ -92,8 +91,7 @@ export function PlanningPageClient({
         profile={profile}
         booking={nextBooking}
         guestBookings={guestFutureBookings}
-        initialOwnSoldeTS={initialOwnSoldeTS}
-        initialGuestSoldeTS={initialGuestSoldeTS}
+        initialTsBalance={initialTsBalance}
         onBookingSaved={handleBookingSaved}
         onBookingDeleted={handleBookingDeleted}
       />

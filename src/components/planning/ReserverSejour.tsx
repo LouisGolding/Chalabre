@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { NextStayCard, SavedStayInfo } from '@/components/dashboard/NextStayCard'
+import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { formatCurrency, firstNameOnly } from '@/lib/utils'
+import type { TsBalanceResult } from '@/lib/ts-balance'
 import type { HouseSide, Profile, TSPayment } from '@/types'
 
 interface BookingData {
@@ -14,29 +16,30 @@ interface BookingData {
   ts_payments?: TSPayment[]
 }
 
-interface GuestSolde {
-  name: string
-  pending: number
-}
-
 interface ReserverSejourProps {
   profile: Profile
   booking: BookingData | null
   guestBookings: BookingData[]
-  // Soldes de taxe de séjour en attente, calculés côté serveur au
-  // chargement de la page (voir planning/page.tsx) : le sien propre, et un
-  // par accompagnant pour lequel un séjour a été saisi — rafraîchis
-  // ensuite en direct via /api/ts-balance dès qu'un séjour est enregistré
-  // ou supprimé.
-  initialOwnSoldeTS: number
-  initialGuestSoldeTS: GuestSolde[]
+  // Solde de taxe de séjour "à la manière d'un solde bancaire" (demandé
+  // par Aurélie le 22/09/2026) : calculé côté serveur au chargement de la
+  // page (voir planning/page.tsx, src/lib/ts-balance.ts) et rafraîchi
+  // ensuite en direct via /api/ts-balance dès qu'un séjour est enregistré,
+  // supprimé ou réglé.
+  initialTsBalance: TsBalanceResult
   onBookingSaved?: (booking: SavedStayInfo) => void
   onBookingDeleted?: (bookingId: string) => void
+}
+
+function soldeAmountClass(pending: number) {
+  return pending > 0 ? 'text-red-600' : 'text-foreground'
 }
 
 function soldeLabel(pending: number) {
   return pending > 0 ? `-${formatCurrency(pending)}` : formatCurrency(0)
 }
+
+const pillClass =
+  'inline-flex h-8 w-fit items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm'
 
 // En-tête de l'onglet Planning : titre "Planning", puis "Prochain séjour" +
 // la ou les pastilles de solde TS sur leur propre ligne (justify-between),
@@ -45,51 +48,37 @@ function soldeLabel(pending: number) {
 // demandé par Aurélie : "elle n'est plus utile", le widget s'affichant
 // désormais dès l'arrivée sur l'onglet).
 //
-// Jusqu'au 21/09/2026 un bouton "Réserver un séjour" menait à
-// /dashboard/reserver, une page séparée avec un vieux formulaire
-// (BookingForm) — retirée. Le widget "Prochain séjour + Taxe de séjour",
-// qui vivait sur la page d'accueil, a migré ici à la place le même jour ;
-// il était d'abord caché derrière ce bouton (2e demande de Nicolas), avant
-// que le bouton lui-même ne soit retiré (3e demande, celle d'Aurélie
-// ci-dessus).
-//
-// La pastille "Solde taxe de séjour" vivait jusqu'ici sur la page
-// d'accueil, à côté de "Cotisation mensuelle" (18/09/2026) — déplacée ici
-// le 21/09/2026, à côté de "Prochain séjour" puisque tout ce qui concerne
-// les séjours et leur taxe de séjour est désormais sur cet onglet. Elle
-// mélangeait alors son propre solde avec celui de ses accompagnants
-// (ex. Otto) dans un seul total, ce qui ne permettait pas de voir ce qui
-// restait dû pour qui — scindée le même jour (2e demande) en "Votre solde
-// TS" (soi-même) + une pastille "TS - <prénom>" par accompagnant pour
-// lequel un séjour est enregistré, affichée juste en dessous.
+// Les pastilles de solde TS sont à la fois un récapitulatif ET un lien de
+// paiement (comme la pastille "Payer X€" existante) — demandé par Aurélie
+// le 22/09/2026. "Votre solde TS" reste toujours affichée, même à 0 € (à
+// la manière d'un solde bancaire) ; une pastille "TS - <prénom>" par
+// accompagnant pour lequel ce compte a saisi un séjour, mais UNIQUEMENT
+// tant que son solde n'est pas nul — elle disparaît automatiquement dès
+// que c'est réglé (par ce compte-ci ou directement par la personne
+// elle-même depuis le sien, voir src/lib/ts-balance.ts). Cliquer une
+// pastille règle en un seul paiement Stripe tout ce que la personne doit,
+// même si ça couvre plusieurs séjours distincts.
 export function ReserverSejour({
   profile,
   booking,
   guestBookings,
-  initialOwnSoldeTS,
-  initialGuestSoldeTS,
+  initialTsBalance,
   onBookingSaved,
   onBookingDeleted,
 }: ReserverSejourProps) {
-  // Filet de sécurité : si ces props arrivent undefined (ex. cache de dev
-  // Turbopack pas encore resynchronisé après un changement de leur forme
-  // côté serveur, voir page.tsx), on évite un crash "Cannot read
-  // properties of undefined (reading 'map')" plutôt que de forcer les
-  // props en non-nullable.
-  const [ownSoldeTS, setOwnSoldeTS] = useState(initialOwnSoldeTS ?? 0)
-  const [guestSoldeTS, setGuestSoldeTS] = useState<GuestSolde[]>(initialGuestSoldeTS ?? [])
+  const [tsBalance, setTsBalance] = useState<TsBalanceResult>(initialTsBalance)
 
-  // Rappelle les soldes exacts depuis la base plutôt que de les recalculer
-  // côté client à partir d'un seul séjour : ils couvrent TOUS les séjours
-  // du compte (y compris ceux, passés, déjà réglés ou non), donc un
+  // Rappelle le solde exact depuis la base plutôt que de le recalculer côté
+  // client à partir d'un seul séjour : il couvre TOUS les séjours du
+  // compte (passés et à venir, y compris ceux saisis pour des
+  // accompagnants ou par quelqu'un d'autre sous son nom), donc un
   // aller-retour serveur reste plus sûr qu'un cumul local.
-  const refreshSoldeTS = async () => {
+  const refreshTsBalance = async () => {
     try {
       const res = await fetch('/api/ts-balance')
       if (!res.ok) return
       const data = await res.json()
-      if (typeof data.own === 'number') setOwnSoldeTS(data.own)
-      if (Array.isArray(data.guests)) setGuestSoldeTS(data.guests)
+      if (data?.own && Array.isArray(data?.guests)) setTsBalance(data)
     } catch {
       // Pas grave : les pastilles gardent leur dernière valeur connue, un
       // rechargement de page les resynchronisera.
@@ -98,12 +87,15 @@ export function ReserverSejour({
 
   const handleSaved = (saved: SavedStayInfo) => {
     onBookingSaved?.(saved)
-    void refreshSoldeTS()
+    void refreshTsBalance()
   }
   const handleDeleted = (bookingId: string) => {
     onBookingDeleted?.(bookingId)
-    void refreshSoldeTS()
+    void refreshTsBalance()
   }
+
+  const ownIds = tsBalance.own.items.map((i) => i.id)
+  const payableGuests = tsBalance.guests.filter((g) => g.items.length > 0)
 
   return (
     <>
@@ -112,22 +104,24 @@ export function ReserverSejour({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="font-normal text-xl md:text-2xl text-foreground">Prochain séjour</h2>
         <div className="flex flex-col items-start gap-2">
-          <span className="inline-flex h-8 w-fit items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm">
-            Votre solde TS :
-            <span className={`ml-1 ${ownSoldeTS > 0 ? 'text-red-600' : 'text-foreground'}`}>
-              {soldeLabel(ownSoldeTS)}
-            </span>
-          </span>
-          {guestSoldeTS.map((guest) => (
-            <span
-              key={guest.name}
-              className="inline-flex h-8 w-fit items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm"
-            >
-              TS - {firstNameOnly(guest.name)} :
-              <span className={`ml-1 ${guest.pending > 0 ? 'text-red-600' : 'text-foreground'}`}>
-                {soldeLabel(guest.pending)}
+          {ownIds.length > 0 ? (
+            <TSBalancePayButton ids={ownIds} className={pillClass}>
+              Votre solde TS :
+              <span className={`ml-1 ${soldeAmountClass(tsBalance.own.pending)}`}>
+                {soldeLabel(tsBalance.own.pending)}
               </span>
+            </TSBalancePayButton>
+          ) : (
+            <span className={pillClass}>
+              Votre solde TS :
+              <span className="ml-1 text-foreground">{formatCurrency(0)}</span>
             </span>
+          )}
+          {payableGuests.map((guest) => (
+            <TSBalancePayButton key={guest.name} ids={guest.items.map((i) => i.id)} className={pillClass}>
+              TS - {firstNameOnly(guest.name)} :
+              <span className={`ml-1 ${soldeAmountClass(guest.pending)}`}>{soldeLabel(guest.pending)}</span>
+            </TSBalancePayButton>
           ))}
         </div>
       </div>

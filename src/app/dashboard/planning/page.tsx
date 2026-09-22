@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
 import { colorForName, oklchForHue } from '@/lib/colors'
+import { computeTsBalance } from '@/lib/ts-balance'
 
 // ============================================================
 // DONNÉES DE TEST — mois d'août 2026 uniquement, pour travailler la mise
@@ -116,36 +117,14 @@ export default async function PlanningPage() {
     .select('*')
     .order('start_date', { ascending: true })
 
-  // Solde de taxe de séjour en attente pour le compte connecté, réparti
-  // entre son propre séjour ("Votre solde TS") et chacun de ses
-  // accompagnants le cas échéant ("TS - <prénom>", une pastille par
-  // accompagnant, demandé par Aurélie le 21/09/2026 — voir
-  // ReserverSejour.tsx). Calculé ici à partir de myBookings, déjà chargé
-  // ci-dessus avec ses ts_payments — même logique que /api/ts-balance, qui
-  // prend ensuite le relai pour les rafraîchissements en direct sans
-  // recharger la page.
-  let initialOwnSoldeTS = 0
-  const initialGuestSoldeMap = new Map<string, number>()
-  const initialGuestOrder: string[] = []
-  for (const b of myBookings ?? []) {
-    const pending = ((b.ts_payments ?? []) as { amount: number; status: string }[])
-      .filter((p) => p.status === 'pending')
-      .reduce((sum, p) => sum + Number(p.amount), 0)
-    const guestName = b.guest_name?.trim()
-    if (!guestName) {
-      initialOwnSoldeTS += pending
-      continue
-    }
-    if (!initialGuestSoldeMap.has(guestName)) {
-      initialGuestSoldeMap.set(guestName, 0)
-      initialGuestOrder.push(guestName)
-    }
-    initialGuestSoldeMap.set(guestName, initialGuestSoldeMap.get(guestName)! + pending)
-  }
-  const initialGuestSoldeTS = initialGuestOrder.map((name) => ({
-    name,
-    pending: initialGuestSoldeMap.get(name)!,
-  }))
+  // Solde de taxe de séjour "à la manière d'un solde bancaire" (demandé
+  // par Aurélie le 22/09/2026) : voir computeTsBalance pour le détail —
+  // reparti entre le solde propre du titulaire ("Votre solde TS", y
+  // compris ses séjours saisis par quelqu'un d'autre sous son nom) et un
+  // solde par accompagnant pour lequel ce compte a saisi un séjour ("TS -
+  // <prénom>"). Rafraîchi ensuite en direct via /api/ts-balance (même
+  // fonction) sans recharger la page.
+  const initialTsBalance = await computeTsBalance(supabase, user.id)
 
   const { data: allProfilesForColor } = await supabase
     .from('profiles')
@@ -222,8 +201,7 @@ export default async function PlanningPage() {
         profile={profile}
         nextBooking={nextBooking}
         guestFutureBookings={guestFutureBookings}
-        initialOwnSoldeTS={initialOwnSoldeTS}
-        initialGuestSoldeTS={initialGuestSoldeTS}
+        initialTsBalance={initialTsBalance}
         initialPlanningBookings={planningBookings}
         planningEvents={planningEvents}
         currentUserId={user.id}
