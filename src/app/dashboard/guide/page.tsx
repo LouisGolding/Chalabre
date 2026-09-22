@@ -4,13 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
 import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
+import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
 
 const guideContent = [
   {
     category: 'Arrivée',
     items: [
       { title: 'Ouverture de la maison', content: 'Instructions à compléter par l\'administrateur.' },
-      { title: 'Accès au portail', content: 'Instructions à compléter par l\'administrateur.' },
     ]
   },
   {
@@ -32,6 +32,34 @@ const guideContent = [
     items: [
       { title: 'Draps et linge', content: 'Emplacement à compléter.' },
       { title: 'Zoning des placards', content: 'Plan à compléter par l\'administrateur.' },
+      {
+        title: 'Poubelles',
+        content: 'À déposer à l\'entrée du village, après le pont, ou bien au Cazal.',
+      },
+      {
+        title: 'Déchetterie',
+        content: [
+          'Juillet / Août :',
+          '· Mardi au vendredi de 8h à 13h30',
+          '· Samedi de 8h à 12h',
+          '',
+          'Le reste de l\'année :',
+          '· Mardi 13h-16h30',
+          '· Mercredi, jeudi et vendredi 9h30-12h30 et 13h-16h30',
+          '· Samedi 9h30-12h30',
+          '',
+          'Se munir de la carte Nomitaove pour accéder à la déchetterie.',
+        ].join('\n'),
+      },
+      {
+        title: 'Cheminée',
+        content: [
+          'RDC – Bureau Antoine',
+          '· Ramonée : à compléter (oui/non)',
+          '· Date de dernier ramonage : à compléter',
+          '· Utilisable : à compléter (oui/non)',
+        ].join('\n'),
+      },
     ]
   },
 ]
@@ -43,10 +71,28 @@ export default async function GuidePage() {
 
   const { data: contacts } = await supabase.from('contacts').select('*')
 
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  // "Bouteilles de gaz" : modifiable par tout compte famille ou admin,
+  // jamais les amis — demandé par Aurélie le 22/09/2026.
+  const canEditGasBottles = profile?.role === 'admin' || profile?.role === 'family'
+
+  const { data: gasBottlesStatus } = await supabase
+    .from('gas_bottles_status')
+    .select('count, last_refill_date')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const organisationItems = guideContent[3].items
+  // "Bouteilles de gaz" est un widget éditable (voir GasBottlesCard),
+  // inséré entre "Déchetterie" et "Cheminée" — ordre demandé par Aurélie.
+  const dechetterieIndex = organisationItems.findIndex((item) => item.title === 'Déchetterie')
+  const organisationBeforeGas = organisationItems.slice(0, dechetterieIndex + 1)
+  const organisationAfterGas = organisationItems.slice(dechetterieIndex + 1)
+
   return (
     <div className="space-y-6 max-w-3xl">
       <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Guide de la maison</h1>
-      <p className="text-muted-foreground">Toutes les informations pratiques pour votre séjour à La Bâtisse.</p>
 
       {/* Adresse de la maison — reprise ici depuis l'ancien onglet "Adresse"
           (retiré le 19/09/2026, jugé redondant par Nicolas une fois cette
@@ -68,7 +114,7 @@ export default async function GuidePage() {
                 <CardTitle className="text-base">{item.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{item.content}</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
               </CardContent>
             </Card>
           ))}
@@ -86,7 +132,7 @@ export default async function GuidePage() {
                 <CardTitle className="text-base">{item.title}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{item.content}</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
               </CardContent>
             </Card>
           ))}
@@ -100,25 +146,56 @@ export default async function GuidePage() {
         <EmergencyGuide categories={EMERGENCY_CATEGORIES} contacts={contacts ?? []} />
       </div>
 
-      {guideContent.slice(2).map(section => (
-        <div key={section.category}>
-          <h2 className="text-lg font-semibold text-foreground mb-3">
-            <Badge variant="outline" className="text-base px-3 py-1">{section.category}</Badge>
-          </h2>
-          <div className="space-y-3">
-            {section.items.map(item => (
-              <Card key={item.title}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base">{item.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{item.content}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-3">
+          <Badge variant="outline" className="text-base px-3 py-1">Installations</Badge>
+        </h2>
+        <div className="space-y-3">
+          {guideContent[2].items.map(item => (
+            <Card key={item.title}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{item.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      ))}
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-3">
+          <Badge variant="outline" className="text-base px-3 py-1">Organisation</Badge>
+        </h2>
+        <div className="space-y-3">
+          {organisationBeforeGas.map(item => (
+            <Card key={item.title}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{item.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
+              </CardContent>
+            </Card>
+          ))}
+          <GasBottlesCard
+            editable={canEditGasBottles}
+            initialCount={gasBottlesStatus?.count ?? null}
+            initialLastRefillDate={gasBottlesStatus?.last_refill_date ?? null}
+          />
+          {organisationAfterGas.map(item => (
+            <Card key={item.title}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">{item.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/guide', label: 'Guide de la maison' },
   { href: '/dashboard/taches', label: 'Tâches' },
   { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
-  { href: '/dashboard/contacts', label: 'Contact' },
+  { href: '/dashboard/contacts', label: 'Contacts' },
   { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
   { href: '/dashboard/documents', label: 'Documents', hiddenForFriend: true },
 ]
