@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { MONTH_OPTIONS, SEASON_OPTIONS, PERIOD_LABELS, TaskPeriod, isPeriodCurrent } from '@/lib/task-periods'
 
-type Category = 'entretien' | 'reparation' | 'autre'
+type Category = 'entretien' | 'reparation' | 'manutention' | 'autre'
 type Priority = 'low' | 'medium' | 'high'
 
 export interface TaskItem {
@@ -23,6 +23,7 @@ export interface TaskItem {
 const CATEGORY_LABEL: Record<Category, string> = {
   entretien: 'Entretien',
   reparation: 'Réparation',
+  manutention: 'Manutention',
   autre: 'Autre',
 }
 
@@ -103,6 +104,18 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
     }
   }
 
+  const deleteTask = async (id: string) => {
+    const previous = tasks
+    setTasks((prev) => prev.filter((t) => t.id !== id))
+    try {
+      const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+    } catch {
+      setTasks(previous)
+      setError('Impossible de supprimer cette tâche.')
+    }
+  }
+
   return (
     <div className="space-y-5">
       {canEdit && (
@@ -149,7 +162,12 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
               ))}
             </optgroup>
           </select>
-          <Button type="button" onClick={addTask} disabled={saving || !title.trim()} className="gap-1.5">
+          <Button
+            type="button"
+            onClick={addTask}
+            disabled={saving || !title.trim()}
+            className="gap-1.5 bg-foreground text-background hover:bg-foreground/90"
+          >
             <Plus className="h-4 w-4" />
             Ajouter
           </Button>
@@ -166,7 +184,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">À faire ce mois-ci</p>
           {thisMonth.map((task) => (
-            <TaskRow key={task.id} task={task} canEdit={canEdit} onToggle={() => toggle(task)} />
+            <TaskRow key={task.id} task={task} canEdit={canEdit} onToggle={() => toggle(task)} onDelete={() => deleteTask(task.id)} />
           ))}
         </div>
       )}
@@ -175,7 +193,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">À faire</p>
           {general.map((task) => (
-            <TaskRow key={task.id} task={task} canEdit={canEdit} onToggle={() => toggle(task)} />
+            <TaskRow key={task.id} task={task} canEdit={canEdit} onToggle={() => toggle(task)} onDelete={() => deleteTask(task.id)} />
           ))}
         </div>
       )}
@@ -184,7 +202,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
         <div className="space-y-2 pt-2 border-t border-border">
           <p className="text-xs text-muted-foreground pt-3">Terminées</p>
           {done.map((task) => (
-            <TaskRow key={task.id} task={task} canEdit={canEdit} onToggle={() => toggle(task)} />
+            <TaskRow key={task.id} task={task} canEdit={canEdit} onToggle={() => toggle(task)} onDelete={() => deleteTask(task.id)} />
           ))}
         </div>
       )}
@@ -192,7 +210,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
   )
 }
 
-function TaskRow({ task, canEdit, onToggle }: { task: TaskItem; canEdit: boolean; onToggle: () => void }) {
+function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdit: boolean; onToggle: () => void; onDelete: () => void }) {
   return (
     <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
       <input
@@ -219,6 +237,16 @@ function TaskRow({ task, canEdit, onToggle }: { task: TaskItem; canEdit: boolean
       <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
         {PRIORITY_LABEL[task.priority]}
       </span>
+      {canEdit && (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label="Supprimer cette tâche"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
     </div>
   )
 }

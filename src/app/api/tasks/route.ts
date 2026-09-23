@@ -58,3 +58,29 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ ok: true })
 }
+
+export async function DELETE(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  }
+
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  if (!id) {
+    return NextResponse.json({ error: 'Paramètre "id" manquant' }, { status: 400 })
+  }
+
+  const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (caller?.role !== 'admin') {
+    return NextResponse.json({ error: 'Réservé aux administrateurs' }, { status: 403 })
+  }
+
+  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
+}

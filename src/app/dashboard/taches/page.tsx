@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ListChecks } from 'lucide-react'
 import { TasksBoard, TaskItem } from '@/components/dashboard/TasksBoard'
 
 export default async function TachesPage() {
@@ -43,10 +42,7 @@ export default async function TachesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ListChecks className="h-5 w-5" />
-            Entretien et réparations
-          </CardTitle>
+          <CardTitle>Entretien et réparations</CardTitle>
         </CardHeader>
         <CardContent>
           <TasksBoard initialTasks={items} canEdit={profile?.role === 'admin'} />

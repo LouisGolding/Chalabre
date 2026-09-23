@@ -96,7 +96,7 @@ export interface Task {
   id: string
   title: string
   description: string | null
-  category: 'entretien' | 'reparation' | 'autre'
+  category: 'entretien' | 'reparation' | 'manutention' | 'autre'
   priority: 'low' | 'medium' | 'high'
   period: string | null // mois ou saison, voir src/lib/task-periods.ts
   completed: boolean
