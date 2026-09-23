@@ -100,8 +100,13 @@ export default async function PlanningPage() {
     .eq('user_id', user.id)
     .order('check_in', { ascending: true })
 
-  const todayForReserver = new Date()
-  const myFutureBookings = (myBookings ?? []).filter((b) => new Date(b.check_in) >= todayForReserver)
+  // "check_out >= aujourd'hui" plutôt que "check_in >= aujourd'hui" : un
+  // séjour en cours (déjà commencé, pas encore terminé) doit rester ici
+  // pour afficher la bannière "... EN COURS" (demandé par Nicolas le
+  // 23/09/2026) plutôt que de disparaître de ce widget dès le jour
+  // d'arrivée.
+  const todayISOForReserver = new Date().toISOString().slice(0, 10)
+  const myFutureBookings = (myBookings ?? []).filter((b) => b.check_out >= todayISOForReserver)
   const nextBooking = myFutureBookings.find((b) => !b.guest_name) ?? null
   const guestFutureBookings = myFutureBookings
     .filter((b) => b.guest_name)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { ReserverSejour } from '@/components/planning/ReserverSejour'
 import { SavedStayInfo } from '@/components/dashboard/NextStayCard'
@@ -49,6 +49,35 @@ export function PlanningPageClient({
 }: PlanningPageClientProps) {
   const [planningBookings, setPlanningBookings] = useState(initialPlanningBookings)
 
+  // Séjours déjà validés mais en cours de modification dans une bannière du
+  // widget "Prochain séjour" (voir NextStayCard.tsx, refonte du
+  // 23/09/2026) : masqués du planning tant qu'ils ne sont pas revalidés,
+  // sans être retirés de `planningBookings` (source de vérité conservée
+  // intacte pour ne rien perdre si le planning lui-même déclenche une mise
+  // à jour pendant ce temps — voir handlePlanningBookingsChange).
+  const [hiddenBookingIds, setHiddenBookingIds] = useState<string[]>([])
+  const visiblePlanningBookings = useMemo(
+    () => (hiddenBookingIds.length === 0 ? planningBookings : planningBookings.filter((b) => !hiddenBookingIds.includes(b.id))),
+    [planningBookings, hiddenBookingIds]
+  )
+
+  // Le planning (glisser/modale, PlanningView.tsx) ne voit que la liste
+  // visible : on réintègre les séjours masqués tels quels pour ne jamais
+  // les perdre de `planningBookings`. PlanningView appelle ce setter comme
+  // un setState React classique (valeur directe OU updater `(prev) =>
+  // next`) : on doit donc accepter les deux formes.
+  const handlePlanningBookingsChange = (
+    updater: PlanningBooking[] | ((prev: PlanningBooking[]) => PlanningBooking[])
+  ) => {
+    setPlanningBookings((prev) => {
+      const hiddenSet = new Set(hiddenBookingIds)
+      const prevVisible = prev.filter((b) => !hiddenSet.has(b.id))
+      const stillHidden = prev.filter((b) => hiddenSet.has(b.id))
+      const updatedVisible = typeof updater === 'function' ? updater(prevVisible) : updater
+      return [...updatedVisible, ...stillHidden]
+    })
+  }
+
   const handleBookingSaved = (booking: SavedStayInfo) => {
     const isGuest = !!booking.guest_name
     const color =
@@ -94,10 +123,11 @@ export function PlanningPageClient({
         initialTsBalance={initialTsBalance}
         onBookingSaved={handleBookingSaved}
         onBookingDeleted={handleBookingDeleted}
+        onHiddenBookingIdsChange={setHiddenBookingIds}
       />
       <PlanningView
-        bookings={planningBookings}
-        onBookingsChange={setPlanningBookings}
+        bookings={visiblePlanningBookings}
+        onBookingsChange={handlePlanningBookingsChange}
         events={planningEvents}
         currentUserId={currentUserId}
         isAdmin={isAdmin}

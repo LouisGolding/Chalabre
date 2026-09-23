@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const { checkIn, checkOut, amount, bookingId, guestName, houseSide } = await request.json()
+  const { checkIn, checkOut, amount, bookingId, guestName, houseSide, notes } = await request.json()
 
   if (!checkIn || !checkOut || typeof amount !== 'number' || amount < 0) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
@@ -136,6 +136,13 @@ export async function POST(request: Request) {
 
   const normalizedGuestName: string | null =
     typeof guestName === 'string' && guestName.trim() ? guestName.trim() : null
+
+  // Note libre (ex. "Gare de Pamiers 14h45", demandé par Nicolas le
+  // 23/09/2026, pour coordonner les arrivées) — réutilise la colonne
+  // `notes` déjà présente sur `bookings` depuis schema.sql, jamais
+  // exploitée jusqu'ici. Purement informatif pour l'instant, pas encore
+  // affiché ailleurs que dans ce widget.
+  const normalizedNotes: string | null = typeof notes === 'string' && notes.trim() ? notes.trim() : null
 
   // Teinte résolue pour l'affichage instantané côté client (voir
   // ensureGuestColor ci-dessus) : celle de l'accompagnant s'il en saisit
@@ -189,7 +196,7 @@ export async function POST(request: Request) {
     // le 15-24 ne doit pas comptabiliser 2 taxes de séjour sur le 15-20).
     const { error: updateError } = await supabase
       .from('bookings')
-      .update({ check_in: checkIn, check_out: checkOut, guest_name: resolvedGuestName, house_side: houseSide })
+      .update({ check_in: checkIn, check_out: checkOut, guest_name: resolvedGuestName, house_side: houseSide, notes: normalizedNotes })
       .eq('id', bookingId)
 
     if (updateError) {
@@ -206,6 +213,7 @@ export async function POST(request: Request) {
         check_out: checkOut,
         guest_name: resolvedGuestName,
         house_side: houseSide,
+        notes: normalizedNotes,
       })
       .select()
       .single()

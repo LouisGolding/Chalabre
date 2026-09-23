@@ -65,6 +65,23 @@ export function firstNameOnly(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? fullName
 }
 
+// Phase d'un séjour par rapport à aujourd'hui (demandé par Nicolas le
+// 23/09/2026, pour le titre évolutif des bannières "Votre séjour" /
+// "Ajouter un séjour" du Planning) : 'upcoming' tant qu'il n'a pas
+// commencé, 'ongoing' entre le jour d'arrivée (inclus) et le jour de
+// départ (exclu — le départ a lieu ce jour-là, le séjour n'est plus "en
+// cours" ce jour), 'past' sinon. Comparaison en chaînes ISO (YYYY-MM-DD),
+// pas d'objets Date : évite tout souci de fuseau horaire, une comparaison
+// lexicographique suffit pour des dates au même format.
+export type StayPhase = 'upcoming' | 'ongoing' | 'past'
+
+export function stayPhase(checkIn: string, checkOut: string, today: Date = new Date()): StayPhase {
+  const todayISO = today.toISOString().slice(0, 10)
+  if (todayISO < checkIn) return 'upcoming'
+  if (todayISO < checkOut) return 'ongoing'
+  return 'past'
+}
+
 // Comparaison de noms insensible à la casse et aux espaces superflus —
 // même convention que guest_people (voir migration_guest_people.sql) et
 // ensureGuestColor dans /api/bookings/quick : Nicolas a confirmé qu'une
