@@ -269,10 +269,19 @@ function StayEntry({
 
     const timeout = setTimeout(() => {
       saveQueueRef.current = saveQueueRef.current.then(async () => {
+        // Garde-fou : si la requête reste bloquée (réseau capricieux), on
+        // n'affiche pas "Enregistrement..." indéfiniment — au bout de 15s
+        // sans réponse, on abandonne et on affiche une erreur explicite,
+        // pour que ce soit visible et qu'on sache qu'il faut réessayer
+        // (demandé par Nicolas le 23/09/2026, après un séjour resté
+        // bloqué sur "Enregistrement..." sans qu'on sache pourquoi).
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 15000)
         try {
           const res = await fetch('/api/bookings/quick', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
             body: JSON.stringify({
               checkIn,
               checkOut,
@@ -300,8 +309,12 @@ function StayEntry({
             colorHue: typeof data.colorHue === 'number' ? data.colorHue : null,
           })
         } catch (err) {
-          if (isMountedRef.current) setError(err instanceof Error ? err.message : 'Erreur')
+          if (isMountedRef.current) {
+            const timedOut = err instanceof Error && err.name === 'AbortError'
+            setError(timedOut ? 'La connexion est trop lente, réessaie.' : err instanceof Error ? err.message : 'Erreur')
+          }
         } finally {
+          clearTimeout(timeoutId)
           if (isMountedRef.current) setSaving(false)
         }
       })

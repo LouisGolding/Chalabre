@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { fallbackHueForName, nearbyHue } from '@/lib/colors'
+import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 // Crée ou met à jour un séjour saisi depuis le widget "Prochain séjour" de
 // la page d'accueil (celui du titulaire du compte, ou un séjour ajouté pour
@@ -27,32 +28,48 @@ import { fallbackHueForName, nearbyHue } from '@/lib/colors'
 // saisi correspond en réalité à un compte existant (ex. un enfant inscrit
 // dont un parent saisit les séjours), on ne crée rien : sa couleur de
 // compte (profiles.color_hue) sera utilisée directement à la lecture.
-// Correspondance par nom complet exact (insensible à la casse/espaces) :
-// Nicolas a confirmé que le nom et prénom complets sont toujours saisis,
-// donc pas de risque réel d'homonymie à gérer.
+// Correspondance tolérante aux fautes de frappe (accents/espaces/casse
+// ignorés, et jusqu'à 1-3 lettres d'écart selon la longueur du nom — voir
+// src/lib/fuzzy-name.ts, demandé par Nicolas le 23/09/2026 : "otot lalanne"
+// doit être reconnu comme "Otto Lalande" plutôt que de créer un doublon).
 // Renvoie la teinte (color_hue) résolue pour ce nom, pour que le client
 // puisse afficher immédiatement la bonne couleur sur la ligne du planning
 // dès l'enregistrement (demandé par Aurélie le 21/09/2026 — voir
 // PlanningPageClient.tsx), sans attendre un rechargement de page.
+interface GuestColorResult {
+  hue: number | null
+  // Nom "officiel" à enregistrer sur le séjour quand la saisie
+  // correspondait (avec tolérance aux fautes de frappe, voir
+  // src/lib/fuzzy-name.ts) à un compte ou à un accompagnant déjà connu —
+  // pour que la ligne du planning reste groupée avec ses séjours
+  // précédents même si cette fois le nom a été mal orthographié. Sinon
+  // (première apparition de cette personne), null : on garde le nom tel
+  // que saisi.
+  canonicalName: string | null
+}
+
 async function ensureGuestColor(
   supabase: Awaited<ReturnType<typeof createClient>>,
   guestName: string,
   creatorId: string
-): Promise<number | null> {
-  const normalized = guestName.trim().toLowerCase()
+): Promise<GuestColorResult> {
+  const typed = guestName.trim()
 
   const { data: profiles } = await supabase.from('profiles').select('first_name, last_name, color_hue')
-  const matchingAccount = (profiles ?? []).find(
-    (p) => `${p.first_name} ${p.last_name}`.trim().toLowerCase() === normalized
-  )
-  if (matchingAccount) return matchingAccount.color_hue ?? null
+  const profileNames = (profiles ?? []).map((p) => `${p.first_name} ${p.last_name}`.trim())
+  const profileMatchIndex = findClosestNameMatch(typed, profileNames)
+  if (profileMatchIndex !== -1) {
+    const matched = profiles![profileMatchIndex]
+    return { hue: matched.color_hue ?? null, canonicalName: profileNames[profileMatchIndex] }
+  }
 
-  const { data: existingGuest } = await supabase
-    .from('guest_people')
-    .select('color_hue')
-    .ilike('name', guestName.trim())
-    .maybeSingle()
-  if (existingGuest) return existingGuest.color_hue ?? null
+  const { data: guests } = await supabase.from('guest_people').select('name, color_hue')
+  const guestNames = (guests ?? []).map((g) => g.name)
+  const guestMatchIndex = findClosestNameMatch(typed, guestNames)
+  if (guestMatchIndex !== -1) {
+    const matched = guests![guestMatchIndex]
+    return { hue: matched.color_hue ?? null, canonicalName: matched.name }
+  }
 
   const { data: creator } = await supabase
     .from('profiles')
@@ -60,17 +77,33 @@ async function ensureGuestColor(
     .eq('id', creatorId)
     .single()
 
-  const anchorHue = creator?.color_hue ?? fallbackHueForName(guestName)
-  const hue = nearbyHue(anchorHue, normalized)
+  const anchorHue = creator?.color_hue ?? fallbackHueForName(typed)
+  const hue = nearbyHue(anchorHue, typed.toLowerCase())
 
-  await supabase.from('guest_people').insert({
-    name: guestName.trim(),
+  const { error: insertError } = await supabase.from('guest_people').insert({
+    name: typed,
     color_hue: hue,
     family_group: creator?.family_group ?? null,
     created_by: creatorId,
   })
 
-  return hue
+  if (insertError) {
+    // Doublon (contrainte unique guest_people_name_key) : quelqu'un d'autre
+    // vient d'enregistrer exactement le même nom entre-temps (ex. deux
+    // séjours saisis en même temps pour la même personne). On récupère
+    // simplement la couleur déjà attribuée plutôt que de faire échouer tout
+    // l'enregistrement du séjour.
+    if (insertError.code === '23505') {
+      const { data: raceWinner } = await supabase
+        .from('guest_people')
+        .select('name, color_hue')
+        .ilike('name', typed)
+        .maybeSingle()
+      if (raceWinner) return { hue: raceWinner.color_hue ?? null, canonicalName: raceWinner.name }
+    }
+  }
+
+  return { hue, canonicalName: null }
 }
 
 export async function POST(request: Request) {
@@ -107,9 +140,15 @@ export async function POST(request: Request) {
   // Teinte résolue pour l'affichage instantané côté client (voir
   // ensureGuestColor ci-dessus) : celle de l'accompagnant s'il en saisit
   // un, sinon celle du titulaire du compte lui-même.
+  // Nom réellement enregistré pour ce séjour : celui saisi, sauf s'il a
+  // été rapproché (tolérance aux fautes de frappe) d'un compte ou d'un
+  // accompagnant déjà connu — voir ensureGuestColor.
+  let resolvedGuestName = normalizedGuestName
   let colorHue: number | null = null
   if (normalizedGuestName) {
-    colorHue = await ensureGuestColor(supabase, normalizedGuestName, user.id)
+    const result = await ensureGuestColor(supabase, normalizedGuestName, user.id)
+    colorHue = result.hue
+    if (result.canonicalName) resolvedGuestName = result.canonicalName
   } else {
     const { data: ownProfile } = await supabase.from('profiles').select('color_hue').eq('id', user.id).single()
     colorHue = ownProfile?.color_hue ?? null
@@ -150,7 +189,7 @@ export async function POST(request: Request) {
     // le 15-24 ne doit pas comptabiliser 2 taxes de séjour sur le 15-20).
     const { error: updateError } = await supabase
       .from('bookings')
-      .update({ check_in: checkIn, check_out: checkOut, guest_name: normalizedGuestName, house_side: houseSide })
+      .update({ check_in: checkIn, check_out: checkOut, guest_name: resolvedGuestName, house_side: houseSide })
       .eq('id', bookingId)
 
     if (updateError) {
@@ -165,7 +204,7 @@ export async function POST(request: Request) {
         user_id: user.id,
         check_in: checkIn,
         check_out: checkOut,
-        guest_name: normalizedGuestName,
+        guest_name: resolvedGuestName,
         house_side: houseSide,
       })
       .select()
