@@ -141,7 +141,7 @@ export default async function DashboardPage() {
           TileNav et BottomNav (48px / 56px, voir TileNav.tsx) ; BottomNav
           elle-même déjà prise en compte par ailleurs (padding du <main>,
           layout.tsx). */}
-      <div className="pb-[270px] pt-6 md:pb-[322px]">
+      <div className="pb-[250px] pt-6 md:pb-[302px]">
         {/* Espacements ajustés le 27/09/2026 à la demande de Nicolas,
             exprimés en multiples d'une seule unité G = l'espace entre la
             ligne de dates ("25 DÉCEMBRE...") et la pastille "Total taxe de

@@ -27,14 +27,22 @@ const TILES: Tile[] = [
 ]
 
 // Épinglée en BAS de l'écran (demandé par Nicolas le 27/09/2026 : "place
-// le bandeau ... en bas de l'ecran"), juste au-dessus de BottomNav (le
-// bandeau "Membres / Suivi paiements / Se déconnecter", toujours affiché
-// lui aussi en position fixe) : bottom-12/md:bottom-14, exactement la
-// hauteur de BottomNav, donc aucun espace entre les deux — Nicolas avait
-// demandé le jour même un vrai espace supplémentaire (bottom-24/28, 2x la
-// hauteur de BottomNav), mais est revenu dessus le 27/09/2026 avec un
-// visuel annoté (ligne verte) montrant le bas de la grille de tuiles
-// collé au haut de BottomNav, sans espace additionnel. Fond transparent :
+// le bandeau ... en bas de l'ecran"), au-dessus de BottomNav (le bandeau
+// "Membres / Suivi paiements / Se déconnecter", toujours affiché lui
+// aussi en position fixe). Position par rapport à BottomNav, essayée
+// dans cet ordre le 27/09/2026 : d'abord un vrai espace supplémentaire
+// (bottom-24/28, 2x la hauteur de BottomNav) ; puis, visuel annoté à
+// l'appui (ligne verte), un accolement complet à BottomNav (bottom-12/
+// 14, sa hauteur exacte, donc zéro espace entre les deux conteneurs) ;
+// puis, toujours le même jour, Nicolas a trouvé l'espace jusqu'au texte
+// "Se déconnecter" encore trop grand (le texte est centré dans
+// BottomNav, donc en retrait de son propre bord haut) et a demandé de le
+// réduire — d'où bottom-7/md:bottom-9 actuel, qui rapproche la grille de
+// BottomNav sans chevaucher son texte. Si Nicolas veut resserrer
+// davantage, continuer dans cette direction (diminuer encore
+// bottom-7/9), en pensant à ajuster en miroir le padding-bottom du
+// contenu de dashboard/page.tsx (pb-[250px]/md:pb-[302px] — voir sa
+// propre note de calcul). Fond transparent :
 // la photo de la page d'accueil (voir
 // dashboard/page.tsx) couvre désormais toute la page et se voit donc
 // déjà à travers les espaces entre les tuiles, comme sur le visuel de
@@ -51,7 +59,7 @@ export function TileNav({ role }: { role: UserRole }) {
   const tiles = isFriend ? TILES.filter((tile) => !tile.hiddenForFriend) : TILES
 
   return (
-    <nav className="fixed inset-x-0 bottom-12 md:bottom-14 z-30 grid grid-cols-3 gap-[14px] px-4 py-[14px]">
+    <nav className="fixed inset-x-0 bottom-7 md:bottom-9 z-30 grid grid-cols-3 gap-[14px] px-4 py-[14px]">
       {tiles.map((tile) => (
         <Link
           key={tile.href}

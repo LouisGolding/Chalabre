@@ -22,13 +22,17 @@ import Image from 'next/image'
 // prévisible.
 //
 // Dessin réduit de 20% en homothétie le 27/09/2026 (32vw/140px ->
-// 25.6vw/112px, même rapport largeur/hauteur), en gardant son alignement
-// BAS dans le bandeau (items-end au lieu de items-center) : le bas du
-// dessin reste au même endroit, seul le haut redescend en rétrécissant.
+// 25.6vw/112px, même rapport largeur/hauteur).
+//
+// Alignement bas (items-end, collé au bas du bandeau) essayé le
+// 27/09/2026 puis abandonné le même jour à la demande de Nicolas : il
+// veut un espace visible entre le bas du dessin et le bas du bandeau,
+// pas un dessin collé au bord. Retour à items-center (le dessin flotte
+// au milieu du bandeau, avec de l'espace au-dessus et en dessous).
 export function TopBanner() {
   return (
-    <header className="fixed inset-x-0 top-0 z-40 flex h-20 items-end justify-center bg-background">
-      <Link href="/dashboard" aria-label="Retour à l'accueil" className="flex items-end justify-center">
+    <header className="fixed inset-x-0 top-0 z-40 flex h-20 items-center justify-center bg-background">
+      <Link href="/dashboard" aria-label="Retour à l'accueil" className="flex items-center justify-center">
         <Image
           src="/images/logo-batisse-drawing.png"
           alt="La Bâtisse"
