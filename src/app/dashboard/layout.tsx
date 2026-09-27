@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TopBanner } from '@/components/layout/TopBanner'
+import { TileNav } from '@/components/layout/TileNav'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { isProfileIncomplete } from '@/lib/profile'
 
@@ -52,9 +53,24 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen">
       <TopBanner />
-      <main className="max-w-5xl mx-auto p-6 pt-20 pb-20 md:pt-20 md:pb-24">
+      {/* Padding-bas du <main> = la place prise par TileNav + BottomNav,
+          épinglées en fixed par-dessus le bas de l'écran (250px mobile /
+          302px bureau — même calcul que celui documenté dans TileNav.tsx :
+          sa hauteur propre 222/266px + son décalage bottom-7/9 28/36px),
+          pour qu'aucune page ne voie son contenu caché dessous. Valeur
+          reprise telle quelle de dashboard/page.tsx (seule page à avoir
+          TileNav avant le 27/09/2026) au moment où TileNav est devenue
+          commune à tous les onglets (voir TileNav.tsx et BottomNav.tsx). */}
+      <main className="max-w-5xl mx-auto p-6 pt-20 pb-[250px] md:pt-20 md:pb-[302px]">
         {children}
       </main>
+      {/* Grille de navigation ("onglets") — commune à toutes les pages du
+          tableau de bord depuis le 27/09/2026 (demandé par Nicolas : "le
+          même bandeau onglet ... sur tous les onglets"), auparavant
+          affichée seulement sur l'accueil (dashboard/page.tsx). Voir
+          TileNav.tsx pour son positionnement (fixed, au-dessus de
+          BottomNav). */}
+      <TileNav role={profile.role} />
       {/* Bandeau du bas : "Membres" / "Suivi paiements" pour les admins
           seuls, "Se déconnecter" en dernier pour tout le monde (jamais
           dans le bandeau du haut) — voir BottomNav. "Adresse" y a vécu du

@@ -7,7 +7,6 @@ import Link from 'next/link'
 // réimporter avec eux si on les remet. CotisationPill n'est plus utilisée
 // ici (retirée de l'accueil le 27/09/2026 à la demande de Nicolas, voir
 // plus bas) mais reste utilisée ailleurs — composant non supprimé.
-import { TileNav } from '@/components/layout/TileNav'
 import { TaxeSejourPill } from '@/components/dashboard/TaxeSejourPill'
 import { computeTsBalance } from '@/lib/ts-balance'
 
@@ -133,15 +132,11 @@ export default async function DashboardPage() {
           photo (luminosité -30%, voir plus haut) doit apparaître telle
           quelle, sans éclaircissement supplémentaire par-dessus. */}
 
-      {/* Espace en bas ajouté le 27/09/2026 : TileNav est désormais épinglée
-          en bas de l'écran (fixed) par-dessus ce contenu, il faut donc que
-          le dernier texte ("Personne n'est à la Bâtisse...") ne se
-          retrouve pas caché dessous. Valeurs = hauteur de TileNav (222px
-          mobile / 266px bureau) + l'espace ajouté le 27/09/2026 entre
-          TileNav et BottomNav (48px / 56px, voir TileNav.tsx) ; BottomNav
-          elle-même déjà prise en compte par ailleurs (padding du <main>,
-          layout.tsx). */}
-      <div className="pb-[250px] pt-6 md:pb-[302px]">
+      {/* TileNav (grille "onglets") et son espace de dégagement en bas
+          vivent désormais dans layout.tsx, communs à toutes les pages
+          (demandé par Nicolas le 27/09/2026) — plus besoin de les gérer
+          ici spécifiquement pour l'accueil. */}
+      <div className="pt-6">
         {/* Espacements ajustés le 27/09/2026 à la demande de Nicolas,
             exprimés en multiples d'une seule unité G = l'espace entre la
             ligne de dates ("25 DÉCEMBRE...") et la pastille "Total taxe de
@@ -227,10 +222,6 @@ export default async function DashboardPage() {
         {/* <p className="mt-[85px] font-normal text-base md:text-lg text-white">{presentSentence}</p> */}
       </div>
 
-      {/* Grille de navigation — refonte du 27/09/2026 demandée par
-          Nicolas (voir TileNav.tsx) : les onglets qui vivaient dans le
-          bandeau du haut vivent maintenant ici, sur l'accueil. */}
-      <TileNav role={profile.role} />
 
       {/* Upcoming bookings — widget "Mes prochains séjours" masqué à la
           demande d'Aurélie le 18/09/2026. JSX laissé en commentaire pour
