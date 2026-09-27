@@ -1,8 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TasksBoard, TaskItem } from '@/components/dashboard/TasksBoard'
 
+// Onglet renommé "Entretien" le 27/09/2026 à la demande de Nicolas
+// (auparavant "Tâches") — route inchangée (/dashboard/taches), voir
+// TasksBoard.tsx pour la refonte complète du fonctionnement (catégories,
+// urgence, période, récurrence jardin, archives...).
 export default async function TachesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -22,7 +25,10 @@ export default async function TachesPage() {
     category: TaskItem['category']
     priority: TaskItem['priority']
     period: string | null
+    recurrence: TaskItem['recurrence']
     completed: boolean
+    completed_at: string | null
+    comment: string | null
     profiles: { first_name: string; last_name: string } | null
   }
 
@@ -32,22 +38,18 @@ export default async function TachesPage() {
     category: t.category,
     priority: t.priority,
     period: t.period,
+    recurrence: t.recurrence ?? null,
     completed: t.completed,
+    completedAt: t.completed_at ?? null,
+    comment: t.comment ?? null,
     authorName: t.profiles ? `${t.profiles.first_name} ${t.profiles.last_name}` : null,
   }))
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Tâches</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Entretien</h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Entretien et réparations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <TasksBoard initialTasks={items} canEdit={profile?.role === 'admin'} />
-        </CardContent>
-      </Card>
+      <TasksBoard initialTasks={items} canEdit={profile?.role === 'admin'} />
     </div>
   )
 }
