@@ -31,29 +31,23 @@ const TILES: Tile[] = [
 // bandeau noir "Membres / Suivi paiements / Se déconnecter", toujours
 // affiché lui aussi en position fixe) — d'où bottom-12/md:bottom-14, qui
 // reprend exactement la hauteur de BottomNav pour que les deux bandeaux
-// s'empilent sans espace ni chevauchement. Photo de fond (plus de
-// bg-background beige) visible à travers les espaces entre les tuiles,
-// comme sur le visuel de Nicolas — seules les tuiles elles-mêmes gardent
-// un fond plein (bg-card). Photo fournie par Nicolas le 27/09/2026
-// (public/images/tuiles-bg.jpg), retouchée à sa demande : luminosité
-// -60%, saturation -20% (mêmes réglages que Photoshop Brightness/Color),
-// centrée. Pour l'instant affichée uniquement sur la page d'accueil
-// (dashboard/page.tsx) ; Nicolas veut aussi ce bandeau sur tous les
-// autres onglets mais réfléchit encore à une version réduite et à sa
-// cohabitation avec BottomNav — à étendre une fois ce point tranché.
+// s'empilent sans espace ni chevauchement. Fond transparent : la photo
+// de la page d'accueil (voir dashboard/page.tsx) couvre désormais toute
+// la page et se voit donc déjà à travers les espaces entre les tuiles,
+// comme sur le visuel de Nicolas — TileNav a eu son propre fond photo un
+// temps (public/images/tuiles-bg.jpg) le 27/09/2026, remplacé le même
+// jour par cette photo plein écran unique. Seules les tuiles elles-mêmes
+// gardent un fond plein (bg-card). Pour l'instant affichée uniquement
+// sur la page d'accueil (dashboard/page.tsx) ; Nicolas veut aussi ce
+// bandeau sur tous les autres onglets mais réfléchit encore à une
+// version réduite et à sa cohabitation avec BottomNav — à étendre une
+// fois ce point tranché.
 export function TileNav({ role }: { role: UserRole }) {
   const isFriend = role === 'friend'
   const tiles = isFriend ? TILES.filter((tile) => !tile.hiddenForFriend) : TILES
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-12 md:bottom-14 z-30 grid grid-cols-3 gap-[14px] px-4 py-[14px]"
-      style={{
-        backgroundImage: "url('/images/tuiles-bg.jpg')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center center',
-      }}
-    >
+    <nav className="fixed inset-x-0 bottom-12 md:bottom-14 z-30 grid grid-cols-3 gap-[14px] px-4 py-[14px]">
       {tiles.map((tile) => (
         <Link
           key={tile.href}

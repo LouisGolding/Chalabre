@@ -81,29 +81,27 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {/* Photo de la maison en fond, uniquement sur l'accueil — le bandeau
-          (transparent) et le contenu défilent par-dessus. Deux recadrages
-          fournis par Aurélie : un pour le format paysage/bureau, un pour
-          le format portrait/mobile.
+      {/* Photo de la maison en fond, sur toute la page d'accueil (hors
+          bandeau du haut, transparent) — le contenu et la grille de tuiles
+          défilent/sont épinglés par-dessus. Remplacée le 27/09/2026 à la
+          demande de Nicolas par la photo qu'il a fournie (photo d'origine,
+          seule la luminosité est baissée de 30% — pas de changement de
+          saturation), centrée, la même sur mobile et bureau (les deux
+          anciens recadrages distincts d'Aurélie sont remplacés par ce
+          fichier unique). Avant, cette photo ne vivait que derrière la
+          grille de tuiles (TileNav) ; elle couvre maintenant toute la page,
+          donc TileNav n'a plus besoin de son propre fond.
           En CSS background-image (comme le bandeau) plutôt qu'en next/image :
           le composant Image ne chargeait pas de façon fiable cette photo de
           fond plein écran au premier affichage (elle ne se voyait alors que
           derrière le bandeau, qui utilise déjà cette technique). */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div
-          className="absolute inset-0 md:hidden"
+          className="absolute inset-0"
           style={{
             backgroundImage: "url('/images/accueil-bg-mobile.jpg')",
             backgroundSize: 'cover',
-            backgroundPosition: '43% 38%',
-          }}
-        />
-        <div
-          className="absolute inset-0 hidden md:block"
-          style={{
-            backgroundImage: "url('/images/accueil-bg-desktop.jpg')",
-            backgroundSize: 'cover',
-            backgroundPosition: '39% 40%',
+            backgroundPosition: 'center center',
           }}
         />
         {/* Voile clair pour garder le texte lisible, comme sur le montage
