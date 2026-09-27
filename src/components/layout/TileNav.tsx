@@ -52,7 +52,10 @@ export function TileNav({ role }: { role: UserRole }) {
         <Link
           key={tile.href}
           href={tile.href}
-          className="flex min-h-[90px] items-center bg-card pl-4 pr-2 text-sm uppercase tracking-wide text-foreground hover:opacity-70 transition-opacity md:min-h-28 md:text-base"
+          // Texte centré (horizontalement et verticalement) dans chaque
+          // tuile, demandé par Nicolas le 27/09/2026 — auparavant aligné à
+          // gauche (pl-4 pr-2 + items-center ne centrait que verticalement).
+          className="flex min-h-[90px] items-center justify-center bg-card px-2 text-center text-sm uppercase tracking-wide text-foreground hover:opacity-70 transition-opacity md:min-h-28 md:text-base"
         >
           {tile.label}
         </Link>

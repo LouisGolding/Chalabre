@@ -139,15 +139,27 @@ export default async function DashboardPage() {
           retrouve pas caché dessous. Valeurs = hauteur de TileNav sur
           mobile (222px) / bureau (266px), BottomNav déjà pris en compte
           par ailleurs (padding du <main>, layout.tsx). */}
-      <div className="pb-[222px] pt-[34px] md:pb-[266px]">
-        {/* Refonte complète le 27/09/2026 à la demande de Nicolas, au pixel
-            près sur son visuel Photoshop : mêmes espacements (valeurs en
-            px ci-dessous mesurées dessus), mêmes typos (texte courant en
-            casse normale, lignes de données en MAJUSCULES avec tracking),
-            tout en blanc (la photo n'a plus de voile, voir plus haut).
-            isFriend / CotisationPill : la pastille "Cotisation mensuelle"
-            qui vivait ici est retirée de l'accueil (toujours utilisée
-            ailleurs, composant non supprimé). */}
+      <div className="pb-[222px] pt-6 md:pb-[266px]">
+        {/* Espacements ajustés le 27/09/2026 à la demande de Nicolas,
+            exprimés en multiples d'une seule unité G = l'espace entre la
+            ligne de dates ("25 DÉCEMBRE...") et la pastille "Total taxe de
+            séjour" (mt-6, 24px — inchangé, c'est la référence que Nicolas
+            a demandé de garder). Repris :
+            - bandeau -> "Bonjour" : G (= aussi le padding gauche p-6 de
+              <main>, demandé égal)
+            - "Bonjour" -> "Votre prochain séjour" : G
+            - "Votre prochain séjour" -> dates, et titre -> activité pour
+              Aujourd'hui/Demain/Tâche ce mois ci : mt-2 (8px, inchangé)
+            - dates -> pastille taxe de séjour : G (inchangé, référence)
+            - pastille taxe de séjour -> Aujourd'hui/Demain : 2×G (mt-12)
+            - activité (tiret) -> "Tâche ce mois ci" : 2×G (mt-12)
+            Texte courant en casse normale, lignes de données en
+            MAJUSCULES super bold (font-extrabold — le poids le plus fort
+            que l'EB Garamond variable propose), tout en blanc (la photo
+            n'a plus de voile, voir plus haut). isFriend / CotisationPill :
+            la pastille "Cotisation mensuelle" qui vivait ici est retirée
+            de l'accueil (toujours utilisée ailleurs, composant non
+            supprimé). */}
         <h1 className="text-2xl font-normal text-white md:text-3xl">
           Bonjour {profile.first_name}
         </h1>
@@ -157,9 +169,9 @@ export default async function DashboardPage() {
             "Vous n'êtes pas venu depuis..." (jamais les deux à la fois,
             demandé par Nicolas). */}
         {nextBooking ? (
-          <div className="mt-[54px]">
+          <div className="mt-6">
             <p className="text-lg font-normal text-white md:text-xl">Votre prochain séjour</p>
-            <p className="mt-2 text-sm uppercase tracking-[0.12em] text-white md:text-base">
+            <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.12em] text-white md:text-base">
               {formatDateLong(nextBooking.check_in)} - {formatDateLong(nextBooking.check_out)}
             </p>
             {tsBalance && (
@@ -170,34 +182,38 @@ export default async function DashboardPage() {
           </div>
         ) : (
           lastStaySentence && (
-            <p className="mt-[54px] text-sm font-light text-white md:text-base">{lastStaySentence}</p>
+            <p className="mt-6 text-sm font-light text-white md:text-base">{lastStaySentence}</p>
           )
         )}
 
         {/* "Aujourd'hui" / "Demain" — deviendront des liens directs vers
             l'onglet dont Nicolas a parlé le week-end du 20-21/09/2026, pas
-            encore construit : pour l'instant simple affichage, case vide
-            tant qu'il n'y a pas de source de données (les titres restent
-            aux mêmes emplacements, hauteur de la ligne du dessous réservée
-            même vide). */}
-        <div className="mt-[97px] grid grid-cols-2 gap-x-4">
+            encore construit : pour l'instant tiret "-" en attendant une
+            vraie source de données (demandé par Nicolas le 27/09/2026, à
+            la place d'un espace vide — ça l'aide à donner les indications
+            de mise en page). Grille CSS : les deux colonnes restent
+            alignées automatiquement (même hauteur de ligne) quel que soit
+            le contenu de chaque côté, à garder en tête pour plus tard
+            (demandé par Nicolas : "doivent toujours être alignées"). */}
+        <div className="mt-12 grid grid-cols-2 gap-x-4">
           <div>
             <p className="text-lg font-normal text-white md:text-xl">Aujourd&rsquo;hui</p>
-            <p className="mt-2 min-h-[2.5em] text-xs font-semibold uppercase tracking-[0.08em] text-white md:text-sm" />
+            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-white md:text-sm">-</p>
           </div>
           <div>
             <p className="text-lg font-normal text-white md:text-xl">Demain</p>
-            <p className="mt-2 min-h-[2.5em] text-xs font-semibold uppercase tracking-[0.08em] text-white md:text-sm" />
+            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-white md:text-sm">-</p>
           </div>
         </div>
 
-        {/* "Tâche ce mois ci" — widget relié à l'onglet Entretien
-            (fonctionnement réel — quelle tâche afficher — à développer
-            plus tard, demandé par Nicolas : pour l'instant juste un lien,
-            case vide sous le titre). */}
-        <Link href="/dashboard/taches" className="mt-[101px] block w-fit">
+        {/* "Tâche ce mois ci" — widget relié à l'onglet Entretien,
+            fonctionnera comme Aujourd'hui/Demain (la tâche du mois en
+            cours, saisie en base, apparaîtra ici) — fonctionnement réel à
+            développer plus tard, demandé par Nicolas : pour l'instant
+            tiret "-" en attendant. */}
+        <Link href="/dashboard/taches" className="mt-12 block w-fit">
           <p className="text-lg font-normal text-white md:text-xl">Tâche ce mois ci</p>
-          <p className="mt-2 min-h-[1.25em] text-xs font-semibold uppercase tracking-[0.08em] text-white md:text-sm" />
+          <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-white md:text-sm">-</p>
         </Link>
 
         {/* "Présents en ce moment" masqué (pas supprimé) le 27/09/2026 à la
