@@ -125,7 +125,7 @@ export default function LoginPage() {
       </div>
 
       {/* Logo + wordmark + tagline, centrés en haut. */}
-      <div className="flex flex-col items-center px-6 pt-[128px] text-center md:pt-20">
+      <div className="flex flex-col items-center px-6 pt-[71px] text-center md:pt-20">
         <Image
           src="/images/logo-batisse-drawing.png"
           alt="La Bâtisse"
