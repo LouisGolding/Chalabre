@@ -20,18 +20,28 @@ const ADMIN_ITEMS = [
 // "Guide de la maison" (src/app/dashboard/guide/page.tsx), jugé plus
 // pertinent qu'un onglet à part entière. "Réalisations" est rangé dans le
 // menu du haut (TopBanner) avec les autres onglets, pas ici. "Se
-// déconnecter" (19/09/2026) reste ici, en dernier, pour tous les comptes.
+// déconnecter" (19/09/2026) reste ici, en dernier, pour tous les comptes
+// — seul lui pour un compte non-admin (items vide), donc centré
+// horizontalement par le justify-center du <nav> ci-dessous (seul enfant
+// du flex).
+//
+// Fond noir (bg-foreground) retiré le 27/09/2026 à la demande de Nicolas :
+// transparent, laisse voir la photo plein écran de la page d'accueil
+// (voir dashboard/page.tsx) au lieu d'un bandeau noir. Texte en blanc
+// (comme le reste du contenu sur la photo depuis le retrait du voile)
+// plutôt que text-background/text-foreground, pensés pour un fond noir
+// opaque.
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   const items = role === 'admin' ? ADMIN_ITEMS : []
 
   const linkClass = (active: boolean) =>
     `text-xs md:text-sm font-bold uppercase tracking-wide transition-opacity ${
-      active ? 'text-background' : 'text-background/60 hover:text-background'
+      active ? 'text-white' : 'text-white/60 hover:text-white'
     }`
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex h-12 items-center justify-center gap-6 bg-foreground px-4 md:h-14 md:gap-10">
+    <nav className="fixed inset-x-0 bottom-0 z-40 flex h-12 items-center justify-center gap-6 px-4 md:h-14 md:gap-10">
       {items.map((item) => (
         <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
           {item.label}

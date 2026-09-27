@@ -176,7 +176,10 @@ export default async function DashboardPage() {
             </p>
             {tsBalance && (
               <div className="mt-6">
-                <TaxeSejourPill amount={tsBalance.own.pending} />
+                <TaxeSejourPill
+                  amount={tsBalance.own.pending}
+                  ids={tsBalance.own.items.map((item) => item.id)}
+                />
               </div>
             )}
           </div>
