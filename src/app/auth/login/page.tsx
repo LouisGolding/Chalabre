@@ -51,6 +51,14 @@ function CallbackError() {
 // explicitement demandé de commencer par le mobile) : au-delà de md, la
 // mise en page reprend telle quelle les classes mobiles pour l'instant,
 // à reprendre lors du prochain passage.
+//
+// Retouches du 27/09/2026 (retours à chaud de Nicolas sur le premier
+// rendu) : logo agrandi avec le même espacement dessin/texte qu'entre
+// les deux lignes de texte ; placeholders des champs en gris clair
+// (text-gray-400) ; carte email/mot de passe moins haute (py-2 au lieu
+// de py-3) ; recadrage de la photo pour centrer la bâtisse visible au
+// loin et dégager le village en dessous (voir commentaire sur le style
+// de la photo de fond ci-dessous).
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,38 +91,44 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col">
-      {/* Photo de fond — plein écran, déjà désaturée -30 % côté fichier
-          (voir commentaire ci-dessus). Une seule image pour l'instant
-          (mobile) : `background-size: cover` sur un viewport étroit et
-          haut recadre naturellement sur la hauteur, donc le dégradé
-          ciel → collines → village → herbe du fichier source (paysage,
-          2000×1114) se retrouve entièrement visible malgré le format
-          portrait — pas besoin d'un recadrage séparé. */}
+      {/* Photo de fond — plein écran, déjà désaturée -20 % côté fichier
+          (voir commentaire ci-dessus, fichier source 2000×1114). Recadrage
+          ajusté le 27/09/2026 à la demande de Nicolas : la bâtisse visible
+          au loin sur la photo doit être parfaitement centrée et le village
+          de Chalabre en dessous doit rester un peu visible au-dessus de la
+          carte. `background-size: auto 130%` zoome légèrement au-delà du
+          `cover` naturel pour se donner de la marge verticale, et
+          `background-position: 50% 85%` centre la bâtisse horizontalement
+          et cadre la photo pour dégager le village (au prix d'un peu de
+          ciel et d'herbe de premier plan en moins qu'avant). */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: "url('/images/login-bg-mobile.jpg')",
-            backgroundSize: 'cover',
-            backgroundPosition: 'center 30%',
+            backgroundSize: 'auto 130%',
+            backgroundPosition: '50% 85%',
           }}
         />
       </div>
 
       {/* Logo + wordmark + tagline, centrés en haut. */}
-      <div className="flex flex-col items-center px-6 pt-[140px] text-center md:pt-20">
+      <div className="flex flex-col items-center px-6 pt-[128px] text-center md:pt-20">
         <Image
           src="/images/logo-batisse-drawing.png"
           alt="La Bâtisse"
           width={1897}
           height={652}
           priority
-          className="h-auto w-[48%] max-w-[190px]"
+          className="h-auto w-[60%] max-w-[244px]"
         />
-        <h1 className="mt-4 font-serif text-4xl uppercase tracking-[0.1em] text-foreground md:text-5xl">
+        {/* Même espace entre le dessin et "La Bâtisse" qu'entre "La
+            Bâtisse" et "Chalabre - 11230" (demandé par Nicolas le
+            27/09/2026) : les deux utilisent mt-2. */}
+        <h1 className="mt-2 font-serif text-5xl uppercase tracking-[0.1em] text-foreground md:text-6xl">
           La Bâtisse
         </h1>
-        <p className="mt-2 font-serif text-xs uppercase tracking-[0.25em] text-foreground md:text-sm">
+        <p className="mt-2 font-serif text-sm uppercase tracking-[0.25em] text-foreground md:text-base">
           Chalabre - 11230
         </p>
       </div>
@@ -129,7 +143,7 @@ export default function LoginPage() {
         </Suspense>
 
         {/* Carte crème : champs email / mot de passe. */}
-        <div className="mx-9 rounded-2xl bg-card px-6 py-3 shadow-lg md:mx-auto md:max-w-sm">
+        <div className="mx-9 rounded-2xl bg-card px-6 py-2 shadow-lg md:mx-auto md:max-w-sm">
           <input
             type="email"
             value={email}
@@ -137,7 +151,7 @@ export default function LoginPage() {
             placeholder="Votre@mail"
             autoComplete="email"
             required
-            className="block w-full border-0 bg-transparent py-3 font-serif text-lg text-card-foreground outline-none placeholder:text-card-foreground/70"
+            className="block w-full border-0 bg-transparent py-2 font-serif text-lg text-card-foreground outline-none placeholder:text-gray-400"
           />
           <div className="relative">
             <input
@@ -147,7 +161,7 @@ export default function LoginPage() {
               placeholder="Mot de passe"
               autoComplete="current-password"
               required
-              className="block w-full border-0 bg-transparent py-3 pr-8 font-serif text-lg text-card-foreground outline-none placeholder:text-card-foreground/70"
+              className="block w-full border-0 bg-transparent py-2 pr-8 font-serif text-lg text-card-foreground outline-none placeholder:text-gray-400"
             />
             <button
               type="button"
