@@ -119,7 +119,7 @@ export default function LoginPage() {
           style={{
             backgroundImage: "url('/images/login-bg-mobile.jpg')",
             backgroundSize: 'auto 110%',
-            backgroundPosition: '50.5% 87%',
+            backgroundPosition: '51.6% 87%',
           }}
         />
       </div>
