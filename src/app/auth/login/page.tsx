@@ -93,21 +93,25 @@ export default function LoginPage() {
     <div className="relative flex min-h-screen flex-col">
       {/* Photo de fond — plein écran, déjà désaturée -20 % côté fichier
           (voir commentaire ci-dessus, fichier source 2000×1114). Recadrage
-          ajusté le 27/09/2026 à la demande de Nicolas : la bâtisse visible
-          au loin sur la photo doit être parfaitement centrée et le village
-          de Chalabre en dessous doit rester un peu visible au-dessus de la
-          carte. `background-size: auto 130%` zoome légèrement au-delà du
-          `cover` naturel pour se donner de la marge verticale, et
-          `background-position: 50% 85%` centre la bâtisse horizontalement
-          et cadre la photo pour dégager le village (au prix d'un peu de
-          ciel et d'herbe de premier plan en moins qu'avant). */}
+          calé le 27/09/2026 sur le montage de Nicolas (VISUEL PAGE DE
+          CONNEXION) : la bâtisse visible au loin sur la photo doit être
+          parfaitement centrée et le village de Chalabre en dessous doit
+          rester visible au-dessus de la carte, comme sur le montage.
+          `background-size: auto 132%` reproduit le niveau de zoom mesuré
+          sur le montage (recalage du fichier source sur le montage par
+          corrélation d'image ⇒ échelle ≈ ×1.038 en pixels), et
+          `background-position: 50.5% 98%` centre la bâtisse
+          horizontalement et cadre la photo au plus près du montage compte
+          tenu du bas de la carte, qui n'est pas exactement à la même
+          hauteur relative que sur le montage (mise en page mobile déjà
+          ajustée aux retours précédents). */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: "url('/images/login-bg-mobile.jpg')",
-            backgroundSize: 'auto 130%',
-            backgroundPosition: '50% 85%',
+            backgroundSize: 'auto 132%',
+            backgroundPosition: '50.5% 98%',
           }}
         />
       </div>
