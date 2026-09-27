@@ -26,7 +26,7 @@ export type DiagnosticZone = {
 
 export type DiagnosticCategory = {
   kind: 'diagnostic'
-  id: 'electrique' | 'eau'
+  id: 'electrique' | 'eau' | 'eau-chaude'
   label: string
   // Mots-clés (minuscules) recherchés dans le rôle des contacts pour la
   // liste d'artisans affichée si le problème persiste.
@@ -50,6 +50,69 @@ export type LocatorCategory = {
 export type EmergencyCategory = DiagnosticCategory | LocatorCategory
 
 export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
+  {
+    // Ordre des catégories Urgence demandé par Nicolas le 27/09/2026 :
+    // fuite d'eau / eau chaude / panne électrique / extincteurs
+    // (auparavant : panne électrique / fuite d'eau / extincteurs).
+    kind: 'diagnostic',
+    id: 'eau',
+    label: "Fuite d'eau",
+    contactRoleKeywords: ['plomb', 'eau'],
+    zones: [
+      // ⚠️ Zonage provisoire, calqué sur les zones électriques en
+      // attendant le vrai plan des arrivées d'eau et des nourrices
+      // qu'Aurélie doit fournir — à corriger avec elle avant mise en prod.
+      {
+        id: 'escalier-central-canat',
+        label: 'Escalier central et 1er étage CANAT / salles de réception',
+        checkLabel: 'Fermer la nourrice — Escalier central / CANAT',
+        // plan suggéré : /images/plans/eau-escalier-central-canat.png
+      },
+      {
+        id: 'escalier-lalande-3e',
+        label: 'Escalier LALANDE / 3ème étage LALANDE',
+        checkLabel: 'Fermer la nourrice — Escalier LALANDE / 3e étage',
+        // plan suggéré : /images/plans/eau-escalier-lalande-3e.png
+      },
+    ],
+  },
+  {
+    // Catégorie ajoutée le 27/09/2026 à la demande de Nicolas.
+    // ⚠️ Zonage provisoire, calqué sur les zones électriques (mêmes
+    // ailes de la maison) en attendant qu'Aurélie confirme l'emplacement
+    // réel des chauffe-eau / de la chaudière — à corriger avec elle avant
+    // mise en prod, comme pour "Fuite d'eau" ci-dessus.
+    kind: 'diagnostic',
+    id: 'eau-chaude',
+    label: "Plus d'eau chaude",
+    contactRoleKeywords: ['plomb', 'chauffe', 'chaudi'],
+    zones: [
+      {
+        id: 'escalier-central-canat',
+        label: 'Escalier central et 1er étage CANAT / salles de réception',
+        checkLabel: 'Vérifier le chauffe-eau / la chaudière — Escalier central / CANAT',
+        // plan suggéré : /images/plans/eauchaude-escalier-central-canat.png
+      },
+      {
+        id: 'escalier-lalande-3e',
+        label: 'Escalier LALANDE / 3ème étage LALANDE',
+        checkLabel: 'Vérifier le chauffe-eau / la chaudière — Escalier LALANDE / 3e étage',
+        // plan suggéré : /images/plans/eauchaude-escalier-lalande-3e.png
+      },
+      {
+        id: '2e-etage-ouest',
+        label: '2ème étage OUEST',
+        checkLabel: 'Vérifier le chauffe-eau / la chaudière — 2e étage OUEST',
+        // plan suggéré : /images/plans/eauchaude-2e-ouest.png
+      },
+      {
+        id: '2e-etage-est',
+        label: '2ème étage EST',
+        checkLabel: 'Vérifier le chauffe-eau / la chaudière — 2e étage EST',
+        // plan suggéré : /images/plans/eauchaude-2e-est.png
+      },
+    ],
+  },
   {
     kind: 'diagnostic',
     id: 'electrique',
@@ -81,29 +144,6 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
         // plan suggéré : /images/plans/elec-2e-est.png
       },
       // Autres zones à ajouter avec Aurélie (liste donnée comme "etc.").
-    ],
-  },
-  {
-    kind: 'diagnostic',
-    id: 'eau',
-    label: "Fuite d'eau",
-    contactRoleKeywords: ['plomb', 'eau'],
-    zones: [
-      // ⚠️ Zonage provisoire, calqué sur les zones électriques en
-      // attendant le vrai plan des arrivées d'eau et des nourrices
-      // qu'Aurélie doit fournir — à corriger avec elle avant mise en prod.
-      {
-        id: 'escalier-central-canat',
-        label: 'Escalier central et 1er étage CANAT / salles de réception',
-        checkLabel: 'Fermer la nourrice — Escalier central / CANAT',
-        // plan suggéré : /images/plans/eau-escalier-central-canat.png
-      },
-      {
-        id: 'escalier-lalande-3e',
-        label: 'Escalier LALANDE / 3ème étage LALANDE',
-        checkLabel: 'Fermer la nourrice — Escalier LALANDE / 3e étage',
-        // plan suggéré : /images/plans/eau-escalier-lalande-3e.png
-      },
     ],
   },
   {

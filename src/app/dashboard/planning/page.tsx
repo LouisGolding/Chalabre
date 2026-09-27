@@ -175,6 +175,9 @@ export default async function PlanningPage() {
       guest_name: b.guest_name,
       house_side: b.house_side ?? null,
       room_label: roomLabel,
+      // Affichée au clic sur un séjour qui n'est pas le tien (demandé par
+      // Nicolas le 27/09/2026) — voir PlanningView.tsx, revealedBookingId.
+      notes: b.notes ?? null,
       profiles: profileObj
         ? {
             first_name: profileObj.first_name,

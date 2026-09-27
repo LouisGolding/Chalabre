@@ -43,6 +43,13 @@ export interface PlanningBooking {
   guest_name?: string | null
   house_side?: HouseSide | null
   room_label?: string | null
+  // Note libre saisie à la réservation (colonne "notes" existante,
+  // réutilisée telle quelle) — convention proposée par Nicolas le
+  // 27/09/2026 : 3 premières lettres du lieu d'arrivée + l'heure (ex.
+  // "PAM. 14h45"), affichée au clic sur le séjour de quelqu'un d'autre
+  // (voir revealedBookingId plus bas). Pas de format imposé côté code :
+  // juste le texte tel que saisi dans "notes".
+  notes?: string | null
   profiles?: {
     first_name: string
     last_name: string
@@ -215,6 +222,13 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null)
   const [savingBookingId, setSavingBookingId] = useState<string | null>(null)
   const [modalError, setModalError] = useState<string | null>(null)
+  // Séjour dont la note est actuellement affichée sur sa ligne (demandé
+  // par Nicolas le 27/09/2026) : pour un séjour qui n'est pas le tien
+  // (booking.user_id différent du compte connecté — y compris pour un
+  // admin, volontairement : voir le clic sur le segment plus bas), cliquer
+  // dessus affiche sa note au lieu d'ouvrir la fenêtre d'édition ; recliquer
+  // la masque à nouveau.
+  const [revealedBookingId, setRevealedBookingId] = useState<string | null>(null)
   // Largeur d'une colonne de jour, mesurée au clic/glisser sur une ligne
   // colorée (voir handlePointerDownOnSegment) : les colonnes de jours étant
   // réparties à parts égales (minmax(0, 1fr)), la largeur de la première
@@ -848,6 +862,12 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
 
                       const booking = bookingsById.get(seg.id)
                       const editable = !!booking && canEditBooking(booking, currentUserId, isAdmin)
+                      // "Pas le tien" au sens de ce nouveau clic = pas ton
+                      // propre compte titulaire, même si tu es admin et donc
+                      // techniquement autorisé à l'éditer (canEditBooking) —
+                      // voir la note sur revealedBookingId plus haut.
+                      const ownedByViewer = !!booking && booking.user_id === currentUserId
+                      const isRevealed = revealedBookingId === seg.id
                       const isDragging = drag?.bookingId === seg.id
                       const displaySeg = isDragging
                         ? { ...segmentFromDates(drag!.currentCheckIn, drag!.currentCheckOut, rangeStart, rangeEnd) }
@@ -872,12 +892,24 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                           onPointerUp={handlePointerUpOnSegment}
                           onClick={() => {
                             if (justDraggedRef.current) return
+                            if (!ownedByViewer) {
+                              // "si il y en a une" (Nicolas) : rien à
+                              // afficher si le séjour n'a pas de note.
+                              if (!booking?.notes?.trim()) return
+                              setRevealedBookingId((prev) => (prev === seg.id ? null : seg.id))
+                              return
+                            }
                             setModalError(null)
                             setEditingBookingId(seg.id)
                           }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault()
+                              if (!ownedByViewer) {
+                                if (!booking?.notes?.trim()) return
+                                setRevealedBookingId((prev) => (prev === seg.id ? null : seg.id))
+                                return
+                              }
                               setModalError(null)
                               setEditingBookingId(seg.id)
                             }
@@ -918,6 +950,13 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               className="absolute inset-y-0 right-0 w-2 cursor-ew-resize"
                               aria-hidden="true"
                             />
+                          )}
+                          {isRevealed && booking?.notes?.trim() && (
+                            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                              <span className="whitespace-nowrap rounded-full bg-foreground px-2 py-0.5 text-[10px] font-medium leading-none text-background shadow-sm">
+                                {booking.notes.trim()}
+                              </span>
+                            </div>
                           )}
                         </div>
                       )

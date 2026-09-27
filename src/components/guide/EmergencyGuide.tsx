@@ -4,13 +4,17 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Zap, Droplet, Flame, ArrowLeft, Phone, Mail, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Zap, Droplet, Flame, Thermometer, ArrowLeft, Phone, Mail, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { EmergencyCategory, DiagnosticZone, LocatorLevel } from '@/lib/emergency-guide'
 import { Contact } from '@/types'
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   electrique: Zap,
   eau: Droplet,
+  // Ajoutée le 27/09/2026 avec la catégorie "Plus d'eau chaude" (voir
+  // emergency-guide.ts) — Thermometer plutôt que Droplet pour la
+  // distinguer visuellement de "Fuite d'eau".
+  'eau-chaude': Thermometer,
   extincteurs: Flame,
 }
 
