@@ -26,22 +26,34 @@ const TILES: Tile[] = [
   { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
 ]
 
-// Fixe sous le bandeau du haut (top-28, même hauteur que TopBanner) et
-// toujours visible en scrollant (demandé par Nicolas le 27/09/2026 : "elle
-// reste collée en bandeau bas, toujours visible en scrollant"). Pour
-// l'instant affichée uniquement sur la page d'accueil (dashboard/page.tsx),
-// à l'endroit indiqué sur son visuel — Nicolas veut aussi ce bandeau sur
-// tous les autres onglets, mais réfléchit encore à une version réduite
-// (une grille 3x2 permanente prendrait beaucoup de place sur les pages
-// internes, et il faut décider comment elle cohabite avec BottomNav, le
-// bandeau noir du bas qui existe déjà partout). À étendre aux autres pages
-// une fois ce point tranché.
+// Épinglée en BAS de l'écran (demandé par Nicolas le 27/09/2026 : "place
+// le bandeau ... en bas de l'ecran"), juste au-dessus de BottomNav (le
+// bandeau noir "Membres / Suivi paiements / Se déconnecter", toujours
+// affiché lui aussi en position fixe) — d'où bottom-12/md:bottom-14, qui
+// reprend exactement la hauteur de BottomNav pour que les deux bandeaux
+// s'empilent sans espace ni chevauchement. Photo de fond (plus de
+// bg-background beige) visible à travers les espaces entre les tuiles,
+// comme sur le visuel de Nicolas — seules les tuiles elles-mêmes gardent
+// un fond plein (bg-card). Photo fournie par Nicolas le 27/09/2026
+// (public/images/tuiles-bg.jpg), retouchée à sa demande : luminosité
+// -60%, saturation -20% (mêmes réglages que Photoshop Brightness/Color),
+// centrée. Pour l'instant affichée uniquement sur la page d'accueil
+// (dashboard/page.tsx) ; Nicolas veut aussi ce bandeau sur tous les
+// autres onglets mais réfléchit encore à une version réduite et à sa
+// cohabitation avec BottomNav — à étendre une fois ce point tranché.
 export function TileNav({ role }: { role: UserRole }) {
   const isFriend = role === 'friend'
   const tiles = isFriend ? TILES.filter((tile) => !tile.hiddenForFriend) : TILES
 
   return (
-    <nav className="sticky top-28 z-30 -mx-6 grid grid-cols-3 gap-[14px] bg-background px-4 py-[14px] md:mx-0 md:rounded-none">
+    <nav
+      className="fixed inset-x-0 bottom-12 md:bottom-14 z-30 grid grid-cols-3 gap-[14px] px-4 py-[14px]"
+      style={{
+        backgroundImage: "url('/images/tuiles-bg.jpg')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center center',
+      }}
+    >
       {tiles.map((tile) => (
         <Link
           key={tile.href}

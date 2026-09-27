@@ -52,7 +52,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen">
       <TopBanner />
-      <main className="max-w-5xl mx-auto p-6 pt-28 pb-20 md:pt-28 md:pb-24">
+      <main className="max-w-5xl mx-auto p-6 pt-20 pb-20 md:pt-20 md:pb-24">
         {children}
       </main>
       {/* Bandeau du bas : "Membres" / "Suivi paiements" pour les admins

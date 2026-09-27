@@ -111,7 +111,13 @@ export default async function DashboardPage() {
         <div className="absolute inset-0 bg-background/40" />
       </div>
 
-      <div className="space-y-6">
+      {/* Espace en bas ajouté le 27/09/2026 : TileNav est désormais épinglée
+          en bas de l'écran (fixed) par-dessus ce contenu, il faut donc que
+          le dernier texte ("Personne n'est à la Bâtisse...") ne se
+          retrouve pas caché dessous. Valeurs = hauteur de TileNav sur
+          mobile (222px) / bureau (266px), BottomNav déjà pris en compte
+          par ailleurs (padding du <main>, layout.tsx). */}
+      <div className="space-y-6 pb-[222px] md:pb-[266px]">
         {/* Welcome — "Bonjour ..." et la pastille "Cotisation mensuelle" sur la
             même ligne, alignés à gauche. Espace avant "Prochain séjour"
             (demandé par Aurélie le 18/09/2026) : mb-2 initialement,
