@@ -30,8 +30,9 @@ function CallbackError() {
 // Page de connexion — refonte du 27/09/2026 demandée par Nicolas à partir
 // d'un montage précis qu'il a fourni (voir points-a-regler-avec-louis.md).
 // Nouvelle direction artistique, format mobile d'abord :
-// - nouvelle photo de fond (fournie par Nicolas), désaturée de 30 %
-//   (Pillow, ImageEnhance.Color(0.7)) une seule fois au moment de la
+// - nouvelle photo de fond (fournie par Nicolas), désaturée de 20 %
+//   (Pillow, ImageEnhance.Color(0.8) — corrigé le 27/09/2026, la
+//   première passe était à -30 %) une seule fois au moment de la
 //   préparer, pas en CSS/JS à l'affichage ;
 // - nouveau dessin de la bâtisse (PNG détouré, plus détaillé que l'ancien
 //   tracé SVG de BatisseMark.tsx — celui-ci n'est PAS touché ici, il reste
@@ -101,14 +102,14 @@ export default function LoginPage() {
       </div>
 
       {/* Logo + wordmark + tagline, centrés en haut. */}
-      <div className="flex flex-col items-center px-6 pt-14 text-center md:pt-20">
+      <div className="flex flex-col items-center px-6 pt-[140px] text-center md:pt-20">
         <Image
           src="/images/logo-batisse-drawing.png"
           alt="La Bâtisse"
           width={1897}
           height={652}
           priority
-          className="h-auto w-[62%] max-w-[340px]"
+          className="h-auto w-[48%] max-w-[190px]"
         />
         <h1 className="mt-4 font-serif text-4xl uppercase tracking-[0.1em] text-foreground md:text-5xl">
           La Bâtisse
@@ -166,7 +167,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mx-6 -mt-1 block w-[calc(100%-3rem)] rounded-2xl bg-[#393F2F] py-4 text-center font-serif text-base uppercase tracking-[0.15em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:max-w-sm"
+          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-4 text-center font-serif text-base uppercase tracking-[0.15em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:max-w-sm"
         >
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
