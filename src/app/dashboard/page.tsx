@@ -123,7 +123,7 @@ export default async function DashboardPage() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: "url('/images/accueil-bg.jpg')",
+            backgroundImage: "url('/images/accueil-bg-v2.jpg')",
             backgroundSize: 'cover',
             backgroundPosition: 'center center',
           }}
@@ -136,10 +136,12 @@ export default async function DashboardPage() {
       {/* Espace en bas ajouté le 27/09/2026 : TileNav est désormais épinglée
           en bas de l'écran (fixed) par-dessus ce contenu, il faut donc que
           le dernier texte ("Personne n'est à la Bâtisse...") ne se
-          retrouve pas caché dessous. Valeurs = hauteur de TileNav sur
-          mobile (222px) / bureau (266px), BottomNav déjà pris en compte
-          par ailleurs (padding du <main>, layout.tsx). */}
-      <div className="pb-[222px] pt-6 md:pb-[266px]">
+          retrouve pas caché dessous. Valeurs = hauteur de TileNav (222px
+          mobile / 266px bureau) + l'espace ajouté le 27/09/2026 entre
+          TileNav et BottomNav (48px / 56px, voir TileNav.tsx) ; BottomNav
+          elle-même déjà prise en compte par ailleurs (padding du <main>,
+          layout.tsx). */}
+      <div className="pb-[270px] pt-6 md:pb-[322px]">
         {/* Espacements ajustés le 27/09/2026 à la demande de Nicolas,
             exprimés en multiples d'une seule unité G = l'espace entre la
             ligne de dates ("25 DÉCEMBRE...") et la pastille "Total taxe de

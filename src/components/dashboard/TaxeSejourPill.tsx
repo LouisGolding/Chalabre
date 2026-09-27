@@ -26,7 +26,7 @@ interface TaxeSejourPillProps {
 // déclenché au SURVOL (pas au clic — Nicolas : "cela indiquera facilement
 // qu'il s'agit d'un lien"), en CSS pur (group-hover), pas de state JS :
 // color: transparent + background-clip: text sur la même image que le
-// fond plein écran de la page (accueil-bg.jpg), en
+// fond plein écran de la page (accueil-bg-v2.jpg), en
 // background-attachment: fixed pour qu'elle s'aligne avec la vraie photo
 // derrière plutôt que d'être recadrée à la taille du texte. Note :
 // background-attachment: fixed est connu pour mal se comporter sur
@@ -44,7 +44,7 @@ export function TaxeSejourPill({ amount, ids }: TaxeSejourPillProps) {
       <span
         className="bg-clip-text text-white transition-colors group-hover:text-transparent"
         style={{
-          backgroundImage: "url('/images/accueil-bg.jpg')",
+          backgroundImage: "url('/images/accueil-bg-v2.jpg')",
           backgroundSize: 'cover',
           backgroundPosition: 'center center',
           backgroundAttachment: 'fixed',

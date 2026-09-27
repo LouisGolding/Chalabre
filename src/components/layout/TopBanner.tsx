@@ -20,17 +20,22 @@ import Image from 'next/image'
 // plafond max-w-[130px] qu'on croyait actif). Remplacé par `vw`, qui se
 // calcule toujours par rapport à l'écran et rend la taille réellement
 // prévisible.
+//
+// Dessin réduit de 20% en homothétie le 27/09/2026 (32vw/140px ->
+// 25.6vw/112px, même rapport largeur/hauteur), en gardant son alignement
+// BAS dans le bandeau (items-end au lieu de items-center) : le bas du
+// dessin reste au même endroit, seul le haut redescend en rétrécissant.
 export function TopBanner() {
   return (
-    <header className="fixed inset-x-0 top-0 z-40 flex h-20 items-center justify-center bg-background">
-      <Link href="/dashboard" aria-label="Retour à l'accueil" className="flex items-center justify-center">
+    <header className="fixed inset-x-0 top-0 z-40 flex h-20 items-end justify-center bg-background">
+      <Link href="/dashboard" aria-label="Retour à l'accueil" className="flex items-end justify-center">
         <Image
           src="/images/logo-batisse-drawing.png"
           alt="La Bâtisse"
           width={1897}
           height={652}
           priority
-          className="h-auto w-[32vw] max-w-[140px]"
+          className="h-auto w-[25.6vw] max-w-[112px]"
         />
       </Link>
     </header>
