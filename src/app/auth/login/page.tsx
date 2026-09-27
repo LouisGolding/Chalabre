@@ -56,8 +56,10 @@ function CallbackError() {
 // rendu) : logo agrandi avec le même espacement dessin/texte qu'entre
 // les deux lignes de texte ; placeholders des champs en gris clair
 // (text-gray-400) ; carte email/mot de passe moins haute (py-2 au lieu
-// de py-3) ; recadrage de la photo pour centrer la bâtisse visible au
-// loin et dégager le village en dessous (voir commentaire sur le style
+// de py-3), pastille "SE CONNECTER" moins haute (py-3 au lieu de py-4) ;
+// recadrage de la photo pour centrer la bâtisse visible au loin, garder
+// le logo intégralement sur le ciel bleu et laisser le village visible
+// en dessous (voir les règles de cadrage détaillées sur le commentaire
 // de la photo de fond ci-dessous).
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -92,26 +94,32 @@ export default function LoginPage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       {/* Photo de fond — plein écran, déjà désaturée -20 % côté fichier
-          (voir commentaire ci-dessus, fichier source 2000×1114). Recadrage
-          calé le 27/09/2026 sur le montage de Nicolas (VISUEL PAGE DE
-          CONNEXION) : la bâtisse visible au loin sur la photo doit être
-          parfaitement centrée et le village de Chalabre en dessous doit
-          rester visible au-dessus de la carte, comme sur le montage.
-          `background-size: auto 132%` reproduit le niveau de zoom mesuré
-          sur le montage (recalage du fichier source sur le montage par
-          corrélation d'image ⇒ échelle ≈ ×1.038 en pixels), et
-          `background-position: 50.5% 98%` centre la bâtisse
-          horizontalement et cadre la photo au plus près du montage compte
-          tenu du bas de la carte, qui n'est pas exactement à la même
-          hauteur relative que sur le montage (mise en page mobile déjà
-          ajustée aux retours précédents). */}
+          (voir commentaire ci-dessus, fichier source 2000×1114). Règles de
+          cadrage fixées par Nicolas le 27/09/2026 (à conserver pour toute
+          future retouche) :
+            1. la bâtisse visible au loin sur la photo doit être
+               parfaitement centrée dans la largeur ;
+            2. le logo (dessin + "LA BÂTISSE" + "CHALABRE - 11230") doit
+               être intégralement sur le ciel bleu, sans toucher la ligne
+               de montagnes — quitte à « abaisser » la photo (montrer une
+               portion plus basse du fichier source) pour dégager assez de
+               ciel ;
+            3. le village de Chalabre doit rester visible entre la bâtisse
+               et la carte email/mot de passe.
+          `background-size: auto 110%` + `background-position: 50.5% 87%`
+          est le compromis trouvé entre ces trois contraintes compte tenu
+          de la hauteur de bloc logo + carte de cette mise en page mobile :
+          un zoom plus fort dégage plus de ciel mais recadre la bâtisse
+          sous la carte, un zoom plus faible remonte les montagnes derrière
+          le texte. Si la mise en page du haut ou de la carte change, ces
+          valeurs sont à recalculer. */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: "url('/images/login-bg-mobile.jpg')",
-            backgroundSize: 'auto 132%',
-            backgroundPosition: '50.5% 98%',
+            backgroundSize: 'auto 110%',
+            backgroundPosition: '50.5% 87%',
           }}
         />
       </div>
@@ -185,7 +193,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-4 text-center font-serif text-base uppercase tracking-[0.15em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:max-w-sm"
+          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-3 text-center font-serif text-base uppercase tracking-[0.15em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:max-w-sm"
         >
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
