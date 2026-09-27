@@ -104,10 +104,10 @@ export default async function DashboardPage() {
             backgroundPosition: 'center center',
           }}
         />
-        {/* Voile clair pour garder le texte lisible, comme sur le montage
-            d'Aurélie (photo légèrement éclaircie sous le bandeau/le texte). */}
-        <div className="absolute inset-0 bg-background/40" />
       </div>
+      {/* Voile clair retiré le 27/09/2026 à la demande de Nicolas : la
+          photo (luminosité -30%, voir plus haut) doit apparaître telle
+          quelle, sans éclaircissement supplémentaire par-dessus. */}
 
       {/* Espace en bas ajouté le 27/09/2026 : TileNav est désormais épinglée
           en bas de l'écran (fixed) par-dessus ce contenu, il faut donc que
