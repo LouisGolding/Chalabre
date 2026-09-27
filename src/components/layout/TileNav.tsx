@@ -27,14 +27,15 @@ const TILES: Tile[] = [
 ]
 
 // Épinglée en BAS de l'écran (demandé par Nicolas le 27/09/2026 : "place
-// le bandeau ... en bas de l'ecran"), au-dessus de BottomNav (le bandeau
-// "Membres / Suivi paiements / Se déconnecter", toujours affiché lui
-// aussi en position fixe). Un vrai espace sépare les deux depuis le
-// 27/09/2026 (demandé par Nicolas : le même espace qu'entre "Se
-// déconnecter" et le bas de l'écran, donc la hauteur de BottomNav
-// elle-même, 48px mobile / 56px bureau) — d'où bottom-24/md:bottom-28
-// (2x la hauteur de BottomNav : sa propre hauteur + l'espace ajouté).
-// Fond transparent : la photo de la page d'accueil (voir
+// le bandeau ... en bas de l'ecran"), juste au-dessus de BottomNav (le
+// bandeau "Membres / Suivi paiements / Se déconnecter", toujours affiché
+// lui aussi en position fixe) : bottom-12/md:bottom-14, exactement la
+// hauteur de BottomNav, donc aucun espace entre les deux — Nicolas avait
+// demandé le jour même un vrai espace supplémentaire (bottom-24/28, 2x la
+// hauteur de BottomNav), mais est revenu dessus le 27/09/2026 avec un
+// visuel annoté (ligne verte) montrant le bas de la grille de tuiles
+// collé au haut de BottomNav, sans espace additionnel. Fond transparent :
+// la photo de la page d'accueil (voir
 // dashboard/page.tsx) couvre désormais toute la page et se voit donc
 // déjà à travers les espaces entre les tuiles, comme sur le visuel de
 // Nicolas — TileNav a eu son propre fond photo un temps
@@ -50,7 +51,7 @@ export function TileNav({ role }: { role: UserRole }) {
   const tiles = isFriend ? TILES.filter((tile) => !tile.hiddenForFriend) : TILES
 
   return (
-    <nav className="fixed inset-x-0 bottom-24 md:bottom-28 z-30 grid grid-cols-3 gap-[14px] px-4 py-[14px]">
+    <nav className="fixed inset-x-0 bottom-12 md:bottom-14 z-30 grid grid-cols-3 gap-[14px] px-4 py-[14px]">
       {tiles.map((tile) => (
         <Link
           key={tile.href}
