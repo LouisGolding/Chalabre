@@ -1,13 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-// formatCurrency, formatDate, Card/CardContent/CardHeader/CardTitle et
-// Badge ne sont plus utilisés que par les widgets masqués plus bas
-// (18/09/2026) ou déplacés depuis (21/09/2026, voir ReserverSejour.tsx) :
-// formatCurrency et formatDate depuis @/lib/utils, Card depuis
-// @/components/ui/card, Badge depuis @/components/ui/badge, Users depuis
-// lucide-react. À réimporter avec eux si on les remet.
-import { CotisationPill } from '@/components/dashboard/CotisationPill'
+import Link from 'next/link'
+// Card/CardContent/CardHeader/CardTitle, Badge, formatCurrency : ne
+// servent plus qu'aux widgets masqués plus bas (18/09/2026) — depuis
+// @/components/ui/card, @/components/ui/badge, @/lib/utils. À
+// réimporter avec eux si on les remet. CotisationPill n'est plus utilisée
+// ici (retirée de l'accueil le 27/09/2026 à la demande de Nicolas, voir
+// plus bas) mais reste utilisée ailleurs — composant non supprimé.
 import { TileNav } from '@/components/layout/TileNav'
+import { TaxeSejourPill } from '@/components/dashboard/TaxeSejourPill'
+import { computeTsBalance } from '@/lib/ts-balance'
+
+// "25 décembre 2026" -> "25 DÉCEMBRE 2026", comme sur le visuel Photoshop
+// de Nicolas (27/09/2026) pour les dates du prochain séjour.
+function formatDateLong(date: string | Date): string {
+  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+    .format(new Date(date))
+    .toUpperCase()
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -33,6 +43,16 @@ export default async function DashboardPage() {
     .order('check_in', { ascending: true })
 
   const today = new Date()
+  const todayISO = today.toISOString().slice(0, 10)
+
+  // Prochain séjour du titulaire du compte (hors accompagnants) — remis
+  // sur l'accueil le 27/09/2026 à la demande de Nicolas, sur le modèle
+  // exact de l'onglet Planning (voir planning/page.tsx : nextBooking).
+  // check_out >= aujourd'hui (pas check_in) pour garder un séjour en
+  // cours affiché ici tant qu'il n'est pas terminé, même logique que
+  // là-bas.
+  const nextBooking = (bookings ?? []).find((b) => !b.guest_name && b.check_out >= todayISO) ?? null
+
   const pastBookings = bookings?.filter(b => new Date(b.check_out) < today) ?? []
   // Séjour du titulaire du compte (widgets principaux) vs séjours ajoutés
   // pour des accompagnants (guest_name renseigné) via le bouton "+" : pour
@@ -52,6 +72,12 @@ export default async function DashboardPage() {
     daysSinceLastStay !== null && daysSinceLastStay > 0
       ? `Vous n'êtes pas venu depuis ${daysSinceLastStay} jour${daysSinceLastStay > 1 ? 's' : ''}.`
       : null
+
+  // Solde de taxe de séjour du titulaire (voir src/lib/ts-balance.ts),
+  // pour la pastille "TOTAL TAXE DE SÉJOUR" à côté du prochain séjour —
+  // calculé uniquement quand il y a un prochain séjour à afficher, pour
+  // ne pas ajouter cette requête à chaque chargement de l'accueil sinon.
+  const tsBalance = nextBooking ? await computeTsBalance(supabase, user.id) : null
 
   // Get current occupants
   const { data: currentBookings } = await supabase
@@ -76,8 +102,6 @@ export default async function DashboardPage() {
       : presentNames.length === 1
         ? `${presentNames[0]} est en ce moment à la Bâtisse.`
         : `${presentNames.slice(0, -1).join(', ')} & ${presentNames[presentNames.length - 1]} sont en ce moment à la Bâtisse.`
-
-  const isFriend = profile.role === 'friend'
 
   return (
     <>
@@ -115,80 +139,72 @@ export default async function DashboardPage() {
           retrouve pas caché dessous. Valeurs = hauteur de TileNav sur
           mobile (222px) / bureau (266px), BottomNav déjà pris en compte
           par ailleurs (padding du <main>, layout.tsx). */}
-      <div className="space-y-6 pb-[222px] md:pb-[266px]">
-        {/* Welcome — "Bonjour ..." et la pastille "Cotisation mensuelle" sur la
-            même ligne, alignés à gauche. Espace avant "Prochain séjour"
-            (demandé par Aurélie le 18/09/2026) : mb-2 initialement,
-            quadruplé en mb-8, quadruplé une seconde fois en mb-32, puis
-            réduit d'un tiers (128px → 85px) le même jour. */}
-        {/* Welcome, en grille à 2 colonnes / 2 lignes partagées : ligne 1
-            "Bonjour, ..." (gauche) / "Cotisation mensuelle" (droite), ligne
-            2 "Vous n'êtes pas venu depuis..." seule (gauche) — la pastille
-            "Solde taxe de séjour" qui occupait la colonne de droite de
-            cette 2e ligne a déménagé sur l'onglet Planning le 21/09/2026,
-            à côté de "Prochain séjour" (demandé par Aurélie — voir
-            ReserverSejour.tsx), puisque tout ce qui concerne les séjours et
-            leur taxe de séjour est désormais réuni là-bas. col-start/
-            row-start explicites conservés malgré tout : sans ça, l'absence
-            de "Vous n'êtes pas venu..." (aucun séjour passé) décalerait la
-            grille de façon imprévisible. */}
-        <div className="mb-[85px] grid grid-cols-[1fr_auto] items-start gap-x-3 gap-y-2">
-          <h1 className="col-start-1 row-start-1 text-xl md:text-2xl font-semibold text-foreground">
-            Bonjour, {profile.first_name} {profile.last_name}
-          </h1>
-          <div className="col-start-2 row-start-1 flex justify-end">
-            {!isFriend && (
-              <CotisationPill profileId={profile.id} initialAmount={profile.tm_tier} />
+      <div className="pb-[222px] pt-[34px] md:pb-[266px]">
+        {/* Refonte complète le 27/09/2026 à la demande de Nicolas, au pixel
+            près sur son visuel Photoshop : mêmes espacements (valeurs en
+            px ci-dessous mesurées dessus), mêmes typos (texte courant en
+            casse normale, lignes de données en MAJUSCULES avec tracking),
+            tout en blanc (la photo n'a plus de voile, voir plus haut).
+            isFriend / CotisationPill : la pastille "Cotisation mensuelle"
+            qui vivait ici est retirée de l'accueil (toujours utilisée
+            ailleurs, composant non supprimé). */}
+        <h1 className="text-2xl font-normal text-white md:text-3xl">
+          Bonjour {profile.first_name}
+        </h1>
+
+        {/* "Votre prochain séjour" + dates + pastille "Total taxe de
+            séjour" si un séjour à venir est inscrit au planning, sinon
+            "Vous n'êtes pas venu depuis..." (jamais les deux à la fois,
+            demandé par Nicolas). */}
+        {nextBooking ? (
+          <div className="mt-[54px]">
+            <p className="text-lg font-normal text-white md:text-xl">Votre prochain séjour</p>
+            <p className="mt-2 text-sm uppercase tracking-[0.12em] text-white md:text-base">
+              {formatDateLong(nextBooking.check_in)} - {formatDateLong(nextBooking.check_out)}
+            </p>
+            {tsBalance && (
+              <div className="mt-6">
+                <TaxeSejourPill amount={tsBalance.own.pending} />
+              </div>
             )}
           </div>
+        ) : (
+          lastStaySentence && (
+            <p className="mt-[54px] text-sm font-light text-white md:text-base">{lastStaySentence}</p>
+          )
+        )}
 
-          {/* Typo semi light, même taille que le texte de la pastille
-              "Cotisation mensuelle" (text-sm), sans pastille/fond. */}
-          {lastStaySentence && (
-            <p className="col-start-1 row-start-2 self-center text-sm font-light text-foreground">
-              {lastStaySentence}
-            </p>
-          )}
+        {/* "Aujourd'hui" / "Demain" — deviendront des liens directs vers
+            l'onglet dont Nicolas a parlé le week-end du 20-21/09/2026, pas
+            encore construit : pour l'instant simple affichage, case vide
+            tant qu'il n'y a pas de source de données (les titres restent
+            aux mêmes emplacements, hauteur de la ligne du dessous réservée
+            même vide). */}
+        <div className="mt-[97px] grid grid-cols-2 gap-x-4">
+          <div>
+            <p className="text-lg font-normal text-white md:text-xl">Aujourd&rsquo;hui</p>
+            <p className="mt-2 min-h-[2.5em] text-xs font-semibold uppercase tracking-[0.08em] text-white md:text-sm" />
+          </div>
+          <div>
+            <p className="text-lg font-normal text-white md:text-xl">Demain</p>
+            <p className="mt-2 min-h-[2.5em] text-xs font-semibold uppercase tracking-[0.08em] text-white md:text-sm" />
+          </div>
         </div>
 
-      {/* Quick stats — "Solde TS" est dans la pastille juste au-dessus, à
-          côté de "Cotisation mensuelle" (demandé par Aurélie le
-          18/09/2026). Le widget "Prochain séjour + Taxe de séjour" qui
-          s'affichait ici a migré vers l'onglet Planning le 21/09/2026
-          (demandé par Nicolas — voir ReserverSejour.tsx, sous le bouton
-          "Réserver un séjour"). Le widget "Dernier séjour" qui suivait ici
-          a été masqué à sa demande
-          le 18/09/2026 (le const lastBooking est réutilisé depuis, pour la
-          phrase "Vous n'êtes pas venu depuis..." sous "Bonjour, ...") :
-          <Card className="md:max-w-xs">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Dernier séjour</CardTitle>
-              <Calendar className="h-4 w-4 text-stone-400" />
-            </CardHeader>
-            <CardContent>
-              {lastBooking ? (
-                <div className="text-lg font-semibold text-stone-700">
-                  {formatDate(lastBooking.check_out)}
-                </div>
-              ) : (
-                <p className="text-stone-400 text-sm">Aucun séjour</p>
-              )}
-            </CardContent>
-          </Card>
-      */}
+        {/* "Tâche ce mois ci" — widget relié à l'onglet Entretien
+            (fonctionnement réel — quelle tâche afficher — à développer
+            plus tard, demandé par Nicolas : pour l'instant juste un lien,
+            case vide sous le titre). */}
+        <Link href="/dashboard/taches" className="mt-[101px] block w-fit">
+          <p className="text-lg font-normal text-white md:text-xl">Tâche ce mois ci</p>
+          <p className="mt-2 min-h-[1.25em] text-xs font-semibold uppercase tracking-[0.08em] text-white md:text-sm" />
+        </Link>
 
-      {/* "Présents en ce moment" — repensé le 18/09/2026 à la demande
-          d'Aurélie : plus de carte ni de fond coloré, directement sur la
-          photo, une simple phrase en graisse regular ("Nicolas, Louis &
-          Aurélie sont en ce moment à la Bâtisse.", ou "Personne n'est à la
-          Bâtisse en ce moment." si personne — calculé plus haut via
-          presentSentence, à partir des séjours dont la date du jour tombe
-          entre check_in et check_out). */}
-      {/* Même traitement que l'espace "Bonjour" / "Prochain séjour"
-          ci-dessus (quadruplé, puis réduit d'un tiers à 85px), appliqué
-          ici entre "Supprimer ce séjour" et cette phrase, demandé par
-          Aurélie le 18/09/2026. */}
-      <p className="mt-[85px] font-normal text-base md:text-lg text-foreground">{presentSentence}</p>
+        {/* "Présents en ce moment" masqué (pas supprimé) le 27/09/2026 à la
+            demande de Nicolas : "je verrai plus tard comment et où on
+            l'affiche". presentSentence reste calculé plus haut. */}
+        {/* <p className="mt-[85px] font-normal text-base md:text-lg text-white">{presentSentence}</p> */}
+      </div>
 
       {/* Grille de navigation — refonte du 27/09/2026 demandée par
           Nicolas (voir TileNav.tsx) : les onglets qui vivaient dans le
@@ -226,7 +242,6 @@ export default async function DashboardPage() {
         </Card>
       )}
       */}
-      </div>
     </>
   )
 }
