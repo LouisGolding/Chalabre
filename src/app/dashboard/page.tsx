@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 // @/components/ui/card, Badge depuis @/components/ui/badge, Users depuis
 // lucide-react. À réimporter avec eux si on les remet.
 import { CotisationPill } from '@/components/dashboard/CotisationPill'
+import { TileNav } from '@/components/layout/TileNav'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -184,6 +185,11 @@ export default async function DashboardPage() {
           ici entre "Supprimer ce séjour" et cette phrase, demandé par
           Aurélie le 18/09/2026. */}
       <p className="mt-[85px] font-normal text-base md:text-lg text-foreground">{presentSentence}</p>
+
+      {/* Grille de navigation — refonte du 27/09/2026 demandée par
+          Nicolas (voir TileNav.tsx) : les onglets qui vivaient dans le
+          bandeau du haut vivent maintenant ici, sur l'accueil. */}
+      <TileNav role={profile.role} />
 
       {/* Upcoming bookings — widget "Mes prochains séjours" masqué à la
           demande d'Aurélie le 18/09/2026. JSX laissé en commentaire pour
