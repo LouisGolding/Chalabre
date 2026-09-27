@@ -99,7 +99,7 @@ export default async function DashboardPage() {
         <div
           className="absolute inset-0"
           style={{
-            backgroundImage: "url('/images/accueil-bg-mobile.jpg')",
+            backgroundImage: "url('/images/accueil-bg.jpg')",
             backgroundSize: 'cover',
             backgroundPosition: 'center center',
           }}
