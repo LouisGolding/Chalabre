@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   format,
   startOfMonth,
@@ -16,6 +16,7 @@ import {
   differenceInCalendarDays,
   differenceInYears,
   addDays,
+  subDays,
   addMonths,
   subMonths,
   addWeeks,
@@ -97,18 +98,36 @@ type ViewMode = 'week' | 'fortnight' | 'month' | 'year'
 
 // Colonne des noms : une largeur qui se resserre elle-même sur petit écran
 // (clamp), pour laisser le plus de place possible aux colonnes des jours.
-// En vue "mois"/"année" (repli desktop uniquement depuis le 28/09/2026,
-// voir plus bas), les colonnes des jours n'ont toujours pas de largeur
-// minimale en pixels : elles se partagent tout l'espace disponible
-// (minmax(0, 1fr)) pour que le mois ou l'année tienne toujours dans la
-// largeur de l'écran, sans scroll horizontal. En vue "semaine"/
-// "quinzaine" en revanche, chaque colonne garde une largeur minimale
-// (DAY_COL_MIN_WIDTH) plutôt que de se comprimer à l'infini : au-delà de
-// ce qui tient dans la largeur de l'écran (typiquement la quinzaine sur
-// mobile), la grille défile horizontalement au lieu d'écraser les
-// colonnes — demandé par Nicolas le 28/09/2026.
+// En vue "mois"/"année", les colonnes des jours se partagent tout
+// l'espace disponible (minmax(0, 1fr)) pour que le mois ou l'année
+// tienne toujours dans la largeur de l'écran, sans scroll horizontal. En
+// vue "semaine"/"quinzaine" en revanche (depuis le 28/09/2026, précisé le
+// 29/09/2026 à la demande de Nicolas), les colonnes ont une largeur en
+// pourcentage calculée pour que la période affichée (7 ou 14 jours)
+// remplisse exactement la largeur de l'écran, sans scroll nécessaire pour
+// la voir en entier — voir gridTemplateColumns plus bas. La grille
+// affiche cependant, de part et d'autre, quelques périodes supplémentaires
+// en mémoire tampon (BUFFER_PERIODS, voir rangeStart/rangeEnd) : un
+// glissement horizontal fait alors apparaître les jours précédents/
+// suivants sans changer de période — la navigation par les flèches reste
+// le seul moyen de vraiment changer de période affichée.
 const LABEL_COL = 'clamp(96px, 22vw, 190px)'
-const DAY_COL_MIN_WIDTH = '44px'
+
+// Nombre de périodes (semaines ou quinzaines) gardées en mémoire tampon de
+// chaque côté de la période affichée, pour permettre un aperçu par
+// glissement horizontal sans recharger la grille — voir le commentaire
+// ci-dessus.
+const BUFFER_PERIODS = 2
+// Nombre total de périodes affichées (le tampon des deux côtés + la
+// période courante) — sert à donner à la grille elle-même une largeur
+// explicite (voir gridTemplateColumns) plutôt que de la laisser à la
+// largeur de son parent : un position:sticky (colonne des noms) posé sur
+// un élément de grille ne peut se déplacer qu'à l'intérieur de la largeur
+// propre de la grille — si elle reste implicitement égale à celle de son
+// parent (alors que son contenu déborde), la colonne des noms perd son
+// ancrage dès que le défilement dépasse cette largeur. Demandé/corrigé le
+// 29/09/2026.
+const BUFFER_MULTIPLIER = 1 + 2 * BUFFER_PERIODS
 
 interface Segment {
   id: string
@@ -251,10 +270,20 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   // pas toujours), ne rouvre la modale d'édition juste après un
   // déplacement/redimensionnement déjà enregistré.
   const justDraggedRef = useRef(false)
+  // Élément défilable (overflow-x-auto) de la grille en semaine/quinzaine
+  // — utilisé pour repositionner le défilement sur la période affichée
+  // (voir le useLayoutEffect plus bas) et pour calculer, pendant un
+  // glissement, la période actuellement visible (titre en temps réel).
+  const scrollWrapperRef = useRef<HTMLDivElement | null>(null)
+  const scrollRafRef = useRef<number | null>(null)
 
-  // Plage de dates actuellement affichée — une semaine, un mois ou une
-  // année entière selon le bouton choisi à côté de "Aujourd'hui".
-  const rangeStart = useMemo(() => {
+  // Période "exacte" actuellement affichée — une semaine, une quinzaine,
+  // un mois ou une année, selon le bouton choisi à côté de "Aujourd'hui".
+  // Sert de référence pour le titre (au repos, voir plus bas) et pour la
+  // navigation (goPrev/goNext) ; rangeStart/rangeEnd ci-dessous, utilisées
+  // par tout le reste de l'affichage (jours, séjours...), sont une version
+  // élargie de cette période en semaine/quinzaine — voir BUFFER_PERIODS.
+  const periodStart = useMemo(() => {
     // "Quinzaine" (mobile uniquement, voir plus bas) : deux semaines
     // pleines, alignées sur le même début (lundi) que "semaine".
     if (viewMode === 'week' || viewMode === 'fortnight') return startOfWeek(currentDate, { weekStartsOn: 1 })
@@ -262,19 +291,49 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     return startOfMonth(currentDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate.getTime(), viewMode])
-  const rangeEnd = useMemo(() => {
+  const periodEnd = useMemo(() => {
     if (viewMode === 'week') return endOfWeek(currentDate, { weekStartsOn: 1 })
     if (viewMode === 'fortnight') return addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), 13)
     if (viewMode === 'year') return endOfYear(currentDate)
     return endOfMonth(currentDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate.getTime(), viewMode])
+  const periodDayCount = differenceInCalendarDays(periodEnd, periodStart) + 1
+  const scrollableDays = viewMode === 'week' || viewMode === 'fortnight'
+  // Index (dans le tableau "days" élargi plus bas) du premier jour de la
+  // période affichée — c'est aussi le nombre de jours de tampon avant
+  // elle, les deux étant égaux par construction (BUFFER_PERIODS périodes
+  // de periodDayCount jours chacune).
+  const periodStartIndex = scrollableDays ? periodDayCount * BUFFER_PERIODS : 0
+
+  // Plage réellement utilisée pour construire la grille (jours affichés,
+  // séjours, positionnement...) : élargie de BUFFER_PERIODS périodes de
+  // chaque côté en semaine/quinzaine, pour permettre d'apercevoir les
+  // jours voisins par glissement horizontal sans changer de période —
+  // identique à periodStart/periodEnd en mois/année.
+  const rangeStart = useMemo(() => {
+    if (!scrollableDays) return periodStart
+    return subDays(periodStart, periodDayCount * BUFFER_PERIODS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodStart.getTime(), periodDayCount, scrollableDays])
+  const rangeEnd = useMemo(() => {
+    if (!scrollableDays) return periodEnd
+    return addDays(periodEnd, periodDayCount * BUFFER_PERIODS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodEnd.getTime(), periodDayCount, scrollableDays])
 
   const days = useMemo(
     () => eachDayOfInterval({ start: rangeStart, end: rangeEnd }),
     [rangeStart, rangeEnd]
   )
   const dayCount = days.length
+
+  // Index (dans "days") du premier jour actuellement visible à l'écran,
+  // juste après la colonne des noms — égal à periodStartIndex au repos
+  // (période exacte affichée), mis à jour en temps réel pendant un
+  // glissement horizontal par handleScroll plus bas, pour que le titre
+  // (entre les flèches) reflète toujours ce qui est réellement visible.
+  const [displayedStartIndex, setDisplayedStartIndex] = useState(periodStartIndex)
 
   // Bandeaux de mois affichés en en-tête de la vue année (à la place des
   // numéros de jour, illisibles à cette échelle).
@@ -346,12 +405,42 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     else goPrev()
   }
 
-  const title =
-    viewMode === 'week' || viewMode === 'fortnight'
-      ? `${format(rangeStart, 'd MMM', { locale: fr })} – ${format(rangeEnd, 'd MMM yyyy', { locale: fr })}`
-      : viewMode === 'year'
-        ? format(currentDate, 'yyyy')
-        : format(currentDate, 'MMMM yyyy', { locale: fr })
+  // Glissement horizontal natif (semaine/quinzaine) : recalcule, au
+  // rythme de l'affichage (requestAnimationFrame), quel jour se trouve
+  // actuellement juste après la colonne des noms, pour mettre à jour le
+  // titre en temps réel — demandé par Nicolas le 29/09/2026. La largeur
+  // d'une colonne de jour est mesurée sur firstDayCellRef (toutes les
+  // colonnes ont la même largeur, voir gridTemplateColumns).
+  const handleScroll = () => {
+    if (scrollRafRef.current !== null) return
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null
+      const wrapper = scrollWrapperRef.current
+      const dayCell = firstDayCellRef.current
+      if (!wrapper || !dayCell) return
+      const dayColWidth = dayCell.getBoundingClientRect().width
+      if (!dayColWidth) return
+      const rawIndex = Math.round(wrapper.scrollLeft / dayColWidth)
+      const idx = Math.max(0, Math.min(rawIndex, dayCount - periodDayCount))
+      setDisplayedStartIndex((prev) => (prev === idx ? prev : idx))
+    })
+  }
+
+  // En semaine/quinzaine, le titre reflète ce qui est réellement visible à
+  // l'écran (displayedStartIndex, mis à jour en temps réel pendant un
+  // glissement — voir handleScroll) plutôt que la période exacte
+  // (periodStart/periodEnd), pour rester cohérent avec l'aperçu des jours
+  // voisins. Au repos, displayedStartIndex vaut periodStartIndex et le
+  // résultat est identique à periodStart/periodEnd.
+  const title = scrollableDays
+    ? `${format(days[displayedStartIndex] ?? periodStart, 'd MMM', { locale: fr })} – ${format(
+        days[Math.min(displayedStartIndex + periodDayCount - 1, dayCount - 1)] ?? periodEnd,
+        'd MMM yyyy',
+        { locale: fr }
+      )}`
+    : viewMode === 'year'
+      ? format(currentDate, 'yyyy')
+      : format(currentDate, 'MMMM yyyy', { locale: fr })
 
   // Une ligne par occupant (nom + côté de la maison) : deux séjours du même
   // occupant dans la plage affichée (ex. Alex en Lalande, début et fin de
@@ -489,8 +578,23 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   })
 
   const totalRows = rowCursor
-  const scrollableDays = viewMode === 'week' || viewMode === 'fortnight'
-  const gridTemplateColumns = `${LABEL_COL} repeat(${dayCount}, minmax(${scrollableDays ? DAY_COL_MIN_WIDTH : '0'}, 1fr))`
+  // Semaine/quinzaine : la grille reçoit une largeur EXPLICITE (gridWidth,
+  // voir BUFFER_MULTIPLIER) au lieu de la largeur implicite (100 %) de son
+  // parent — nécessaire pour que la colonne des noms (position: sticky)
+  // reste ancrée sur toute la largeur réelle de la grille, y compris une
+  // fois défilée jusqu'à la période courante (voir BUFFER_MULTIPLIER).
+  // Les colonnes de jours se répartissent ensuite cette largeur en
+  // pourcentage (calc, base = la grille elle-même désormais) de sorte que
+  // periodDayCount d'entre elles remplissent exactement la largeur de
+  // l'écran — les jours de tampon débordent alors naturellement en dehors,
+  // provoquant le défilement horizontal. Mois/année : inchangé, largeur
+  // implicite, les colonnes se partagent l'espace disponible.
+  const gridWidth = scrollableDays
+    ? `calc(${BUFFER_MULTIPLIER} * 100% - ${BUFFER_MULTIPLIER - 1} * ${LABEL_COL})`
+    : undefined
+  const gridTemplateColumns = scrollableDays
+    ? `${LABEL_COL} repeat(${dayCount}, calc((100% - ${LABEL_COL}) / ${dayCount}))`
+    : `${LABEL_COL} repeat(${dayCount}, minmax(0, 1fr))`
 
   const todayIndex = differenceInCalendarDays(new Date(), rangeStart)
   const emptyLabel =
@@ -670,6 +774,22 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     void persistDates(finished.bookingId, finished.currentCheckIn, finished.currentCheckOut)
   }
 
+  // Repositionne le défilement sur le début de la période affichée à
+  // chaque changement de période/vue (flèches, "Aujourd'hui", pastilles
+  // de vue) — en layout effect pour que ce repositionnement soit invisible
+  // (avant peinture), sans flash de l'ancien aperçu de jours voisins.
+  useLayoutEffect(() => {
+    setDisplayedStartIndex(periodStartIndex)
+    if (!scrollableDays) return
+    const wrapper = scrollWrapperRef.current
+    const dayCell = firstDayCellRef.current
+    if (!wrapper || !dayCell) return
+    const dayColWidth = dayCell.getBoundingClientRect().width
+    if (!dayColWidth) return
+    wrapper.scrollLeft = periodStartIndex * dayColWidth
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodStart.getTime(), viewMode])
+
   const editingBooking = editingBookingId ? bookingsById.get(editingBookingId) ?? null : null
 
   return (
@@ -735,30 +855,35 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
               </button>
             ))}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-card/40 backdrop-blur-sm"
+          <button
+            type="button"
             onClick={() => setCurrentDate(new Date())}
+            className="text-xs font-normal uppercase tracking-[0.08em] text-foreground/60 transition-colors hover:text-foreground md:text-sm"
           >
             Aujourd&apos;hui
-          </Button>
+          </button>
         </div>
       </div>
 
-      {/* Grille. En semaine/quinzaine, défile horizontalement (overflow-x-
-          auto) si elle ne tient pas dans la largeur de l'écran — le geste
-          de glissement horizontal sert alors à voir le reste de la
-          période affichée, pas à changer de période (onWheel/onTouch*
-          désactivés dans ce cas, la navigation passe par les flèches
-          uniquement). En mois/année, comportement inchangé : tient
-          toujours dans la largeur de l'écran, et le glissement change de
-          période. Demandé par Nicolas le 28/09/2026. */}
+      {/* Grille. En semaine/quinzaine, la période affichée (7/14 jours)
+          remplit exactement la largeur de l'écran (voir gridTemplateColumns),
+          mais quelques périodes supplémentaires sont gardées en tampon de
+          chaque côté (BUFFER_PERIODS) : un glissement horizontal permet
+          d'apercevoir les jours précédents/suivants — sans changer de
+          période, la navigation passe toujours par les flèches uniquement
+          (onWheel/onTouch* désactivés dans ce cas). Le titre (entre les
+          flèches) se met à jour en temps réel pendant ce glissement — voir
+          handleScroll/displayedStartIndex. En mois/année, comportement
+          inchangé : tient toujours dans la largeur de l'écran, et le
+          glissement (wheel/touch) change directement de période. Demandé
+          par Nicolas les 28 et 29/09/2026. */}
       <div
+        ref={scrollWrapperRef}
         className={scrollableDays ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'}
         onWheel={scrollableDays ? undefined : handleWheel}
         onTouchStart={scrollableDays ? undefined : handleTouchStart}
         onTouchEnd={scrollableDays ? undefined : handleTouchEnd}
+        onScroll={scrollableDays ? handleScroll : undefined}
       >
         <div
           key={rangeStart.getTime()}
@@ -769,7 +894,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
             // jour...) pendant qu'on glisse une barre de séjour.
             drag ? 'select-none' : ''
           )}
-          style={{ gridTemplateColumns }}
+          style={{ gridTemplateColumns, width: gridWidth }}
         >
           {/* Bandes week-end, en arrière-plan, sur toute la hauteur (pas en vue année, trop dense) */}
           {viewMode !== 'year' &&
@@ -813,7 +938,13 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                   className="flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden border-b border-border py-2"
                   style={{ gridColumn: i + 2, gridRow: headerRow }}
                 >
-                  {(viewMode === 'week' || viewMode === 'fortnight') && (
+                  {/* Abréviation du jour (LUN., MAR....) : uniquement en vue
+                      "semaine", où chaque colonne (~1/7 de l'écran) a la
+                      place de l'afficher lisiblement. En "quinzaine", les
+                      colonnes sont deux fois plus étroites (14 sur le même
+                      écran) — le texte se chevaucherait illisiblement, le
+                      numéro du jour seul suffit à se repérer. */}
+                  {viewMode === 'week' && (
                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
                       {format(day, 'EEE', { locale: fr })}
                     </span>
