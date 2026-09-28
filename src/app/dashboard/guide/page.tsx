@@ -1,10 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
 import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
 import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
+import { GuideCard } from '@/components/guide/GuideCard'
 
 const guideContent = [
   {
@@ -124,14 +124,7 @@ export default async function GuidePage() {
         </h2>
         <div className="space-y-3">
           {arriveeItems.map(item => (
-            <Card key={item.title}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{item.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
-              </CardContent>
-            </Card>
+            <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
         </div>
       </div>
@@ -142,14 +135,7 @@ export default async function GuidePage() {
         </h2>
         <div className="space-y-3">
           {departItems.map(item => (
-            <Card key={item.title}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{item.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
-              </CardContent>
-            </Card>
+            <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
         </div>
       </div>
@@ -167,14 +153,7 @@ export default async function GuidePage() {
         </h2>
         <div className="space-y-3">
           {organisationBeforeGas.map(item => (
-            <Card key={item.title}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{item.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
-              </CardContent>
-            </Card>
+            <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
           <GasBottlesCard
             editable={canEditGasBottles}
@@ -182,14 +161,7 @@ export default async function GuidePage() {
             initialLastRefillDate={gasBottlesStatus?.last_refill_date ?? null}
           />
           {organisationAfterGas.map(item => (
-            <Card key={item.title}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">{item.title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">{item.content}</p>
-              </CardContent>
-            </Card>
+            <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
         </div>
       </div>

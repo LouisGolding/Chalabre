@@ -55,10 +55,7 @@ export default async function RealisationsPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 mb-1">Réalisations</h1>
-      <p className="text-sm text-muted-foreground mb-6">
-        Ce qui a été entrepris dans la maison, par qui, et quand.
-      </p>
+      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 mb-6">Réalisations</h1>
       <RealisationsBoard initialEntries={initialEntries} currentUserId={user.id} isAdmin={isAdmin} />
     </div>
   )
