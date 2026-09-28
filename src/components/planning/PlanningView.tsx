@@ -93,15 +93,22 @@ interface PlanningViewProps {
   isAdmin: boolean
 }
 
-type ViewMode = 'week' | 'month' | 'year'
+type ViewMode = 'week' | 'fortnight' | 'month' | 'year'
 
 // Colonne des noms : une largeur qui se resserre elle-même sur petit écran
 // (clamp), pour laisser le plus de place possible aux colonnes des jours.
-// Les colonnes des jours n'ont plus de largeur minimale en pixels : elles se
-// partagent tout l'espace disponible (minmax(0, 1fr)) pour que la semaine,
-// le mois ou l'année tienne toujours dans la largeur de l'écran, sans
-// scroll horizontal pour voir le reste de la période affichée.
+// En vue "mois"/"année" (repli desktop uniquement depuis le 28/09/2026,
+// voir plus bas), les colonnes des jours n'ont toujours pas de largeur
+// minimale en pixels : elles se partagent tout l'espace disponible
+// (minmax(0, 1fr)) pour que le mois ou l'année tienne toujours dans la
+// largeur de l'écran, sans scroll horizontal. En vue "semaine"/
+// "quinzaine" en revanche, chaque colonne garde une largeur minimale
+// (DAY_COL_MIN_WIDTH) plutôt que de se comprimer à l'infini : au-delà de
+// ce qui tient dans la largeur de l'écran (typiquement la quinzaine sur
+// mobile), la grille défile horizontalement au lieu d'écraser les
+// colonnes — demandé par Nicolas le 28/09/2026.
 const LABEL_COL = 'clamp(96px, 22vw, 190px)'
+const DAY_COL_MIN_WIDTH = '44px'
 
 interface Segment {
   id: string
@@ -203,7 +210,12 @@ interface DragState {
 
 export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin }: PlanningViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState<ViewMode>('month')
+  // Vue par défaut : "semaine", pas "mois" comme avant — depuis que le
+  // mobile n'affiche plus que Semaine/Quinzaine (28/09/2026, demandé par
+  // Nicolas), "mois" comme état initial n'aurait correspondu à aucune
+  // pastille visible sur mobile. "Semaine" existe des deux côtés
+  // (mobile et bureau), un choix neutre pour les deux.
+  const [viewMode, setViewMode] = useState<ViewMode>('week')
   // Direction du dernier changement de période, pour l'animation de
   // glissement (slide) — appliquée aussi bien depuis les flèches que
   // depuis un geste de glissement sur le planning.
@@ -243,13 +255,16 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   // Plage de dates actuellement affichée — une semaine, un mois ou une
   // année entière selon le bouton choisi à côté de "Aujourd'hui".
   const rangeStart = useMemo(() => {
-    if (viewMode === 'week') return startOfWeek(currentDate, { weekStartsOn: 1 })
+    // "Quinzaine" (mobile uniquement, voir plus bas) : deux semaines
+    // pleines, alignées sur le même début (lundi) que "semaine".
+    if (viewMode === 'week' || viewMode === 'fortnight') return startOfWeek(currentDate, { weekStartsOn: 1 })
     if (viewMode === 'year') return startOfYear(currentDate)
     return startOfMonth(currentDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate.getTime(), viewMode])
   const rangeEnd = useMemo(() => {
     if (viewMode === 'week') return endOfWeek(currentDate, { weekStartsOn: 1 })
+    if (viewMode === 'fortnight') return addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), 13)
     if (viewMode === 'year') return endOfYear(currentDate)
     return endOfMonth(currentDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,11 +294,27 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
 
   const goPrev = () => {
     setSlideDir('prev')
-    setCurrentDate((d) => (viewMode === 'week' ? subWeeks(d, 1) : viewMode === 'year' ? subYears(d, 1) : subMonths(d, 1)))
+    setCurrentDate((d) =>
+      viewMode === 'week'
+        ? subWeeks(d, 1)
+        : viewMode === 'fortnight'
+          ? subWeeks(d, 2)
+          : viewMode === 'year'
+            ? subYears(d, 1)
+            : subMonths(d, 1)
+    )
   }
   const goNext = () => {
     setSlideDir('next')
-    setCurrentDate((d) => (viewMode === 'week' ? addWeeks(d, 1) : viewMode === 'year' ? addYears(d, 1) : addMonths(d, 1)))
+    setCurrentDate((d) =>
+      viewMode === 'week'
+        ? addWeeks(d, 1)
+        : viewMode === 'fortnight'
+          ? addWeeks(d, 2)
+          : viewMode === 'year'
+            ? addYears(d, 1)
+            : addMonths(d, 1)
+    )
   }
 
   // Glisser au trackpad/souris (molette horizontale) sur le planning fait
@@ -316,7 +347,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   }
 
   const title =
-    viewMode === 'week'
+    viewMode === 'week' || viewMode === 'fortnight'
       ? `${format(rangeStart, 'd MMM', { locale: fr })} – ${format(rangeEnd, 'd MMM yyyy', { locale: fr })}`
       : viewMode === 'year'
         ? format(currentDate, 'yyyy')
@@ -458,11 +489,18 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   })
 
   const totalRows = rowCursor
-  const gridTemplateColumns = `${LABEL_COL} repeat(${dayCount}, minmax(0, 1fr))`
+  const scrollableDays = viewMode === 'week' || viewMode === 'fortnight'
+  const gridTemplateColumns = `${LABEL_COL} repeat(${dayCount}, minmax(${scrollableDays ? DAY_COL_MIN_WIDTH : '0'}, 1fr))`
 
   const todayIndex = differenceInCalendarDays(new Date(), rangeStart)
   const emptyLabel =
-    viewMode === 'week' ? 'Aucun séjour cette semaine.' : viewMode === 'year' ? 'Aucun séjour cette année.' : 'Aucun séjour ce mois-ci.'
+    viewMode === 'week'
+      ? 'Aucun séjour cette semaine.'
+      : viewMode === 'fortnight'
+        ? 'Aucun séjour cette quinzaine.'
+        : viewMode === 'year'
+          ? 'Aucun séjour cette année.'
+          : 'Aucun séjour ce mois-ci.'
 
   // ============================================================
   // Édition directe depuis la ligne colorée (demandé par Nicolas le
@@ -663,28 +701,38 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5">
+          {/* Pastilles de vue. Réécrites le 28/09/2026 à la demande de
+              Nicolas : simples libellés texte (majuscules, gris clair,
+              gris foncé une fois sélectionné), même traitement que
+              "Taxe de séjour" dans le widget "Prochain séjour" (voir
+              NextStayCard.tsx) — plus de bouton encadré/rempli. "Mois" et
+              "Année" ne sont plus proposés sur mobile (repliés en
+              hidden/md:inline) : sur petit écran il ne reste que
+              "Semaine" et "Quinzaine" (nouvelle vue, deux semaines
+              pleines — voir rangeStart/rangeEnd plus haut), "Quinzaine"
+              elle-même masquée sur bureau (md:hidden) où elle n'a pas été
+              demandée. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             {(
               [
-                { mode: 'week' as const, label: 'Semaine' },
-                { mode: 'month' as const, label: 'Mois' },
-                { mode: 'year' as const, label: 'Année' },
+                { mode: 'week' as const, label: 'Semaine', responsive: '' },
+                { mode: 'fortnight' as const, label: 'Quinzaine', responsive: 'md:hidden' },
+                { mode: 'month' as const, label: 'Mois', responsive: 'hidden md:inline' },
+                { mode: 'year' as const, label: 'Année', responsive: 'hidden md:inline' },
               ]
-            ).map(({ mode, label }) => (
-              <Button
+            ).map(({ mode, label, responsive }) => (
+              <button
                 key={mode}
                 type="button"
-                size="sm"
-                variant="outline"
-                className={
-                  mode === viewMode
-                    ? 'bg-foreground text-background hover:bg-foreground/80'
-                    : 'bg-card/40 backdrop-blur-sm'
-                }
                 onClick={() => setViewMode(mode)}
+                className={cn(
+                  'text-xs uppercase tracking-[0.08em] transition-colors hover:text-foreground md:text-sm',
+                  responsive,
+                  mode === viewMode ? 'font-semibold text-foreground' : 'font-normal text-foreground/60'
+                )}
               >
                 {label}
-              </Button>
+              </button>
             ))}
           </div>
           <Button
@@ -698,14 +746,19 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
         </div>
       </div>
 
-      {/* Grille — tient toujours dans la largeur de l'écran (pas de scroll
-          horizontal) ; se glisse aussi à la souris/trackpad ou au doigt
-          pour changer de période. */}
+      {/* Grille. En semaine/quinzaine, défile horizontalement (overflow-x-
+          auto) si elle ne tient pas dans la largeur de l'écran — le geste
+          de glissement horizontal sert alors à voir le reste de la
+          période affichée, pas à changer de période (onWheel/onTouch*
+          désactivés dans ce cas, la navigation passe par les flèches
+          uniquement). En mois/année, comportement inchangé : tient
+          toujours dans la largeur de l'écran, et le glissement change de
+          période. Demandé par Nicolas le 28/09/2026. */}
       <div
-        className="overflow-hidden"
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
+        className={scrollableDays ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'}
+        onWheel={scrollableDays ? undefined : handleWheel}
+        onTouchStart={scrollableDays ? undefined : handleTouchStart}
+        onTouchEnd={scrollableDays ? undefined : handleTouchEnd}
       >
         <div
           key={rangeStart.getTime()}
@@ -760,7 +813,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                   className="flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden border-b border-border py-2"
                   style={{ gridColumn: i + 2, gridRow: headerRow }}
                 >
-                  {viewMode === 'week' && (
+                  {(viewMode === 'week' || viewMode === 'fortnight') && (
                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
                       {format(day, 'EEE', { locale: fr })}
                     </span>
