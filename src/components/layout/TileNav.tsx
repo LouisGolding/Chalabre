@@ -1,7 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { ChevronUp } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
 
 interface Tile {
@@ -66,42 +69,64 @@ export function TileNav({ role }: { role: UserRole }) {
   const isFriend = role === 'friend'
   const tiles = isFriend ? TILES.filter((tile) => !tile.hiddenForFriend) : TILES
 
+  // TEST du 28/09/2026 (demandé par Nicolas : la grille lui paraît trop
+  // imposante) : masquée par défaut, réduite à une petite poignée
+  // (bouton chevron) ; un clic dessus déploie la grille complète, un
+  // second clic la referme. Non persisté (redémarre fermée à chaque
+  // navigation/rechargement) — à repasser en toujours-visible si le
+  // test ne convainc pas.
+  const [isOpen, setIsOpen] = useState(false)
+
   return (
     <div className="fixed inset-x-0 bottom-7 md:bottom-9 z-30">
-      {/* Fond fixe derrière la grille, demandé par Nicolas le 28/09/2026 :
-          sur les onglets au fond texturé (tous sauf l'accueil), le texte
-          de la page défilait alors qu'il se voyait dans les espaces
-          entre les tuiles (nav sans fond propre, seules les tuiles sont
-          opaques en bg-card) — désormais un fond fixe (même texture
-          papier que le reste du site, voir globals.css) passe derrière
-          toute la grille, et le texte qui défile disparaît bien en
-          dessous. Couvre tout le conteneur (inset-0), y compris sa
-          marge haute de 14px (py-[14px] plus bas, avant la première
-          tuile) : un essai précédent laissait cette bande de 14px
-          transparente, ce qui laissait justement passer un filet de
-          contenu (ex. les flèches d'un carrousel photo de
-          "Réalisations") juste au-dessus de la grille — corrigé le
-          28/09/2026, capture d'écran annotée à l'appui. */}
-      {!hasPhotoBackground && (
+      {/* Fond fixe derrière la grille (uniquement quand elle est
+          déployée), demandé par Nicolas le 28/09/2026 : sur les onglets
+          au fond texturé (tous sauf l'accueil), le texte de la page
+          défilait alors qu'il se voyait dans les espaces entre les
+          tuiles (nav sans fond propre, seules les tuiles sont opaques en
+          bg-card) — désormais un fond fixe (même texture papier que le
+          reste du site, voir globals.css) passe derrière toute la
+          grille, et le texte qui défile disparaît bien en dessous.
+          Couvre tout le conteneur (inset-0), y compris sa marge haute de
+          14px (py-[14px] plus bas, avant la première tuile) : un essai
+          précédent laissait cette bande de 14px transparente, ce qui
+          laissait justement passer un filet de contenu (ex. les flèches
+          d'un carrousel photo de "Réalisations") juste au-dessus de la
+          grille — corrigé le 28/09/2026, capture d'écran annotée à
+          l'appui. */}
+      {isOpen && !hasPhotoBackground && (
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
         />
       )}
-      <nav className="relative grid grid-cols-3 gap-[14px] px-4 py-[14px]">
-        {tiles.map((tile) => (
-          <Link
-            key={tile.href}
-            href={tile.href}
-            // Texte centré (horizontalement et verticalement) dans chaque
-            // tuile, demandé par Nicolas le 27/09/2026 — auparavant aligné à
-            // gauche (pl-4 pr-2 + items-center ne centrait que verticalement).
-            className="flex min-h-[90px] items-center justify-center bg-card px-2 text-center text-sm uppercase tracking-wide text-foreground hover:opacity-70 transition-opacity md:min-h-28 md:text-base"
-          >
-            {tile.label}
-          </Link>
-        ))}
-      </nav>
+      <div className="relative flex flex-col items-center">
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          aria-expanded={isOpen}
+          aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
+          className="flex h-7 w-12 items-center justify-center rounded-t-lg border border-b-0 border-border bg-card text-foreground transition-opacity hover:opacity-70"
+        >
+          <ChevronUp className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
+        </button>
+        {isOpen && (
+          <nav className="grid w-full grid-cols-3 gap-[14px] px-4 py-[14px]">
+            {tiles.map((tile) => (
+              <Link
+                key={tile.href}
+                href={tile.href}
+                // Texte centré (horizontalement et verticalement) dans chaque
+                // tuile, demandé par Nicolas le 27/09/2026 — auparavant aligné à
+                // gauche (pl-4 pr-2 + items-center ne centrait que verticalement).
+                className="flex min-h-[90px] items-center justify-center bg-card px-2 text-center text-sm uppercase tracking-wide text-foreground hover:opacity-70 transition-opacity md:min-h-28 md:text-base"
+              >
+                {tile.label}
+              </Link>
+            ))}
+          </nav>
+        )}
+      </div>
     </div>
   )
 }
