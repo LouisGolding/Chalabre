@@ -74,16 +74,18 @@ export function TileNav({ role }: { role: UserRole }) {
           entre les tuiles (nav sans fond propre, seules les tuiles sont
           opaques en bg-card) — désormais un fond fixe (même texture
           papier que le reste du site, voir globals.css) passe derrière
-          la grille, et le texte qui défile disparaît bien en dessous.
-          Ce fond s'arrête à 14px du bord haut de la grille (top-[14px])
-          plutôt que de couvrir toute la hauteur du conteneur : il
-          commence exactement là où débutent les tuiles elles-mêmes
-          (py-[14px] plus bas les sépare déjà du bord haut du
-          conteneur), pas au ras de ce bord. */}
+          toute la grille, et le texte qui défile disparaît bien en
+          dessous. Couvre tout le conteneur (inset-0), y compris sa
+          marge haute de 14px (py-[14px] plus bas, avant la première
+          tuile) : un essai précédent laissait cette bande de 14px
+          transparente, ce qui laissait justement passer un filet de
+          contenu (ex. les flèches d'un carrousel photo de
+          "Réalisations") juste au-dessus de la grille — corrigé le
+          28/09/2026, capture d'écran annotée à l'appui. */}
       {!hasPhotoBackground && (
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 top-[14px] bottom-0 bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
+          className="absolute inset-0 bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
         />
       )}
       <nav className="relative grid grid-cols-3 gap-[14px] px-4 py-[14px]">
