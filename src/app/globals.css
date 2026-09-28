@@ -124,6 +124,18 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Texture "papier" en fond de toutes les pages, à la place de
+       l'aplat beige uni — demandé par Nicolas le 28/09/2026 (image
+       fournie par ses soins). Répétée en tuile (le grain reste discret,
+       la couture ne se voit pas à l'oeil) plutôt qu'étirée en cover,
+       pour un rendu identique quelle que soit la taille d'écran.
+       Désactivée en mode sombre (.dark ci-dessous) : la texture est
+       claire, elle jurerait sur un fond presque noir. */
+    background-image: url('/images/texture-papier.jpg');
+    background-repeat: repeat;
+  }
+  .dark body {
+    background-image: none;
   }
   html {
     @apply font-sans;
