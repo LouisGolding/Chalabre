@@ -54,7 +54,19 @@ export function BottomNav({ role }: { role: UserRole }) {
     )
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 flex h-12 items-center justify-center gap-6 px-4 md:h-14 md:gap-10">
+    <nav
+      className={cn(
+        'fixed inset-x-0 bottom-0 z-40 flex h-12 items-center justify-center gap-6 px-4 md:h-14 md:gap-10',
+        // Fond fixe texturé sur ce bandeau aussi, demandé par Nicolas le
+        // 28/09/2026 : il restait transparent, laissant le contenu de la
+        // page défiler visible dessous (comme TileNav avant sa propre
+        // correction, voir son historique). Toujours transparent sur
+        // l'accueil : la photo plein écran doit continuer à se voir ici
+        // comme partout ailleurs sur cette page.
+        !hasPhotoBackground &&
+          "bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
+      )}
+    >
       {items.map((item) => (
         <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
           {item.label}

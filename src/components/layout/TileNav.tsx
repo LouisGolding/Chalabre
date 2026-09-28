@@ -85,17 +85,19 @@ export function TileNav({ role }: { role: UserRole }) {
     <div
       className={cn(
         'fixed inset-x-0 z-30',
-        // Repliée, la poignée (h-7, 28px) doit laisser 14px d'espace
-        // libre au-dessus du bandeau du bas (Membres / Suivi paiements /
-        // Se déconnecter, voir BottomNav.tsx, h-12/48px mobile,
-        // h-14/56px bureau) plutôt que de le chevaucher — demandé par
-        // Nicolas le 28/09/2026, capture d'écran à l'appui montrant la
-        // poignée recouvrant "Se déconnecter". D'où bottom-[62px] (48+14)
-        // et md:bottom-[70px] (56+14) à l'état replié, contre le
-        // bottom-7/md:bottom-9 habituel (accolé à BottomNav sans
-        // chevaucher son texte, réglage plus ancien) quand la grille est
-        // dépliée ou sur l'accueil.
-        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-[62px] md:bottom-[70px]'
+        // Repliée, la poignée (h-7, 28px) doit être collée au bord haut
+        // du bandeau du bas (Membres / Suivi paiements / Se déconnecter,
+        // voir BottomNav.tsx, h-12/48px mobile, h-14/56px bureau) — d'où
+        // bottom-12/md:bottom-14, qui correspond exactement à sa hauteur.
+        // Un essai précédent laissait 14px d'espace entre les deux (pour
+        // ne pas chevaucher son texte, à l'époque où BottomNav restait
+        // transparent) ; devenu inutile depuis que BottomNav a lui aussi
+        // un fond fixe opaque (28/09/2026) — les deux se touchent
+        // maintenant sans se gêner, demandé par Nicolas. Dépliée ou sur
+        // l'accueil, la grille garde son ancrage habituel (bottom-7/
+        // md:bottom-9, réglage plus ancien, accolé à BottomNav sans
+        // chevaucher son texte).
+        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-12 md:bottom-14'
       )}
     >
       {/* Fond fixe derrière la grille (uniquement quand elle est
