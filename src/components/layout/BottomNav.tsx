@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
 
 const ADMIN_ITEMS = [
@@ -30,15 +31,27 @@ const ADMIN_ITEMS = [
 // (voir dashboard/page.tsx) au lieu d'un bandeau noir. Texte en blanc
 // (comme le reste du contenu sur la photo depuis le retrait du voile)
 // plutôt que text-background/text-foreground, pensés pour un fond noir
-// opaque.
+// opaque — uniquement sur l'accueil : ailleurs (fond texturé, voir
+// globals.css), le blanc devenait quasi illisible sur ce fond clair.
+// Texte en text-foreground sur ces pages, demandé par Nicolas le
+// 28/09/2026 : même couleur que les libellés de la grille d'onglets
+// (Planning, Entretien, Réalisations... voir TileNav.tsx).
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   const items = role === 'admin' ? ADMIN_ITEMS : []
+  const hasPhotoBackground = pathname === '/dashboard'
 
   const linkClass = (active: boolean) =>
-    `text-xs md:text-sm font-bold uppercase tracking-wide transition-opacity ${
-      active ? 'text-white' : 'text-white/60 hover:text-white'
-    }`
+    cn(
+      'text-xs md:text-sm font-bold uppercase tracking-wide transition-opacity',
+      hasPhotoBackground
+        ? active
+          ? 'text-white'
+          : 'text-white/60 hover:text-white'
+        : active
+          ? 'text-foreground'
+          : 'text-foreground/60 hover:text-foreground'
+    )
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 flex h-12 items-center justify-center gap-6 px-4 md:h-14 md:gap-10">
