@@ -136,7 +136,7 @@ export default async function DashboardPage() {
           vivent désormais dans layout.tsx, communs à toutes les pages
           (demandé par Nicolas le 27/09/2026) — plus besoin de les gérer
           ici spécifiquement pour l'accueil. */}
-      <div className="pt-6">
+      <div className="pt-4">
         {/* Espacements ajustés le 27/09/2026 à la demande de Nicolas,
             exprimés en multiples d'une seule unité G = l'espace entre la
             ligne de dates ("25 DÉCEMBRE...") et la pastille "Total taxe de

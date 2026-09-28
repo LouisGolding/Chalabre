@@ -47,7 +47,7 @@ export default async function TachesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-6">Entretien</h1>
+      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4">Entretien</h1>
 
       <TasksBoard initialTasks={items} canEdit={profile?.role === 'admin'} />
     </div>
