@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
+import { cn } from '@/lib/utils'
 
 // Bandeau du haut — refonte du 27/09/2026 demandée par Nicolas : plus
 // aucun onglet ici (ils vivent désormais dans la grille de tuiles de la
@@ -50,9 +52,27 @@ import Image from 'next/image'
 // référence (402px) — cohérent avec le reste des réglages de ce
 // bandeau (w-[25.6vw] max-w-[112px]), jamais recalculés dynamiquement
 // pour d'autres largeurs d'écran.
+//
+// Fine ligne de séparation en bas du bandeau, demandée par Nicolas le
+// 28/09/2026, uniquement sur les onglets SANS photo plein écran en fond
+// (planning, entretien, réalisations, etc. — tous sauf l'accueil, seule
+// page avec la photo de dashboard/page.tsx) : sur ces pages au fond clair
+// uni, le bandeau (même bg-background) se fondait sans démarcation avec
+// le contenu en dessous. Couleur demandée : la même que la typo de ces
+// pages, donc border-foreground (text-foreground, voir par ex. le <h1>
+// de taches/page.tsx) — pas de bordure du tout sur l'accueil, où la
+// photo plein écran crée déjà une séparation nette.
 export function TopBanner() {
+  const pathname = usePathname()
+  const hasPhotoBackground = pathname === '/dashboard'
+
   return (
-    <header className="fixed inset-x-0 top-0 z-40 flex h-20 items-start justify-center bg-background">
+    <header
+      className={cn(
+        'fixed inset-x-0 top-0 z-40 flex h-20 items-start justify-center bg-background',
+        !hasPhotoBackground && 'border-b border-foreground'
+      )}
+    >
       <Link href="/dashboard" aria-label="Retour à l'accueil" className="mt-[29.75px] flex items-start justify-center">
         <Image
           src="/images/logo-batisse-drawing.png"
