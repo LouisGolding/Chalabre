@@ -106,28 +106,19 @@ type ViewMode = 'week' | 'fortnight' | 'month' | 'year'
 // pourcentage calculée pour que la période affichée (7 ou 14 jours)
 // remplisse exactement la largeur de l'écran, sans scroll nécessaire pour
 // la voir en entier — voir gridTemplateColumns plus bas. La grille
-// affiche cependant, de part et d'autre, quelques périodes supplémentaires
-// en mémoire tampon (BUFFER_PERIODS, voir rangeStart/rangeEnd) : un
+// affiche cependant, de part et d'autre, quelques jours supplémentaires
+// en mémoire tampon (BUFFER_DAYS, voir rangeStart/rangeEnd) : un
 // glissement horizontal fait alors apparaître les jours précédents/
 // suivants sans changer de période — la navigation par les flèches reste
 // le seul moyen de vraiment changer de période affichée.
 const LABEL_COL = 'clamp(96px, 22vw, 190px)'
 
-// Nombre de périodes (semaines ou quinzaines) gardées en mémoire tampon de
-// chaque côté de la période affichée, pour permettre un aperçu par
-// glissement horizontal sans recharger la grille — voir le commentaire
-// ci-dessus.
-const BUFFER_PERIODS = 2
-// Nombre total de périodes affichées (le tampon des deux côtés + la
-// période courante) — sert à donner à la grille elle-même une largeur
-// explicite (voir gridTemplateColumns) plutôt que de la laisser à la
-// largeur de son parent : un position:sticky (colonne des noms) posé sur
-// un élément de grille ne peut se déplacer qu'à l'intérieur de la largeur
-// propre de la grille — si elle reste implicitement égale à celle de son
-// parent (alors que son contenu déborde), la colonne des noms perd son
-// ancrage dès que le défilement dépasse cette largeur. Demandé/corrigé le
-// 29/09/2026.
-const BUFFER_MULTIPLIER = 1 + 2 * BUFFER_PERIODS
+// Nombre de jours gardés en mémoire tampon de chaque côté de la période
+// affichée (~2 mois, demandé par Nicolas le 29/09/2026), pour permettre
+// un aperçu par glissement horizontal sans recharger la grille — voir le
+// commentaire ci-dessus. En jours (et non en nombre de périodes) pour que
+// la profondeur du tampon soit la même en semaine et en quinzaine.
+const BUFFER_DAYS = 60
 
 interface Segment {
   id: string
@@ -282,7 +273,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   // Sert de référence pour le titre (au repos, voir plus bas) et pour la
   // navigation (goPrev/goNext) ; rangeStart/rangeEnd ci-dessous, utilisées
   // par tout le reste de l'affichage (jours, séjours...), sont une version
-  // élargie de cette période en semaine/quinzaine — voir BUFFER_PERIODS.
+  // élargie de cette période en semaine/quinzaine — voir BUFFER_DAYS.
   const periodStart = useMemo(() => {
     // "Quinzaine" (mobile uniquement, voir plus bas) : deux semaines
     // pleines, alignées sur le même début (lundi) que "semaine".
@@ -302,25 +293,24 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   const scrollableDays = viewMode === 'week' || viewMode === 'fortnight'
   // Index (dans le tableau "days" élargi plus bas) du premier jour de la
   // période affichée — c'est aussi le nombre de jours de tampon avant
-  // elle, les deux étant égaux par construction (BUFFER_PERIODS périodes
-  // de periodDayCount jours chacune).
-  const periodStartIndex = scrollableDays ? periodDayCount * BUFFER_PERIODS : 0
+  // elle, les deux étant égaux par construction (BUFFER_DAYS jours).
+  const periodStartIndex = scrollableDays ? BUFFER_DAYS : 0
 
   // Plage réellement utilisée pour construire la grille (jours affichés,
-  // séjours, positionnement...) : élargie de BUFFER_PERIODS périodes de
-  // chaque côté en semaine/quinzaine, pour permettre d'apercevoir les
-  // jours voisins par glissement horizontal sans changer de période —
-  // identique à periodStart/periodEnd en mois/année.
+  // séjours, positionnement...) : élargie de BUFFER_DAYS jours de chaque
+  // côté en semaine/quinzaine, pour permettre d'apercevoir les jours
+  // voisins par glissement horizontal sans changer de période — identique
+  // à periodStart/periodEnd en mois/année.
   const rangeStart = useMemo(() => {
     if (!scrollableDays) return periodStart
-    return subDays(periodStart, periodDayCount * BUFFER_PERIODS)
+    return subDays(periodStart, BUFFER_DAYS)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodStart.getTime(), periodDayCount, scrollableDays])
+  }, [periodStart.getTime(), scrollableDays])
   const rangeEnd = useMemo(() => {
     if (!scrollableDays) return periodEnd
-    return addDays(periodEnd, periodDayCount * BUFFER_PERIODS)
+    return addDays(periodEnd, BUFFER_DAYS)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodEnd.getTime(), periodDayCount, scrollableDays])
+  }, [periodEnd.getTime(), scrollableDays])
 
   const days = useMemo(
     () => eachDayOfInterval({ start: rangeStart, end: rangeEnd }),
@@ -578,19 +568,26 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   })
 
   const totalRows = rowCursor
-  // Semaine/quinzaine : la grille reçoit une largeur EXPLICITE (gridWidth,
-  // voir BUFFER_MULTIPLIER) au lieu de la largeur implicite (100 %) de son
-  // parent — nécessaire pour que la colonne des noms (position: sticky)
-  // reste ancrée sur toute la largeur réelle de la grille, y compris une
-  // fois défilée jusqu'à la période courante (voir BUFFER_MULTIPLIER).
-  // Les colonnes de jours se répartissent ensuite cette largeur en
-  // pourcentage (calc, base = la grille elle-même désormais) de sorte que
-  // periodDayCount d'entre elles remplissent exactement la largeur de
-  // l'écran — les jours de tampon débordent alors naturellement en dehors,
-  // provoquant le défilement horizontal. Mois/année : inchangé, largeur
-  // implicite, les colonnes se partagent l'espace disponible.
+  // Semaine/quinzaine : la grille reçoit une largeur EXPLICITE (gridWidth)
+  // au lieu de la largeur implicite (100 %) de son parent — nécessaire
+  // pour que la colonne des noms (position: sticky) reste ancrée sur
+  // toute la largeur réelle de la grille, y compris une fois défilée
+  // jusqu'à la période courante. Les colonnes de jours se répartissent
+  // ensuite cette largeur en pourcentage (calc, base = la grille
+  // elle-même désormais) de sorte que periodDayCount d'entre elles
+  // remplissent exactement la largeur de l'écran — les jours de tampon
+  // débordent alors naturellement en dehors, provoquant le défilement
+  // horizontal. Mois/année : inchangé, largeur implicite, les colonnes se
+  // partagent l'espace disponible.
+  //
+  // bufferRatio = dayCount / periodDayCount : le tampon étant désormais
+  // fixé en jours (BUFFER_DAYS, ~2 mois) plutôt qu'en nombre de périodes,
+  // ce ratio n'est plus forcément un nombre entier (ex. semaine :
+  // (7 + 2*60)/7 ≈ 18,14) — mais la formule calc() ci-dessous reste
+  // valable avec un multiplicateur décimal.
+  const bufferRatio = dayCount / periodDayCount
   const gridWidth = scrollableDays
-    ? `calc(${BUFFER_MULTIPLIER} * 100% - ${BUFFER_MULTIPLIER - 1} * ${LABEL_COL})`
+    ? `calc(${bufferRatio} * 100% - ${bufferRatio - 1} * ${LABEL_COL})`
     : undefined
   const gridTemplateColumns = scrollableDays
     ? `${LABEL_COL} repeat(${dayCount}, calc((100% - ${LABEL_COL}) / ${dayCount}))`
@@ -863,8 +860,8 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
 
       {/* Grille. En semaine/quinzaine, la période affichée (7/14 jours)
           remplit exactement la largeur de l'écran (voir gridTemplateColumns),
-          mais quelques périodes supplémentaires sont gardées en tampon de
-          chaque côté (BUFFER_PERIODS) : un glissement horizontal permet
+          mais quelques jours supplémentaires (~2 mois, BUFFER_DAYS) sont
+          gardés en tampon de chaque côté : un glissement horizontal permet
           d'apercevoir les jours précédents/suivants — sans changer de
           période, la navigation passe toujours par les flèches uniquement
           (onWheel/onTouch* désactivés dans ce cas). Le titre (entre les
