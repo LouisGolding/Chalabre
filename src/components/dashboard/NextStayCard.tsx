@@ -507,107 +507,118 @@ function StayEntry({
         </div>
       )}
 
+      {/* Disposition/typo du contenu deplie alignees sur le visuel envoye par
+          Nicolas le 29/09/2026 : libelles courts en majuscules + tracking
+          (meme langage que les pastilles "TOTAL TAXE DE SEJOUR"/"Aujourd'hui"
+          de l'accueil), valeurs en ultra gras, plus de boutons a fond plein
+          pour l'age/l'aile -- de simples libelles textuels, gras si
+          selectionnes. */}
       <div
         className={cn(
-          'flex flex-wrap items-center gap-x-3 gap-y-1 font-light text-base md:text-lg',
+          'flex flex-wrap items-center gap-x-4 gap-y-1 text-xs uppercase tracking-[0.08em] md:text-sm',
           light ? 'text-foreground/60' : 'text-foreground'
         )}
       >
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          Du
+          Du :
           <input
             type="date"
             value={checkIn}
             onChange={(e) => setCheckIn(e.target.value)}
             className={cn(
-              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 font-light text-base md:text-lg outline-none focus:border-foreground',
+              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
               light ? 'text-foreground/60' : 'text-foreground'
             )}
           />
         </span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          au
+          Au :
           <input
             type="date"
             value={checkOut}
             min={checkIn || undefined}
             onChange={(e) => setCheckOut(e.target.value)}
             className={cn(
-              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 font-light text-base md:text-lg outline-none focus:border-foreground',
+              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
               light ? 'text-foreground/60' : 'text-foreground'
             )}
           />
         </span>
       </div>
 
-      <div className="space-y-2">
-        <Label className={light ? 'text-foreground/60' : undefined}>Note</Label>
-        <Input
+      <div
+        className={cn(
+          'flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs uppercase tracking-[0.08em] md:text-sm',
+          light ? 'text-foreground/60' : 'text-foreground'
+        )}
+      >
+        <span className="whitespace-nowrap">Note :</span>
+        <input
+          type="text"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Ex: Gare de Pamiers 14h45"
-          className={light ? 'text-foreground/60' : undefined}
+          className={cn(
+            'min-w-[9rem] flex-1 border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-muted-foreground md:text-sm',
+            light ? 'text-foreground/60' : 'text-foreground'
+          )}
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={ageBracket === 'child' ? 'default' : 'outline'}
-            className={ageBracket === 'child' ? 'bg-foreground text-background hover:bg-foreground/80' : 'bg-card/40 backdrop-blur-sm'}
-            onClick={() => setAgeBracket('child')}
-          >
-            0-16 ans
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={ageBracket === 'adult' ? 'default' : 'outline'}
-            className={ageBracket === 'adult' ? 'bg-foreground text-background hover:bg-foreground/80' : 'bg-card/40 backdrop-blur-sm'}
-            onClick={() => setAgeBracket('adult')}
-          >
-            17 ans et +
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={houseSide === 'canat' ? 'default' : 'outline'}
-            className={houseSide === 'canat' ? 'bg-foreground text-background hover:bg-foreground/80' : 'bg-card/40 backdrop-blur-sm'}
-            onClick={() => setHouseSide('canat')}
-          >
-            Canat
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={houseSide === 'lalande' ? 'default' : 'outline'}
-            className={houseSide === 'lalande' ? 'bg-foreground text-background hover:bg-foreground/80' : 'bg-card/40 backdrop-blur-sm'}
-            onClick={() => setHouseSide('lalande')}
-          >
-            Lalande
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={houseSide === 'petite_maison' ? 'default' : 'outline'}
-            className={houseSide === 'petite_maison' ? 'bg-foreground text-background hover:bg-foreground/80' : 'bg-card/40 backdrop-blur-sm'}
-            onClick={() => setHouseSide('petite_maison')}
-          >
-            Petite maison
-          </Button>
-        </div>
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs uppercase tracking-[0.08em] md:text-sm',
+          light ? 'text-foreground/60' : 'text-foreground'
+        )}
+      >
+        <button
+          type="button"
+          className={cn('transition-opacity hover:opacity-80', ageBracket === 'child' ? 'font-extrabold' : 'font-normal opacity-60')}
+          onClick={() => setAgeBracket('child')}
+        >
+          0-16 ans
+        </button>
+        <button
+          type="button"
+          className={cn('transition-opacity hover:opacity-80', ageBracket === 'adult' ? 'font-extrabold' : 'font-normal opacity-60')}
+          onClick={() => setAgeBracket('adult')}
+        >
+          17 ans et +
+        </button>
+        <button
+          type="button"
+          className={cn('transition-opacity hover:opacity-80', houseSide === 'canat' ? 'font-extrabold' : 'font-normal opacity-60')}
+          onClick={() => setHouseSide('canat')}
+        >
+          Canat
+        </button>
+        <button
+          type="button"
+          className={cn('transition-opacity hover:opacity-80', houseSide === 'lalande' ? 'font-extrabold' : 'font-normal opacity-60')}
+          onClick={() => setHouseSide('lalande')}
+        >
+          Lalande
+        </button>
+        <button
+          type="button"
+          className={cn('transition-opacity hover:opacity-80', houseSide === 'petite_maison' ? 'font-extrabold' : 'font-normal opacity-60')}
+          onClick={() => setHouseSide('petite_maison')}
+        >
+          Petite maison
+        </button>
       </div>
 
       {nights > 0 && (
-        <div>
-          <h3 className={cn('font-normal text-lg md:text-xl', light ? 'text-foreground/60' : 'text-foreground')}>Calcul de votre taxe de séjour</h3>
-          <p className={cn('mt-1 font-light text-base md:text-lg', light ? 'text-foreground/60' : 'text-foreground')}>
-            {nights} nuit{nights > 1 ? 's' : ''} : <span className="font-semibold">{formatCurrency(amount)}</span>
-          </p>
+        <div
+          className={cn(
+            'flex flex-wrap items-baseline gap-x-1.5 text-xs uppercase tracking-[0.08em] md:text-sm',
+            light ? 'text-foreground/60' : 'text-foreground'
+          )}
+        >
+          <span>Taxe de séjour :</span>
+          <span className="font-extrabold">
+            {nights} nuit{nights > 1 ? 's' : ''} : {formatCurrency(amount)}
+          </span>
         </div>
       )}
 
