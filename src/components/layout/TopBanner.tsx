@@ -69,7 +69,16 @@ export function TopBanner() {
   return (
     <header
       className={cn(
-        'fixed inset-x-0 top-0 z-40 flex h-20 items-start justify-center bg-background',
+        // Même texture papier que le fond des pages (voir globals.css),
+        // prolongée dans le bandeau du haut sur tous les onglets — demandé
+        // par Nicolas le 28/09/2026. Même répétition en tuile et même
+        // échelle (307x205, réduite x5) que body, pour rester cohérent
+        // visuellement même si la jointure n'est pas garantie pixel pour
+        // pixel avec le contenu en dessous (bandeau fixe, page qui
+        // défile). Classe Tailwind arbitraire (pas de style inline) pour
+        // que dark:bg-none puisse bien la neutraliser en mode sombre,
+        // comme pour body.
+        "fixed inset-x-0 top-0 z-40 flex h-20 items-start justify-center bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none",
         !hasPhotoBackground && 'border-b border-foreground'
       )}
     >
