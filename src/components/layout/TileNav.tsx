@@ -73,12 +73,31 @@ export function TileNav({ role }: { role: UserRole }) {
   // imposante) : masquée par défaut, réduite à une petite poignée
   // (bouton chevron) ; un clic dessus déploie la grille complète, un
   // second clic la referme. Non persisté (redémarre fermée à chaque
-  // navigation/rechargement) — à repasser en toujours-visible si le
-  // test ne convainc pas.
+  // navigation/rechargement). L'accueil garde la grille toujours
+  // dépliée, sans poignée (demandé par Nicolas le 28/09/2026) : seule la
+  // photo plein écran y justifiait une grille imposante en permanence,
+  // pas les pages au fond texturé.
   const [isOpen, setIsOpen] = useState(false)
+  const showToggle = !hasPhotoBackground
+  const isExpanded = showToggle ? isOpen : true
 
   return (
-    <div className="fixed inset-x-0 bottom-7 md:bottom-9 z-30">
+    <div
+      className={cn(
+        'fixed inset-x-0 z-30',
+        // Repliée, la poignée (h-7, 28px) doit laisser 14px d'espace
+        // libre au-dessus du bandeau du bas (Membres / Suivi paiements /
+        // Se déconnecter, voir BottomNav.tsx, h-12/48px mobile,
+        // h-14/56px bureau) plutôt que de le chevaucher — demandé par
+        // Nicolas le 28/09/2026, capture d'écran à l'appui montrant la
+        // poignée recouvrant "Se déconnecter". D'où bottom-[62px] (48+14)
+        // et md:bottom-[70px] (56+14) à l'état replié, contre le
+        // bottom-7/md:bottom-9 habituel (accolé à BottomNav sans
+        // chevaucher son texte, réglage plus ancien) quand la grille est
+        // dépliée ou sur l'accueil.
+        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-[62px] md:bottom-[70px]'
+      )}
+    >
       {/* Fond fixe derrière la grille (uniquement quand elle est
           déployée), demandé par Nicolas le 28/09/2026 : sur les onglets
           au fond texturé (tous sauf l'accueil), le texte de la page
@@ -94,23 +113,25 @@ export function TileNav({ role }: { role: UserRole }) {
           d'un carrousel photo de "Réalisations") juste au-dessus de la
           grille — corrigé le 28/09/2026, capture d'écran annotée à
           l'appui. */}
-      {isOpen && !hasPhotoBackground && (
+      {isExpanded && !hasPhotoBackground && (
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
         />
       )}
       <div className="relative flex flex-col items-center">
-        <button
-          type="button"
-          onClick={() => setIsOpen((v) => !v)}
-          aria-expanded={isOpen}
-          aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
-          className="flex h-7 w-12 items-center justify-center rounded-t-lg border border-b-0 border-border bg-card text-foreground transition-opacity hover:opacity-70"
-        >
-          <ChevronUp className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
-        </button>
-        {isOpen && (
+        {showToggle && (
+          <button
+            type="button"
+            onClick={() => setIsOpen((v) => !v)}
+            aria-expanded={isOpen}
+            aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
+            className="flex h-7 w-12 items-center justify-center rounded-t-lg border border-b-0 border-border bg-card text-foreground transition-opacity hover:opacity-70"
+          >
+            <ChevronUp className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
+          </button>
+        )}
+        {isExpanded && (
           <nav className="grid w-full grid-cols-3 gap-[14px] px-4 py-[14px]">
             {tiles.map((tile) => (
               <Link
