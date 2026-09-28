@@ -68,7 +68,7 @@ export default async function DashboardLayout({
           titre de chaque page (visuel envoyé pour "Planning", appliqué
           à tous les titres de page pour rester cohérent — voir leurs
           classes uppercase tracking-[0.08em] font-normal). */}
-      <main className="max-w-5xl mx-auto p-6 pt-28 pb-[250px] md:pt-28 md:pb-[302px]">
+      <main className="max-w-5xl mx-auto p-6 pt-20 pb-[250px] md:pt-20 md:pb-[302px]">
         {children}
       </main>
       {/* Grille de navigation ("onglets") — commune à toutes les pages du
