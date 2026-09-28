@@ -90,7 +90,7 @@ function soldeLabel(pending: number) {
 }
 
 const pillClass =
-  'inline-flex h-8 w-fit shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm'
+  'inline-flex h-8 w-fit shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-extrabold text-foreground backdrop-blur-sm'
 
 function BalancePill({ pending, ids }: { pending: number; ids: string[] }) {
   const content = (
@@ -131,6 +131,11 @@ function StayBanner({
   // translucide par defaut.
   bgColor?: string
 }) {
+  // Widget colore (bgColor present) : texte en transparence pour laisser
+  // apparaitre la couleur de fond (demande par Nicolas le 29/09/2026) --
+  // ne s'applique pas a la banniere generique "Ajouter un sejour", qui
+  // garde sa typo pleine (noire).
+  const light = !!bgColor
   return (
     <div
       className={cn('rounded-xl border border-border backdrop-blur-sm', !bgColor && 'bg-card/40')}
@@ -141,7 +146,10 @@ function StayBanner({
           type="button"
           onClick={onToggle}
           aria-expanded={isOpen}
-          className="flex min-w-0 items-center gap-2 text-left text-lg md:text-xl font-normal text-foreground hover:opacity-80"
+          className={cn(
+            'flex min-w-0 items-center gap-2 text-left text-lg md:text-xl font-normal hover:opacity-80',
+            light ? 'text-foreground/60' : 'text-foreground'
+          )}
         >
           <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', isOpen && 'rotate-180')} />
           <span className="truncate">{title}</span>
@@ -485,6 +493,11 @@ function StayEntry({
 
   const showDelete = !(hideDeleteWhenEmpty && !hasSavedBooking && !checkIn && !checkOut && !guestName.trim())
 
+  // Meme signal que dans StayBanner : widget colore => texte en
+  // transparence (demande par Nicolas le 29/09/2026), sauf pour "Ajouter
+  // un sejour" qui n'a pas de bgColor et garde sa typo noire pleine.
+  const light = !!bgColor
+
   return (
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
       {showNameField && (
@@ -494,14 +507,22 @@ function StayEntry({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-light text-base md:text-lg text-foreground">
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-x-3 gap-y-1 font-light text-base md:text-lg',
+          light ? 'text-foreground/60' : 'text-foreground'
+        )}
+      >
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           Du
           <input
             type="date"
             value={checkIn}
             onChange={(e) => setCheckIn(e.target.value)}
-            className="border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 font-light text-base md:text-lg text-foreground outline-none focus:border-foreground"
+            className={cn(
+              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 font-light text-base md:text-lg outline-none focus:border-foreground',
+              light ? 'text-foreground/60' : 'text-foreground'
+            )}
           />
         </span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -511,17 +532,21 @@ function StayEntry({
             value={checkOut}
             min={checkIn || undefined}
             onChange={(e) => setCheckOut(e.target.value)}
-            className="border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 font-light text-base md:text-lg text-foreground outline-none focus:border-foreground"
+            className={cn(
+              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 font-light text-base md:text-lg outline-none focus:border-foreground',
+              light ? 'text-foreground/60' : 'text-foreground'
+            )}
           />
         </span>
       </div>
 
       <div className="space-y-2">
-        <Label>Note</Label>
+        <Label className={light ? 'text-foreground/60' : undefined}>Note</Label>
         <Input
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Ex: Gare de Pamiers 14h45"
+          className={light ? 'text-foreground/60' : undefined}
         />
       </div>
 
@@ -579,8 +604,8 @@ function StayEntry({
 
       {nights > 0 && (
         <div>
-          <h3 className="font-normal text-lg md:text-xl text-foreground">Calcul de votre taxe de séjour</h3>
-          <p className="mt-1 font-light text-base md:text-lg text-foreground">
+          <h3 className={cn('font-normal text-lg md:text-xl', light ? 'text-foreground/60' : 'text-foreground')}>Calcul de votre taxe de séjour</h3>
+          <p className={cn('mt-1 font-light text-base md:text-lg', light ? 'text-foreground/60' : 'text-foreground')}>
             {nights} nuit{nights > 1 ? 's' : ''} : <span className="font-semibold">{formatCurrency(amount)}</span>
           </p>
         </div>
