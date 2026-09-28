@@ -72,7 +72,7 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Membres</h1>
+      <h1 className="text-2xl md:text-3xl font-semibold text-foreground text-center md:text-left">Membres</h1>
 
       <MembersTable rows={rows} />
 
