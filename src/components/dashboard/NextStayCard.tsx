@@ -630,9 +630,13 @@ function StayEntry({
         />
       </div>
 
+      {/* gap-x-3 (au lieu de 4) : c'est l'ecart maximum qui laisse tenir les
+          5 libelles (0-16 ans / 17 ans et + / Canat / Lalande / Petite
+          maison) sur une seule ligne sans retour a la ligne sur mobile --
+          demande par Nicolas le 29/09/2026. */}
       <div
         className={cn(
-          'flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs uppercase tracking-[0.08em] md:text-sm',
+          'flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs uppercase tracking-[0.08em] md:text-sm',
           light ? 'text-foreground/60' : 'text-foreground'
         )}
       >
