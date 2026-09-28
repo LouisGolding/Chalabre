@@ -209,7 +209,11 @@ function StayBanner({
         </button>
         {!isOpen && pill}
       </div>
-      {isOpen && <div className="space-y-4 border-t border-border/60 px-4 py-4">{children}</div>}
+      {/* Plus de ligne de separation ni de padding haut uniforme : l'espace
+          entre le titre et la pastille "Total taxe de sejour" doit faire
+          exactement 16px (12px de py-3 sur l'entete + 4px de pt-1 ici),
+          comme demande par Nicolas le 29/09/2026. */}
+      {isOpen && <div className="space-y-4 px-4 pt-1 pb-4">{children}</div>}
     </div>
   )
 }
