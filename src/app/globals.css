@@ -133,6 +133,9 @@
        claire, elle jurerait sur un fond presque noir. */
     background-image: url('/images/texture-papier.jpg');
     background-repeat: repeat;
+    /* Échelle réduite x5 par rapport à la taille native de l'image
+       (1536x1024 -> 307x205), demandé par Nicolas le 28/09/2026. */
+    background-size: 307px 205px;
   }
   .dark body {
     background-image: none;
