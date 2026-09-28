@@ -67,8 +67,16 @@ export default async function DashboardLayout({
           demandé par Nicolas : plus d'espace entre cette ligne et le
           titre de chaque page (visuel envoyé pour "Planning", appliqué
           à tous les titres de page pour rester cohérent — voir leurs
-          classes uppercase tracking-[0.08em] font-normal). */}
-      <main className="max-w-5xl mx-auto p-6 pt-20 pb-[250px] md:pt-20 md:pb-[302px]">
+          classes uppercase tracking-[0.08em] font-normal).
+
+          Plus de max-w-5xl/mx-auto (retiré le 29/09/2026, demandé par
+          Nicolas) : sur grand écran, ce plafond centrait le contenu et
+          laissait deux marges qui grandissaient avec la largeur de la
+          fenêtre. Les widgets doivent au contraire occuper toute la
+          largeur disponible, avec un espace gauche/droite constant — le
+          padding p-6 (24px) ci-dessous, désormais seul responsable de cet
+          espace, quelle que soit la taille de la fenêtre. */}
+      <main className="w-full p-6 pt-20 pb-[250px] md:pt-20 md:pb-[302px]">
         {children}
       </main>
       {/* Grille de navigation ("onglets") — commune à toutes les pages du
