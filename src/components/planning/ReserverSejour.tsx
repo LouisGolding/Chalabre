@@ -75,7 +75,7 @@ export function ReserverSejour({
 
   return (
     <>
-      <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Planning</h1>
+      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground">Planning</h1>
 
       <NextStayCard
         profile={profile}

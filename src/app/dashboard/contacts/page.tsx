@@ -14,7 +14,7 @@ export default async function ContactsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl md:text-3xl font-semibold text-foreground">Contacts</h1>
+      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground">Contacts</h1>
       <ContactsBoard contacts={contacts ?? []} isAdmin={isAdmin} />
     </div>
   )

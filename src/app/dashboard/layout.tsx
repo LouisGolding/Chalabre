@@ -60,8 +60,15 @@ export default async function DashboardLayout({
           pour qu'aucune page ne voie son contenu caché dessous. Valeur
           reprise telle quelle de dashboard/page.tsx (seule page à avoir
           TileNav avant le 27/09/2026) au moment où TileNav est devenue
-          commune à tous les onglets (voir TileNav.tsx et BottomNav.tsx). */}
-      <main className="max-w-5xl mx-auto p-6 pt-20 pb-[250px] md:pt-20 md:pb-[302px]">
+          commune à tous les onglets (voir TileNav.tsx et BottomNav.tsx).
+          Padding-haut passé de pt-20 (80px, = la hauteur du bandeau,
+          d'où un titre de page collé à la ligne de séparation du bas du
+          bandeau — voir TopBanner.tsx) à pt-28 (112px) le 28/09/2026,
+          demandé par Nicolas : plus d'espace entre cette ligne et le
+          titre de chaque page (visuel envoyé pour "Planning", appliqué
+          à tous les titres de page pour rester cohérent — voir leurs
+          classes uppercase tracking-[0.08em] font-normal). */}
+      <main className="max-w-5xl mx-auto p-6 pt-28 pb-[250px] md:pt-28 md:pb-[302px]">
         {children}
       </main>
       {/* Grille de navigation ("onglets") — commune à toutes les pages du
