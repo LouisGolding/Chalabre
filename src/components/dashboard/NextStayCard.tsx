@@ -74,9 +74,6 @@ function findGuestBucket(tsBalance: TsBalanceResult, fullName: string | null): T
   return tsBalance.guests.find((g) => normalizeName(g.name) === target) ?? null
 }
 
-function soldeAmountClass(pending: number) {
-  return pending > 0 ? 'text-red-600' : 'text-foreground'
-}
 // Montant compact ("90" ou "90,50"), sans le formatage de formatCurrency
 // (espace + decimales systematiques) -- meme convention que TaxeSejourPill,
 // pour que "TS : -90€" tienne sur une seule ligne a cote du titre (demande
@@ -88,37 +85,21 @@ function soldeLabel(pending: number) {
   return pending > 0 ? `-${compactAmount(pending)}` : compactAmount(0)
 }
 
-const pillClass =
-  'inline-flex h-8 w-fit shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-extrabold text-foreground backdrop-blur-sm'
-
-function BalancePill({ pending, ids }: { pending: number; ids: string[] }) {
-  const content = (
-    <>
-      TS:<span className={`ml-1 ${soldeAmountClass(pending)}`}>{soldeLabel(pending)}€</span>
-    </>
-  )
-  if (ids.length === 0) {
-    return <span className={pillClass}>{content}</span>
-  }
-  return (
-    <TSBalancePayButton ids={ids} className={pillClass}>
-      {content}
-    </TSBalancePayButton>
-  )
-}
-
-// Pastilles du widget deplie ("Total taxe de sejour", "Supprimer ce
-// sejour", "Modifier"/"Valider") : encadre transparent, typo en
-// transparence sur la couleur du widget (comme le reste du contenu
-// deplie), majuscules trackees -- puis, au survol/clic, meme mecanique
-// que TaxeSejourPill.tsx sur l'accueil (le cadre se remplit de blanc, le
-// texte devient un decoupage qui laisse deviner la photo de fond fixe de
-// la page d'accueil) -- demande par Nicolas le 29/09/2026.
+// Pastilles liees au solde TS ("TS: X€" fermee, "Total taxe de sejour: X€"
+// ouverte) et pastilles d'action du widget deplie ("Supprimer ce sejour",
+// "Modifier"/"Valider") : encadre transparent, typo en transparence sur la
+// couleur du widget, majuscules trackees -- puis, au survol/clic, meme
+// mecanique que TaxeSejourPill.tsx sur l'accueil (le cadre se remplit de
+// blanc, le texte devient un decoupage qui laisse deviner la photo de fond
+// fixe de la page d'accueil). Les deux pastilles de solde sont en plus
+// toujours en gras, et gardent le rouge d'alerte sur le montant quand il
+// est negatif (montant du) plutot que la transparence -- demande par
+// Nicolas le 29/09/2026.
 const stayPillOuterClass =
   'group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors hover:bg-white disabled:pointer-events-none disabled:opacity-50 md:text-sm'
 
-function stayPillTextClass(light: boolean) {
-  return cn('bg-clip-text transition-colors group-hover:text-transparent', light ? 'text-foreground/60' : 'text-foreground')
+function stayPillTextClass(light: boolean, extra?: string) {
+  return cn('bg-clip-text transition-colors group-hover:text-transparent', light ? 'text-foreground/60' : 'text-foreground', extra)
 }
 
 const stayPillTextStyle: React.CSSProperties = {
@@ -128,12 +109,47 @@ const stayPillTextStyle: React.CSSProperties = {
   backgroundAttachment: 'fixed',
 }
 
-function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
-  const label = `Total taxe de séjour : ${soldeLabel(pending)}€`
-  const inner = (
-    <span className={stayPillTextClass(light)} style={stayPillTextStyle}>
-      {label}
+// Montant d'une pastille de solde : rouge plein (pas de decoupage photo,
+// pour rester bien visible) quand une somme est due, sinon meme traitement
+// transparent que le reste de la pastille.
+function StayPillAmount({ pending, light }: { pending: number; light: boolean }) {
+  if (pending > 0) {
+    return <span className="font-extrabold text-red-600">{soldeLabel(pending)}€</span>
+  }
+  return (
+    <span className={stayPillTextClass(light, 'font-extrabold')} style={stayPillTextStyle}>
+      {soldeLabel(pending)}€
     </span>
+  )
+}
+
+function BalancePill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
+  const content = (
+    <>
+      <span className={stayPillTextClass(light, 'font-extrabold')} style={stayPillTextStyle}>
+        TS:
+      </span>{' '}
+      <StayPillAmount pending={pending} light={light} />
+    </>
+  )
+  if (ids.length === 0) {
+    return <span className={stayPillOuterClass}>{content}</span>
+  }
+  return (
+    <TSBalancePayButton ids={ids} className={stayPillOuterClass}>
+      {content}
+    </TSBalancePayButton>
+  )
+}
+
+function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
+  const inner = (
+    <>
+      <span className={stayPillTextClass(light, 'font-extrabold')} style={stayPillTextStyle}>
+        Total taxe de séjour :
+      </span>{' '}
+      <StayPillAmount pending={pending} light={light} />
+    </>
   )
   if (ids.length === 0) {
     return <span className={stayPillOuterClass}>{inner}</span>
@@ -539,7 +555,7 @@ function StayEntry({
   // transparence (demande par Nicolas le 29/09/2026), sauf pour "Ajouter
   // un sejour" qui n'a pas de bgColor et garde sa typo noire pleine.
   const light = !!bgColor
-  const pill = <BalancePill pending={pending} ids={ids} />
+  const pill = <BalancePill pending={pending} ids={ids} light={light} />
 
   return (
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
