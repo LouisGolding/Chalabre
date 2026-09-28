@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { differenceInYears, parseISO } from 'date-fns'
 import { calculateTotalTS, cn, firstNameOnly, formatCurrency, normalizeName, stayPhase } from '@/lib/utils'
 import { HouseSide, Profile, TSPayment } from '@/types'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
 import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
@@ -565,11 +563,22 @@ function StayEntry({
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
       <TotalTaxeSejourStayPill pending={pending} ids={ids} light={light} />
 
+      {/* Plus de libelle "Nom Prenom" au-dessus : seul l'encadre ou le nom
+          est ecrit reste, avec le meme traitement que le champ "Note"
+          (soulignement, majuscules/gras une fois rempli, gris normal en
+          placeholder tant que rien n'est saisi) -- demande par Nicolas le
+          29/09/2026. */}
       {showNameField && (
-        <div className="space-y-2">
-          <Label>Nom Prénom</Label>
-          <Input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Ex: Emma Lalande" />
-        </div>
+        <input
+          type="text"
+          value={guestName}
+          onChange={(e) => setGuestName(e.target.value)}
+          placeholder="Prénom nom"
+          className={cn(
+            'w-full border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-muted-foreground md:text-sm',
+            light ? 'text-foreground/60' : 'text-foreground'
+          )}
+        />
       )}
 
       {/* Disposition/typo du contenu deplie alignees sur le visuel envoye par
