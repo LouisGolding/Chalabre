@@ -833,6 +833,17 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
               elle-même masquée sur bureau (md:hidden) où elle n'a pas été
               demandée. */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {/* "Aujourd'hui" en premier (demandé par Nicolas le
+                29/09/2026), avant les pastilles de vue — même traitement
+                visuel que celles-ci, mais ce n'est pas un mode de vue :
+                elle ramène juste currentDate à aujourd'hui. */}
+            <button
+              type="button"
+              onClick={() => setCurrentDate(new Date())}
+              className="text-xs font-normal uppercase tracking-[0.08em] text-foreground/60 transition-colors hover:text-foreground md:text-sm"
+            >
+              Aujourd&apos;hui
+            </button>
             {(
               [
                 { mode: 'week' as const, label: 'Semaine', responsive: '' },
@@ -855,13 +866,6 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => setCurrentDate(new Date())}
-            className="text-xs font-normal uppercase tracking-[0.08em] text-foreground/60 transition-colors hover:text-foreground md:text-sm"
-          >
-            Aujourd&apos;hui
-          </button>
         </div>
       </div>
 
@@ -968,10 +972,17 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
           {sections.map((section) => (
             <Fragment key={section.key}>
               <div
-                className="flex items-center bg-muted/70 px-3 py-1.5"
+                className="flex items-center bg-muted/70 py-1.5"
                 style={{ gridColumn: '1 / -1', gridRow: section.sectionHeaderRow }}
               >
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {/* Le bandeau lui-même (fond gris) couvre toute la
+                    largeur défilable de la grille — voir gridColumn
+                    '1 / -1' — mais SON TEXTE doit rester ancré à gauche
+                    pendant le défilement, comme le nom de chaque ligne
+                    (row.label) juste en dessous : même traitement
+                    (sticky left-0 + fond), sinon le titre défile avec le
+                    reste et disparaît dès qu'on scrolle. */}
+                <span className="sticky left-0 z-10 bg-muted/70 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {section.title}
                 </span>
               </div>
@@ -994,10 +1005,15 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
 
               {section.rows.length === 0 && section.emptyRow && (
                 <div
-                  className="bg-card px-3 py-2 text-sm font-light text-muted-foreground"
+                  className="bg-card py-2"
                   style={{ gridColumn: '1 / -1', gridRow: section.emptyRow }}
                 >
-                  {emptyLabel}
+                  {/* Même correction que le titre de section ci-dessus :
+                      texte ancré à gauche (sticky) plutôt que défilant
+                      avec le reste de la période affichée. */}
+                  <span className="sticky left-0 z-10 bg-card px-3 text-sm font-light text-muted-foreground">
+                    {emptyLabel}
+                  </span>
                 </div>
               )}
 
