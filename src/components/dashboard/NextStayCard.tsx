@@ -6,7 +6,6 @@ import { calculateTotalTS, cn, firstNameOnly, formatCurrency, normalizeName, sta
 import { HouseSide, Profile, TSPayment } from '@/types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
 import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
@@ -108,6 +107,44 @@ function BalancePill({ pending, ids }: { pending: number; ids: string[] }) {
   )
 }
 
+// Pastilles du widget deplie ("Total taxe de sejour", "Supprimer ce
+// sejour", "Modifier"/"Valider") : encadre transparent, typo en
+// transparence sur la couleur du widget (comme le reste du contenu
+// deplie), majuscules trackees -- puis, au survol/clic, meme mecanique
+// que TaxeSejourPill.tsx sur l'accueil (le cadre se remplit de blanc, le
+// texte devient un decoupage qui laisse deviner la photo de fond fixe de
+// la page d'accueil) -- demande par Nicolas le 29/09/2026.
+const stayPillOuterClass =
+  'group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors hover:bg-white disabled:pointer-events-none disabled:opacity-50 md:text-sm'
+
+function stayPillTextClass(light: boolean) {
+  return cn('bg-clip-text transition-colors group-hover:text-transparent', light ? 'text-foreground/60' : 'text-foreground')
+}
+
+const stayPillTextStyle: React.CSSProperties = {
+  backgroundImage: "url('/images/accueil-bg-v2.jpg')",
+  backgroundSize: 'cover',
+  backgroundPosition: 'center center',
+  backgroundAttachment: 'fixed',
+}
+
+function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
+  const label = `Total taxe de séjour : ${soldeLabel(pending)}€`
+  const inner = (
+    <span className={stayPillTextClass(light)} style={stayPillTextStyle}>
+      {label}
+    </span>
+  )
+  if (ids.length === 0) {
+    return <span className={stayPillOuterClass}>{inner}</span>
+  }
+  return (
+    <TSBalancePayButton ids={ids} className={stayPillOuterClass}>
+      {inner}
+    </TSBalancePayButton>
+  )
+}
+
 // Bannière dépliable : titre à gauche (bascule le contenu au clic),
 // pastille de solde à droite (clic séparé, lien de paiement). Même
 // esthétique que les autres pastilles du site (bg-card/40 + flou).
@@ -154,7 +191,7 @@ function StayBanner({
           <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', isOpen && 'rotate-180')} />
           <span className="truncate">{title}</span>
         </button>
-        {pill}
+        {!isOpen && pill}
       </div>
       {isOpen && <div className="space-y-4 border-t border-border/60 px-4 py-4">{children}</div>}
     </div>
@@ -243,7 +280,8 @@ export function NextStayCard({
         titleWhenEmpty="Réserver votre séjour"
         titleWhenUpcoming="Votre prochain séjour"
         titleWhenOngoing="Votre séjour en cours"
-        pill={<BalancePill pending={tsBalance.own.pending} ids={tsBalance.own.items.map((i) => i.id)} />}
+        pending={tsBalance.own.pending}
+        ids={tsBalance.own.items.map((i) => i.id)}
         bgColor={ownerColor}
         onSaved={onBookingSaved}
         onDeleted={handlePrimaryDeleted}
@@ -269,7 +307,8 @@ export function NextStayCard({
             titleWhenEmpty="Ajouter un séjour"
             titleWhenUpcoming={`Prochain séjour ${guestFirstName}`}
             titleWhenOngoing={`Séjour ${guestFirstName} en cours`}
-            pill={<BalancePill pending={bucket?.pending ?? 0} ids={bucket?.items.map((i) => i.id) ?? []} />}
+            pending={bucket?.pending ?? 0}
+            ids={bucket?.items.map((i) => i.id) ?? []}
             bgColor={guestColor}
             onRemoved={() => setGuestEntries((prev) => prev.filter((e) => e.localId !== entry.localId))}
             onSaved={(saved) => {
@@ -297,7 +336,8 @@ export function NextStayCard({
         titleWhenEmpty="Ajouter un séjour"
         titleWhenUpcoming="Ajouter un séjour"
         titleWhenOngoing="Ajouter un séjour"
-        pill={<BalancePill pending={0} ids={[]} />}
+        pending={0}
+        ids={[]}
         onSaved={handleAddSlotSaved}
         onHiddenChange={() => {}}
         hideDeleteWhenEmpty
@@ -315,7 +355,8 @@ interface StayEntryProps {
   titleWhenEmpty: string
   titleWhenUpcoming: string
   titleWhenOngoing: string
-  pill: React.ReactNode
+  pending: number
+  ids: string[]
   bgColor?: string
   onRemoved?: () => void
   onSaved?: (booking: SavedStayInfo) => void
@@ -346,7 +387,8 @@ function StayEntry({
   titleWhenEmpty,
   titleWhenUpcoming,
   titleWhenOngoing,
-  pill,
+  pending,
+  ids,
   bgColor,
   onRemoved,
   onSaved,
@@ -497,9 +539,12 @@ function StayEntry({
   // transparence (demande par Nicolas le 29/09/2026), sauf pour "Ajouter
   // un sejour" qui n'a pas de bgColor et garde sa typo noire pleine.
   const light = !!bgColor
+  const pill = <BalancePill pending={pending} ids={ids} />
 
   return (
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
+      <TotalTaxeSejourStayPill pending={pending} ids={ids} light={light} />
+
       {showNameField && (
         <div className="space-y-2">
           <Label>Nom Prénom</Label>
@@ -624,24 +669,22 @@ function StayEntry({
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         {showDelete ? (
-          <Button type="button" variant="outline" size="sm" className="gap-1.5 bg-card/40 backdrop-blur-sm" onClick={handleRemove} disabled={removing || saving}>
-            <Minus className="h-4 w-4" />
-            Supprimer ce séjour
-          </Button>
+          <button type="button" className={stayPillOuterClass} onClick={handleRemove} disabled={removing || saving}>
+            <Minus className={cn('h-3.5 w-3.5', light ? 'text-foreground/60' : 'text-foreground')} />
+            <span className={stayPillTextClass(light)} style={stayPillTextStyle}>
+              Supprimer ce séjour
+            </span>
+          </button>
         ) : (
           <span />
         )}
-        <Button
-          type="button"
-          size="sm"
-          disabled={!canSubmit || saving}
-          className="bg-foreground text-background hover:bg-foreground/80"
-          onClick={handleValidate}
-        >
-          {saving ? 'Enregistrement...' : hasSavedBooking && !dirty ? 'Modifier' : 'Valider'}
-        </Button>
+        <button type="button" className={stayPillOuterClass} disabled={!canSubmit || saving} onClick={handleValidate}>
+          <span className={stayPillTextClass(light)} style={stayPillTextStyle}>
+            {saving ? 'Enregistrement...' : hasSavedBooking && !dirty ? 'Modifier' : 'Valider'}
+          </span>
+        </button>
       </div>
     </StayBanner>
   )
