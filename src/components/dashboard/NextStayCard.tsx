@@ -630,13 +630,16 @@ function StayEntry({
         />
       </div>
 
-      {/* gap-x-3 (au lieu de 4) : c'est l'ecart maximum qui laisse tenir les
-          5 libelles (0-16 ans / 17 ans et + / Canat / Lalande / Petite
-          maison) sur une seule ligne sans retour a la ligne sur mobile --
-          demande par Nicolas le 29/09/2026. */}
+      {/* gap-x-2 (8px) + tracking reduit a 0.02em (au lieu de gap-x-3/16px et
+          0.08em) : sur un ecran mobile reel (375px, iPhone standard) le
+          gap-x-3 seul ne suffisait plus a faire tenir les 5 libelles
+          (0-16 ans / 17 ans et + / Canat / Lalande / Petite maison) sur une
+          seule ligne -- demande par Nicolas le 29/09/2026 ("reduit les
+          espaces entre les lettres si necessaire"). Marge verifiee
+          d'environ 27px a 375px de large. */}
       <div
         className={cn(
-          'flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs uppercase tracking-[0.08em] md:text-sm',
+          'flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs uppercase tracking-[0.02em] md:gap-x-4 md:text-sm md:tracking-[0.08em]',
           light ? 'text-foreground/60' : 'text-foreground'
         )}
       >
