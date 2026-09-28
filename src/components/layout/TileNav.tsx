@@ -121,12 +121,18 @@ export function TileNav({ role }: { role: UserRole }) {
       )}
       <div className="relative flex flex-col items-center">
         {showToggle && (
+          // Fond texturé (même image/échelle que le reste du site) sur la
+          // poignée elle-même, sans bordure grise, plutôt qu'un bg-card
+          // uni encadré — demandé par Nicolas le 28/09/2026, capture
+          // annotée à l'appui : lui seul doit se voir (pas de bande
+          // fixe de part et d'autre, ce que le fond transparent de son
+          // conteneur assure déjà).
           <button
             type="button"
             onClick={() => setIsOpen((v) => !v)}
             aria-expanded={isOpen}
             aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
-            className="flex h-7 w-12 items-center justify-center rounded-t-lg border border-b-0 border-border bg-card text-foreground transition-opacity hover:opacity-70"
+            className="flex h-7 w-12 items-center justify-center rounded-t-lg bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] text-foreground transition-opacity hover:opacity-70 dark:bg-none"
           >
             <ChevronUp className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
           </button>
