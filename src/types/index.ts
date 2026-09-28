@@ -25,6 +25,11 @@ export interface Profile {
   rib: string | null
   avatar_url: string | null
   created_at: string
+  // Teinte pastel assignee a ce compte (voir src/lib/colors.ts) --
+  // recalculee et persistee a l'inscription (handle_new_user) ou par
+  // migration_profile_colors.sql pour les comptes deja existants. Peut
+  // etre null pour un compte tres ancien jamais recalcule.
+  color_hue: number | null
 }
 
 export interface Room {

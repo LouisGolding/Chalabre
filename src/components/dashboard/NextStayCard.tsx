@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
 import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
+import { fallbackHueForName, oklchForHue } from '@/lib/colors'
 
 type AgeBracket = 'child' | 'adult'
 
@@ -32,6 +33,9 @@ interface BookingData {
   house_side?: HouseSide | null
   notes?: string | null
   ts_payments?: TSPayment[]
+  // Teinte pastel de cet occupant (voir src/lib/colors.ts), resolue cote
+  // serveur -- sert a colorer le fond de sa banniere ci-dessous.
+  color_hue?: number | null
 }
 
 export interface SavedStayInfo {
@@ -74,17 +78,24 @@ function findGuestBucket(tsBalance: TsBalanceResult, fullName: string | null): T
 function soldeAmountClass(pending: number) {
   return pending > 0 ? 'text-red-600' : 'text-foreground'
 }
+// Montant compact ("90" ou "90,50"), sans le formatage de formatCurrency
+// (espace + decimales systematiques) -- meme convention que TaxeSejourPill,
+// pour que "TS : -90€" tienne sur une seule ligne a cote du titre (demande
+// par Nicolas le 29/09/2026, pastille visible widget ferme comme ouvert).
+function compactAmount(amount: number): string {
+  return Number.isInteger(amount) ? `${amount}` : amount.toFixed(2).replace('.', ',')
+}
 function soldeLabel(pending: number) {
-  return pending > 0 ? `-${formatCurrency(pending)}` : formatCurrency(0)
+  return pending > 0 ? `-${compactAmount(pending)}` : compactAmount(0)
 }
 
 const pillClass =
   'inline-flex h-8 w-fit shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-card/40 px-2.5 text-sm font-medium text-foreground backdrop-blur-sm'
 
-function BalancePill({ label, pending, ids }: { label: string; pending: number; ids: string[] }) {
+function BalancePill({ pending, ids }: { pending: number; ids: string[] }) {
   const content = (
     <>
-      {label} :<span className={`ml-1 ${soldeAmountClass(pending)}`}>{soldeLabel(pending)}</span>
+      TS:<span className={`ml-1 ${soldeAmountClass(pending)}`}>{soldeLabel(pending)}€</span>
     </>
   )
   if (ids.length === 0) {
@@ -106,21 +117,31 @@ function StayBanner({
   isOpen,
   onToggle,
   children,
+  bgColor,
 }: {
   title: string
   pill: React.ReactNode
   isOpen: boolean
   onToggle: () => void
   children: React.ReactNode
+  // Couleur de fond du widget = la couleur deja attribuee a la personne
+  // concernee (meme teinte que sur le planning, voir src/lib/colors.ts) --
+  // demande par Nicolas le 29/09/2026. Absente pour la banniere generique
+  // "Ajouter un sejour" (personne encore identifiee), qui garde le fond
+  // translucide par defaut.
+  bgColor?: string
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card/40 backdrop-blur-sm">
+    <div
+      className={cn('rounded-xl border border-border backdrop-blur-sm', !bgColor && 'bg-card/40')}
+      style={bgColor ? { backgroundColor: bgColor } : undefined}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={isOpen}
-          className="flex min-w-0 items-center gap-2 text-left text-base font-semibold uppercase tracking-wide text-foreground hover:opacity-80"
+          className="flex min-w-0 items-center gap-2 text-left text-lg md:text-xl font-normal text-foreground hover:opacity-80"
         >
           <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', isOpen && 'rotate-180')} />
           <span className="truncate">{title}</span>
@@ -143,8 +164,14 @@ export function NextStayCard({
 }: NextStayCardProps) {
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
-  const [guestEntries, setGuestEntries] = useState<{ localId: string; booking: BookingData | null }[]>(
-    () => guestBookings.map((b) => ({ localId: b.id, booking: b }))
+  // Couleur du titulaire (voir src/lib/colors.ts) : sa teinte enregistree
+  // en base si elle existe deja, sinon un repli calcule depuis son nom
+  // (memes regles que le planning, resolveColor dans planning/page.tsx).
+  const ownerHue = typeof profile.color_hue === 'number' ? profile.color_hue : fallbackHueForName(`${profile.first_name} ${profile.last_name}`)
+  const ownerColor = oklchForHue(ownerHue)
+
+  const [guestEntries, setGuestEntries] = useState<{ localId: string; booking: BookingData | null; colorHue: number | null }[]>(
+    () => guestBookings.map((b) => ({ localId: b.id, booking: b, colorHue: typeof b.color_hue === 'number' ? b.color_hue : null }))
   )
   const [primaryBooking, setPrimaryBooking] = useState<BookingData | null>(booking)
   const [primaryResetKey, setPrimaryResetKey] = useState(0)
@@ -190,6 +217,7 @@ export function NextStayCard({
           guest_name: saved.guest_name,
           house_side: saved.house_side,
         },
+        colorHue: saved.colorHue,
       },
     ])
     setAddSlotResetKey((k) => k + 1)
@@ -204,10 +232,11 @@ export function NextStayCard({
         defaultAgeBracket={computedAge >= 16 ? 'adult' : 'child'}
         defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
         showNameField={false}
-        titleWhenEmpty="RÉSERVER VOTRE SÉJOUR"
-        titleWhenUpcoming="VOTRE PROCHAIN SÉJOUR"
-        titleWhenOngoing="VOTRE SÉJOUR EN COURS"
-        pill={<BalancePill label="VOTRE SOLDE TS" pending={tsBalance.own.pending} ids={tsBalance.own.items.map((i) => i.id)} />}
+        titleWhenEmpty="Réserver votre séjour"
+        titleWhenUpcoming="Votre prochain séjour"
+        titleWhenOngoing="Votre séjour en cours"
+        pill={<BalancePill pending={tsBalance.own.pending} ids={tsBalance.own.items.map((i) => i.id)} />}
+        bgColor={ownerColor}
         onSaved={onBookingSaved}
         onDeleted={handlePrimaryDeleted}
         onHiddenChange={(id) => setEntryHidden('primary', id)}
@@ -215,7 +244,12 @@ export function NextStayCard({
 
       {guestEntries.map((entry) => {
         const bucket = findGuestBucket(tsBalance, entry.booking?.guest_name ?? null)
-        const guestFirstName = entry.booking?.guest_name ? firstNameOnly(entry.booking.guest_name).toUpperCase() : ''
+        const guestFirstName = entry.booking?.guest_name ? firstNameOnly(entry.booking.guest_name) : ''
+        // Couleur de cet accompagnant : sa teinte connue (chargee au
+        // montage, ou renvoyee par l'API a l'enregistrement — voir
+        // handleAddSlotSaved et le onSaved ci-dessous), sinon un repli
+        // calcule depuis son nom.
+        const guestColor = oklchForHue(entry.colorHue ?? fallbackHueForName(entry.booking?.guest_name || 'Accompagnant'))
         return (
           <StayEntry
             key={entry.localId}
@@ -224,18 +258,21 @@ export function NextStayCard({
             defaultAgeBracket="adult"
             defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
             showNameField
-            titleWhenEmpty="AJOUTER UN SÉJOUR"
-            titleWhenUpcoming={`PROCHAIN SÉJOUR ${guestFirstName}`}
-            titleWhenOngoing={`SÉJOUR ${guestFirstName} EN COURS`}
-            pill={
-              <BalancePill
-                label={bucket ? `SOLDE TS ${firstNameOnly(bucket.name).toUpperCase()}` : 'SOLDE TS'}
-                pending={bucket?.pending ?? 0}
-                ids={bucket?.items.map((i) => i.id) ?? []}
-              />
-            }
+            titleWhenEmpty="Ajouter un séjour"
+            titleWhenUpcoming={`Prochain séjour ${guestFirstName}`}
+            titleWhenOngoing={`Séjour ${guestFirstName} en cours`}
+            pill={<BalancePill pending={bucket?.pending ?? 0} ids={bucket?.items.map((i) => i.id) ?? []} />}
+            bgColor={guestColor}
             onRemoved={() => setGuestEntries((prev) => prev.filter((e) => e.localId !== entry.localId))}
-            onSaved={onBookingSaved}
+            onSaved={(saved) => {
+              onBookingSaved?.(saved)
+              // Le nom a pu changer pendant cette modification (donc,
+              // potentiellement, sa teinte assignee) : on la resynchronise
+              // avec ce que l'API a renvoye plutot que de garder l'ancienne.
+              setGuestEntries((prev) =>
+                prev.map((e) => (e.localId === entry.localId ? { ...e, colorHue: saved.colorHue } : e))
+              )
+            }}
             onDeleted={onBookingDeleted}
             onHiddenChange={(id) => setEntryHidden(entry.localId, id)}
           />
@@ -249,10 +286,10 @@ export function NextStayCard({
         defaultAgeBracket="adult"
         defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
         showNameField
-        titleWhenEmpty="AJOUTER UN SÉJOUR"
-        titleWhenUpcoming="AJOUTER UN SÉJOUR"
-        titleWhenOngoing="AJOUTER UN SÉJOUR"
-        pill={<BalancePill label="SOLDE TS" pending={0} ids={[]} />}
+        titleWhenEmpty="Ajouter un séjour"
+        titleWhenUpcoming="Ajouter un séjour"
+        titleWhenOngoing="Ajouter un séjour"
+        pill={<BalancePill pending={0} ids={[]} />}
         onSaved={handleAddSlotSaved}
         onHiddenChange={() => {}}
         hideDeleteWhenEmpty
@@ -271,6 +308,7 @@ interface StayEntryProps {
   titleWhenUpcoming: string
   titleWhenOngoing: string
   pill: React.ReactNode
+  bgColor?: string
   onRemoved?: () => void
   onSaved?: (booking: SavedStayInfo) => void
   onDeleted?: (bookingId: string) => void
@@ -301,6 +339,7 @@ function StayEntry({
   titleWhenUpcoming,
   titleWhenOngoing,
   pill,
+  bgColor,
   onRemoved,
   onSaved,
   onDeleted,
@@ -447,7 +486,7 @@ function StayEntry({
   const showDelete = !(hideDeleteWhenEmpty && !hasSavedBooking && !checkIn && !checkOut && !guestName.trim())
 
   return (
-    <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle}>
+    <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
       {showNameField && (
         <div className="space-y-2">
           <Label>Nom Prénom</Label>

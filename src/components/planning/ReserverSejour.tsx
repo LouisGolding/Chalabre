@@ -13,6 +13,10 @@ interface BookingData {
   house_side?: HouseSide | null
   notes?: string | null
   ts_payments?: TSPayment[]
+  // Teinte pastel de cet occupant (voir src/lib/colors.ts), resolue cote
+  // serveur (planning/page.tsx) -- sert a colorer le fond de la banniere
+  // correspondante dans NextStayCard.tsx (demande le 29/09/2026).
+  color_hue?: number | null
 }
 
 interface ReserverSejourProps {

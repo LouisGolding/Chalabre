@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
-import { colorForName, oklchForHue } from '@/lib/colors'
+import { colorForName, fallbackHueForName, oklchForHue } from '@/lib/colors'
 import { computeTsBalance } from '@/lib/ts-balance'
 
 // ============================================================
@@ -90,6 +90,36 @@ export default async function PlanningPage() {
 
   if (!profile) redirect('/auth/login')
 
+  // Résolution des couleurs par nom (voir buildColorResolver plus haut) :
+  // remontée ici, avant le calcul de guestFutureBookings, pour pouvoir
+  // attacher une teinte à chaque séjour d'accompagnant — sert à colorer
+  // le fond des bannières "Prochain séjour X" dans NextStayCard.tsx
+  // (demandé par Nicolas le 29/09/2026 : la bannière reprend la couleur
+  // déjà attribuée à la personne, la même que sur le planning).
+  const { data: allProfilesForColor } = await supabase
+    .from('profiles')
+    .select('first_name, last_name, color_hue')
+
+  const { data: guestPeople } = await supabase
+    .from('guest_people')
+    .select('name, color_hue')
+
+  const colorByName = new Map<string, number>()
+  for (const p of allProfilesForColor ?? []) {
+    if (typeof p.color_hue === 'number') {
+      colorByName.set(`${p.first_name} ${p.last_name}`.trim().toLowerCase(), p.color_hue)
+    }
+  }
+  for (const g of guestPeople ?? []) {
+    const key = g.name.trim().toLowerCase()
+    if (!colorByName.has(key) && typeof g.color_hue === 'number') colorByName.set(key, g.color_hue)
+  }
+  const resolveColor = buildColorResolver(colorByName)
+  // Même correspondance, mais renvoie la teinte (nombre) plutôt que la
+  // couleur CSS prête à l'emploi — c'est ce dont NextStayCard a besoin
+  // pour appliquer le même calcul (oklchForHue) que le reste du site.
+  const resolveHue = (guestName: string): number => colorByName.get(guestName.trim().toLowerCase()) ?? fallbackHueForName(guestName)
+
   // Séjour à venir du titulaire du compte + ceux déjà saisis pour des
   // accompagnants (bouton "+") : mêmes données que l'ex-widget de
   // l'accueil, pour alimenter ReserverSejour ci-dessous (widget migré ici
@@ -111,6 +141,7 @@ export default async function PlanningPage() {
   const guestFutureBookings = myFutureBookings
     .filter((b) => b.guest_name)
     .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
+    .map((b) => ({ ...b, color_hue: b.guest_name ? resolveHue(b.guest_name) : null }))
 
   const { data: bookings } = await supabase
     .from('bookings')
@@ -130,26 +161,6 @@ export default async function PlanningPage() {
   // <prénom>"). Rafraîchi ensuite en direct via /api/ts-balance (même
   // fonction) sans recharger la page.
   const initialTsBalance = await computeTsBalance(supabase, user.id)
-
-  const { data: allProfilesForColor } = await supabase
-    .from('profiles')
-    .select('first_name, last_name, color_hue')
-
-  const { data: guestPeople } = await supabase
-    .from('guest_people')
-    .select('name, color_hue')
-
-  const colorByName = new Map<string, number>()
-  for (const p of allProfilesForColor ?? []) {
-    if (typeof p.color_hue === 'number') {
-      colorByName.set(`${p.first_name} ${p.last_name}`.trim().toLowerCase(), p.color_hue)
-    }
-  }
-  for (const g of guestPeople ?? []) {
-    const key = g.name.trim().toLowerCase()
-    if (!colorByName.has(key) && typeof g.color_hue === 'number') colorByName.set(key, g.color_hue)
-  }
-  const resolveColor = buildColorResolver(colorByName)
 
   const realBookings: PlanningBooking[] = (bookings ?? []).map((b) => {
     const roomsField = (b as { rooms?: { name: string } | { name: string }[] | null }).rooms
