@@ -775,9 +775,9 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   }
 
   // Repositionne le défilement sur le début de la période affichée à
-  // chaque changement de période/vue (flèches, "Aujourd'hui", pastilles
-  // de vue) — en layout effect pour que ce repositionnement soit invisible
-  // (avant peinture), sans flash de l'ancien aperçu de jours voisins.
+  // chaque changement de période/vue (flèches, pastilles de vue) — en
+  // layout effect pour que ce repositionnement soit invisible (avant
+  // peinture), sans flash de l'ancien aperçu de jours voisins.
   useLayoutEffect(() => {
     setDisplayedStartIndex(periodStartIndex)
     if (!scrollableDays) return
@@ -833,17 +833,9 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
               elle-même masquée sur bureau (md:hidden) où elle n'a pas été
               demandée. */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            {/* "Aujourd'hui" en premier (demandé par Nicolas le
-                29/09/2026), avant les pastilles de vue — même traitement
-                visuel que celles-ci, mais ce n'est pas un mode de vue :
-                elle ramène juste currentDate à aujourd'hui. */}
-            <button
-              type="button"
-              onClick={() => setCurrentDate(new Date())}
-              className="text-xs font-normal uppercase tracking-[0.08em] text-foreground/60 transition-colors hover:text-foreground md:text-sm"
-            >
-              Aujourd&apos;hui
-            </button>
+            {/* Pastille "Aujourd'hui" retirée (demandé par Nicolas le
+                29/09/2026) — il reste les flèches et les pastilles de vue
+                ci-dessous pour naviguer. */}
             {(
               [
                 { mode: 'week' as const, label: 'Semaine', responsive: '' },
