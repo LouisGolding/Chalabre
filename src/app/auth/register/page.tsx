@@ -256,20 +256,33 @@ export default function RegisterPage() {
 
               {error && <p className="text-sm text-destructive">{error}</p>}
 
-              {/* Pastille noire uniforme, comme les autres actions
-                  principales du site (ex. "Ajouter" sur Entretien, "SE
-                  CONNECTER" sur login) — remplace le bouton bg-primary
-                  (orange terracotta) par défaut de shadcn, qui ne sert
-                  nulle part ailleurs sur le site sous cette forme. */}
+              {/* Vert olive foncé (#393F2F) + texte crème (#F5F1EF) :
+                  couleurs de la pastille "SE CONNECTER" de la page de
+                  connexion (voir login/page.tsx), reprises telles quelles
+                  ici à la demande de Nicolas le 29/09/2026 — remplace le
+                  premier essai en pastille noire uniforme (bg-foreground),
+                  lui-même déjà un remplacement du bouton bg-primary
+                  orange par défaut de shadcn. Couleurs propres à ce
+                  couple de pages (login/register), pas des variables du
+                  thème général — même logique que sur login (voir son
+                  commentaire de tête : "couleur dédiée à cette page pour
+                  coller précisément au montage").  */}
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-foreground text-background uppercase tracking-[0.12em] hover:bg-foreground/85"
+                className="w-full rounded-xl bg-[#393F2F] text-[#F5F1EF] uppercase tracking-[0.12em] hover:bg-[#393F2F]/90"
               >
                 {loading ? 'Création du compte...' : 'Créer mon compte'}
               </Button>
             </form>
 
+            {/* "Se connecter" demandé en gris foncé, comme les libellés
+                de la grille d'onglets (Planning, Réalisations... voir
+                TileNav.tsx) — déjà le cas ici (text-foreground, même
+                variable que ces libellés) depuis le premier passage de
+                cette page en text-foreground : rien à changer, gardé tel
+                quel plutôt que remis en noir/vert comme le bouton
+                au-dessus. */}
             <p className="text-center text-sm text-muted-foreground">
               Déjà un compte ?{' '}
               <Link href="/auth/login" className="font-medium text-foreground hover:underline">
