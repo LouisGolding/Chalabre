@@ -804,7 +804,10 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h2 className="text-lg font-semibold text-foreground capitalize min-w-[140px] text-center">
+          {/* Majuscules (au lieu de capitalize, qui ne mettait en
+              majuscule que la premiere lettre) demande par Nicolas le
+              29/09/2026 -- le gras (font-semibold) est conserve. */}
+          <h2 className="text-lg font-semibold text-foreground uppercase min-w-[140px] text-center">
             {title}
           </h2>
           <Button
