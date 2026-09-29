@@ -36,6 +36,12 @@ const ADMIN_ITEMS = [
 // Texte en text-foreground sur ces pages, demandé par Nicolas le
 // 28/09/2026 : même couleur que les libellés de la grille d'onglets
 // (Planning, Entretien, Réalisations... voir TileNav.tsx).
+//
+// Graisse normale (font-normal), pas grasse — changé le 29/09/2026 à la
+// demande de Nicolas (était en font-bold depuis toujours). Sert aussi de
+// référence de couleur pour l'accueil (voir dashboard/page.tsx,
+// text-white/60) : les libellés inactifs de ce bandeau utilisent déjà ce
+// même blanc à 60% d'opacité sur fond photo.
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   const items = role === 'admin' ? ADMIN_ITEMS : []
@@ -43,7 +49,7 @@ export function BottomNav({ role }: { role: UserRole }) {
 
   const linkClass = (active: boolean) =>
     cn(
-      'text-xs md:text-sm font-bold uppercase tracking-wide transition-opacity',
+      'text-xs md:text-sm font-normal uppercase tracking-wide transition-opacity',
       hasPhotoBackground
         ? active
           ? 'text-white'

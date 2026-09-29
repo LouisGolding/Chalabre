@@ -42,7 +42,7 @@ export function TaxeSejourPill({ amount, ids }: TaxeSejourPillProps) {
       className="group inline-flex items-center border border-white px-3 py-1.5 text-xs uppercase tracking-[0.12em] transition-colors hover:bg-white hover:opacity-100 md:text-sm"
     >
       <span
-        className="bg-clip-text text-white transition-colors group-hover:text-transparent"
+        className="bg-clip-text text-white/60 transition-colors group-hover:text-transparent"
         style={{
           backgroundImage: "url('/images/accueil-bg-v2.jpg')",
           backgroundSize: 'cover',
