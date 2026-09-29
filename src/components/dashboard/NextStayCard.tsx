@@ -7,7 +7,7 @@ import { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
 import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
-import { colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
+import { colorForPaletteIndex, coloredTextureStyle, fallbackIndexForName } from '@/lib/colors'
 
 type AgeBracket = 'child' | 'adult'
 
@@ -193,7 +193,7 @@ function StayBanner({
   return (
     <div
       className={cn('rounded-xl border border-border backdrop-blur-sm', !bgColor && 'bg-card/40')}
-      style={bgColor ? { backgroundColor: bgColor } : undefined}
+      style={bgColor ? coloredTextureStyle(bgColor) : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <button

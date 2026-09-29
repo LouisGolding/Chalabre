@@ -28,7 +28,7 @@ import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn, calculateTotalTS, firstNameOnly } from '@/lib/utils'
-import { colorForName } from '@/lib/colors'
+import { colorForName, coloredTextureStyle } from '@/lib/colors'
 import { BookingEditModal } from '@/components/planning/BookingEditModal'
 import type { HouseSide } from '@/types'
 
@@ -1056,7 +1056,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                             style={{
                               gridColumn: `${seg.start + 2} / ${seg.end + 3}`,
                               gridRow,
-                              backgroundColor: row.color,
+                              ...coloredTextureStyle(row.color),
                             }}
                             title={`${row.label} · du ${format(
                               days[Math.min(seg.start, dayCount - 1)] ?? rangeStart,
@@ -1140,7 +1140,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               displaySeg.startsInRange ? 'rounded-l-full' : '',
                               displaySeg.endsInRange ? 'rounded-r-full' : ''
                             )}
-                            style={{ backgroundColor: row.color, opacity: isDragging ? 0.75 : 1 }}
+                            style={{ ...coloredTextureStyle(row.color), opacity: isDragging ? 0.75 : 1 }}
                           />
                           {canDrag && displaySeg.startsInRange && (
                             <div

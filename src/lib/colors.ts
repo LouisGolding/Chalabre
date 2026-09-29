@@ -296,3 +296,27 @@ export function nuclearFamilyFor(family: FamilyGroup, firstName: string): string
   const hit = NUCLEAR_FAMILY_LOOKUP.find(([fam, name]) => fam === family && name === key)
   return hit ? hit[2] : null
 }
+
+/**
+ * Fond "papier" appliqué par-dessus une couleur de personne (demandé par
+ * Nicolas le 29/09/2026, "pour avoir une cohérence esthétique sur tout le
+ * site") : réutilise exactement la même image que le fond de page
+ * (public/images/texture-papier.jpg, voir globals.css) et la même échelle
+ * de répétition (307x205px), pour un grain identique partout. Le mélange
+ * `multiply` avec cette image très claire (grain quasi blanc, R/V/B moyens
+ * ~246/240/233 sur 255) ne fonce la couleur de base que de quelques % au
+ * maximum, là où le grain est le plus marqué -- la teinte reste donc
+ * reconnaissable telle quelle, seul un léger grain papier s'ajoute par
+ * dessus, plutôt qu'un aplat plat. À utiliser partout où une couleur de
+ * personne est posée en fond (bannières, barres du planning) pour rester
+ * cohérent avec le reste du site.
+ */
+export function coloredTextureStyle(color: string) {
+  return {
+    backgroundColor: color,
+    backgroundImage: "url('/images/texture-papier.jpg')",
+    backgroundRepeat: 'repeat',
+    backgroundSize: '307px 205px',
+    backgroundBlendMode: 'multiply',
+  } as const
+}
