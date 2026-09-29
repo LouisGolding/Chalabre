@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fallbackHueForName, nearbyHue } from '@/lib/colors'
+import { fallbackIndexForName, nearbyIndex } from '@/lib/colors'
+import type { FamilyGroup } from '@/types'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 // Crée ou met à jour un séjour saisi depuis le widget "Prochain séjour" de
@@ -37,7 +38,11 @@ import { findClosestNameMatch } from '@/lib/fuzzy-name'
 // dès l'enregistrement (demandé par Aurélie le 21/09/2026 — voir
 // PlanningPageClient.tsx), sans attendre un rechargement de page.
 interface GuestColorResult {
+  // Index de palette (0-49, voir src/lib/colors.ts) — à lire conjointement
+  // avec `family` ci-dessous pour obtenir la couleur CSS
+  // (colorForPaletteIndex(family, index)).
   hue: number | null
+  family: FamilyGroup | null
   // Nom "officiel" à enregistrer sur le séjour quand la saisie
   // correspondait (avec tolérance aux fautes de frappe, voir
   // src/lib/fuzzy-name.ts) à un compte ou à un accompagnant déjà connu —
@@ -55,20 +60,28 @@ async function ensureGuestColor(
 ): Promise<GuestColorResult> {
   const typed = guestName.trim()
 
-  const { data: profiles } = await supabase.from('profiles').select('first_name, last_name, color_hue')
+  const { data: profiles } = await supabase.from('profiles').select('first_name, last_name, family_group, color_hue')
   const profileNames = (profiles ?? []).map((p) => `${p.first_name} ${p.last_name}`.trim())
   const profileMatchIndex = findClosestNameMatch(typed, profileNames)
   if (profileMatchIndex !== -1) {
     const matched = profiles![profileMatchIndex]
-    return { hue: matched.color_hue ?? null, canonicalName: profileNames[profileMatchIndex] }
+    return {
+      hue: matched.color_hue ?? null,
+      family: (matched.family_group as FamilyGroup) ?? null,
+      canonicalName: profileNames[profileMatchIndex],
+    }
   }
 
-  const { data: guests } = await supabase.from('guest_people').select('name, color_hue')
+  const { data: guests } = await supabase.from('guest_people').select('name, family_group, color_hue')
   const guestNames = (guests ?? []).map((g) => g.name)
   const guestMatchIndex = findClosestNameMatch(typed, guestNames)
   if (guestMatchIndex !== -1) {
     const matched = guests![guestMatchIndex]
-    return { hue: matched.color_hue ?? null, canonicalName: matched.name }
+    return {
+      hue: matched.color_hue ?? null,
+      family: (matched.family_group as FamilyGroup) ?? null,
+      canonicalName: matched.name,
+    }
   }
 
   const { data: creator } = await supabase
@@ -77,13 +90,18 @@ async function ensureGuestColor(
     .eq('id', creatorId)
     .single()
 
-  const anchorHue = creator?.color_hue ?? fallbackHueForName(typed)
-  const hue = nearbyHue(anchorHue, typed.toLowerCase())
+  // Famille de l'accompagnant = celle de la personne qui saisit son séjour
+  // (aucune notion de famille propre pour un accompagnant sans compte) —
+  // 'friend' par défaut si, pour une raison ou une autre, le créateur n'a
+  // pas de family_group (ne devrait pas arriver, colonne obligatoire).
+  const family: FamilyGroup = (creator?.family_group as FamilyGroup) ?? 'friend'
+  const anchorIndex = creator?.color_hue ?? fallbackIndexForName(typed)
+  const hue = nearbyIndex(anchorIndex, typed.toLowerCase())
 
   const { error: insertError } = await supabase.from('guest_people').insert({
     name: typed,
     color_hue: hue,
-    family_group: creator?.family_group ?? null,
+    family_group: family,
     created_by: creatorId,
   })
 
@@ -96,14 +114,20 @@ async function ensureGuestColor(
     if (insertError.code === '23505') {
       const { data: raceWinner } = await supabase
         .from('guest_people')
-        .select('name, color_hue')
+        .select('name, family_group, color_hue')
         .ilike('name', typed)
         .maybeSingle()
-      if (raceWinner) return { hue: raceWinner.color_hue ?? null, canonicalName: raceWinner.name }
+      if (raceWinner) {
+        return {
+          hue: raceWinner.color_hue ?? null,
+          family: (raceWinner.family_group as FamilyGroup) ?? null,
+          canonicalName: raceWinner.name,
+        }
+      }
     }
   }
 
-  return { hue, canonicalName: null }
+  return { hue, family, canonicalName: null }
 }
 
 export async function POST(request: Request) {
@@ -152,13 +176,16 @@ export async function POST(request: Request) {
   // accompagnant déjà connu — voir ensureGuestColor.
   let resolvedGuestName = normalizedGuestName
   let colorHue: number | null = null
+  let colorFamily: FamilyGroup | null = null
   if (normalizedGuestName) {
     const result = await ensureGuestColor(supabase, normalizedGuestName, user.id)
     colorHue = result.hue
+    colorFamily = result.family
     if (result.canonicalName) resolvedGuestName = result.canonicalName
   } else {
-    const { data: ownProfile } = await supabase.from('profiles').select('color_hue').eq('id', user.id).single()
+    const { data: ownProfile } = await supabase.from('profiles').select('color_hue, family_group').eq('id', user.id).single()
     colorHue = ownProfile?.color_hue ?? null
+    colorFamily = (ownProfile?.family_group as FamilyGroup) ?? null
   }
 
   let targetBookingId: string
@@ -277,6 +304,7 @@ export async function POST(request: Request) {
     paidAmount,
     pendingPayment,
     colorHue,
+    colorFamily,
   })
 }
 

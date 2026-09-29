@@ -4,8 +4,8 @@ import { useMemo, useState } from 'react'
 import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { ReserverSejour } from '@/components/planning/ReserverSejour'
 import { SavedStayInfo } from '@/components/dashboard/NextStayCard'
-import { oklchForHue, colorForName } from '@/lib/colors'
-import type { HouseSide, Profile, TSPayment } from '@/types'
+import { colorForName, colorForPaletteIndex } from '@/lib/colors'
+import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 import type { TsBalanceResult } from '@/lib/ts-balance'
 
 interface BookingData {
@@ -15,10 +15,13 @@ interface BookingData {
   guest_name?: string | null
   house_side?: HouseSide | null
   ts_payments?: TSPayment[]
-  // Teinte pastel de cet occupant (voir src/lib/colors.ts), resolue cote
-  // serveur (planning/page.tsx) -- sert a colorer le fond de la banniere
-  // correspondante dans NextStayCard.tsx (demande le 29/09/2026).
+  // Couleur de cet occupant (voir src/lib/colors.ts -- depuis le
+  // 29/09/2026, color_hue est un index de palette, a lire avec
+  // color_family), resolue cote serveur (planning/page.tsx) -- sert a
+  // colorer le fond de la banniere correspondante dans NextStayCard.tsx
+  // (demande le 29/09/2026).
   color_hue?: number | null
+  color_family?: FamilyGroup | null
 }
 
 interface PlanningPageClientProps {
@@ -85,8 +88,8 @@ export function PlanningPageClient({
   const handleBookingSaved = (booking: SavedStayInfo) => {
     const isGuest = !!booking.guest_name
     const color =
-      booking.colorHue !== null
-        ? oklchForHue(booking.colorHue)
+      booking.colorHue !== null && booking.colorFamily
+        ? colorForPaletteIndex(booking.colorFamily, booking.colorHue)
         : colorForName(booking.guest_name || profile.first_name)
 
     const next: PlanningBooking = {

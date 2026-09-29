@@ -25,10 +25,14 @@ export interface Profile {
   rib: string | null
   avatar_url: string | null
   created_at: string
-  // Teinte pastel assignee a ce compte (voir src/lib/colors.ts) --
-  // recalculee et persistee a l'inscription (handle_new_user) ou par
-  // migration_profile_colors.sql pour les comptes deja existants. Peut
-  // etre null pour un compte tres ancien jamais recalcule.
+  // Couleur assignee a ce compte (voir src/lib/colors.ts) -- recalculee et
+  // persistee a l'inscription (handle_new_user) ou par migration pour les
+  // comptes deja existants. Depuis le 29/09/2026 (palette Argile), c'est un
+  // INDEX DE PALETTE (0-49, pas un angle en degres) a lire conjointement
+  // avec family_group (colorForPaletteIndex(family_group, color_hue)) --
+  // le nom de colonne n'a pas change pour ne pas renommer une colonne deja
+  // en production, voir l'en-tete de src/lib/colors.ts. Peut etre null pour
+  // un compte tres ancien jamais recalcule.
   color_hue: number | null
 }
 

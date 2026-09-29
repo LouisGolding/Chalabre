@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
-import { colorForName, fallbackHueForName, oklchForHue } from '@/lib/colors'
+import { colorForName, colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
+import type { FamilyGroup } from '@/types'
 import { computeTsBalance } from '@/lib/ts-balance'
 
 // ============================================================
@@ -65,14 +66,25 @@ const TEST_EVENTS: PlanningEvent[] = [
 // src/app/api/bookings/quick/route.ts, qui l'alimente). Si rien n'est
 // trouvé (séjour antérieur à la mise en place de ce système), une couleur
 // est recalculée à la volée à partir du nom, sans être enregistrée.
-function buildColorResolver(colorByName: Map<string, number>) {
-  return function resolveColor(guestName: string | null, ownerHue: number | null | undefined): string {
+// Référence de couleur résolue pour une personne : sa famille (quelle
+// palette utiliser, voir src/lib/colors.ts) + son index dans cette palette.
+interface PaletteRef {
+  family: FamilyGroup
+  index: number
+}
+
+function buildColorResolver(colorByName: Map<string, PaletteRef>) {
+  return function resolveColor(
+    guestName: string | null,
+    ownerFamily: FamilyGroup | null | undefined,
+    ownerIndex: number | null | undefined
+  ): string {
     if (guestName) {
-      const hue = colorByName.get(guestName.trim().toLowerCase())
-      if (hue !== undefined) return oklchForHue(hue)
+      const ref = colorByName.get(guestName.trim().toLowerCase())
+      if (ref) return colorForPaletteIndex(ref.family, ref.index)
       return colorForName(guestName)
     }
-    if (ownerHue !== null && ownerHue !== undefined) return oklchForHue(ownerHue)
+    if (ownerFamily && ownerIndex !== null && ownerIndex !== undefined) return colorForPaletteIndex(ownerFamily, ownerIndex)
     return colorForName('Séjour')
   }
 }
@@ -98,27 +110,34 @@ export default async function PlanningPage() {
   // déjà attribuée à la personne, la même que sur le planning).
   const { data: allProfilesForColor } = await supabase
     .from('profiles')
-    .select('first_name, last_name, color_hue')
+    .select('first_name, last_name, family_group, color_hue')
 
   const { data: guestPeople } = await supabase
     .from('guest_people')
-    .select('name, color_hue')
+    .select('name, family_group, color_hue')
 
-  const colorByName = new Map<string, number>()
+  const colorByName = new Map<string, PaletteRef>()
   for (const p of allProfilesForColor ?? []) {
-    if (typeof p.color_hue === 'number') {
-      colorByName.set(`${p.first_name} ${p.last_name}`.trim().toLowerCase(), p.color_hue)
+    if (typeof p.color_hue === 'number' && p.family_group) {
+      colorByName.set(`${p.first_name} ${p.last_name}`.trim().toLowerCase(), {
+        family: p.family_group as FamilyGroup,
+        index: p.color_hue,
+      })
     }
   }
   for (const g of guestPeople ?? []) {
     const key = g.name.trim().toLowerCase()
-    if (!colorByName.has(key) && typeof g.color_hue === 'number') colorByName.set(key, g.color_hue)
+    if (!colorByName.has(key) && typeof g.color_hue === 'number' && g.family_group) {
+      colorByName.set(key, { family: g.family_group as FamilyGroup, index: g.color_hue })
+    }
   }
   const resolveColor = buildColorResolver(colorByName)
-  // Même correspondance, mais renvoie la teinte (nombre) plutôt que la
-  // couleur CSS prête à l'emploi — c'est ce dont NextStayCard a besoin
-  // pour appliquer le même calcul (oklchForHue) que le reste du site.
-  const resolveHue = (guestName: string): number => colorByName.get(guestName.trim().toLowerCase()) ?? fallbackHueForName(guestName)
+  // Même correspondance, mais renvoie la référence de palette (famille +
+  // index) plutôt que la couleur CSS prête à l'emploi — c'est ce dont
+  // NextStayCard a besoin pour appliquer le même calcul
+  // (colorForPaletteIndex) que le reste du site.
+  const resolvePaletteRef = (guestName: string): PaletteRef =>
+    colorByName.get(guestName.trim().toLowerCase()) ?? { family: 'friend', index: fallbackIndexForName(guestName) }
 
   // Séjour à venir du titulaire du compte + ceux déjà saisis pour des
   // accompagnants (bouton "+") : mêmes données que l'ex-widget de
@@ -141,7 +160,10 @@ export default async function PlanningPage() {
   const guestFutureBookings = myFutureBookings
     .filter((b) => b.guest_name)
     .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
-    .map((b) => ({ ...b, color_hue: b.guest_name ? resolveHue(b.guest_name) : null }))
+    .map((b) => {
+      const ref = b.guest_name ? resolvePaletteRef(b.guest_name) : null
+      return { ...b, color_hue: ref?.index ?? null, color_family: ref?.family ?? null }
+    })
 
   const { data: bookings } = await supabase
     .from('bookings')
@@ -197,7 +219,7 @@ export default async function PlanningPage() {
             date_of_birth: profileObj.date_of_birth ?? null,
           }
         : null,
-      color: resolveColor(b.guest_name ?? null, profileObj?.color_hue),
+      color: resolveColor(b.guest_name ?? null, profileObj?.family_group as FamilyGroup | undefined, profileObj?.color_hue),
     }
   })
 

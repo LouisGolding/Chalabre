@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { differenceInYears, parseISO } from 'date-fns'
 import { calculateTotalTS, cn, firstNameOnly, formatCurrency, normalizeName, stayPhase } from '@/lib/utils'
-import { HouseSide, Profile, TSPayment } from '@/types'
+import { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
 import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
-import { fallbackHueForName, oklchForHue } from '@/lib/colors'
+import { colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
 
 type AgeBracket = 'child' | 'adult'
 
@@ -30,9 +30,11 @@ interface BookingData {
   house_side?: HouseSide | null
   notes?: string | null
   ts_payments?: TSPayment[]
-  // Teinte pastel de cet occupant (voir src/lib/colors.ts), resolue cote
-  // serveur -- sert a colorer le fond de sa banniere ci-dessous.
+  // Couleur de cet occupant (voir src/lib/colors.ts -- depuis le 29/09/2026,
+  // color_hue est un index de palette, a lire avec color_family), resolue
+  // cote serveur -- sert a colorer le fond de sa banniere ci-dessous.
   color_hue?: number | null
+  color_family?: FamilyGroup | null
 }
 
 export interface SavedStayInfo {
@@ -42,6 +44,7 @@ export interface SavedStayInfo {
   guest_name: string | null
   house_side: HouseSide | null
   colorHue: number | null
+  colorFamily: FamilyGroup | null
 }
 
 interface NextStayCardProps {
@@ -227,14 +230,23 @@ export function NextStayCard({
 }: NextStayCardProps) {
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
-  // Couleur du titulaire (voir src/lib/colors.ts) : sa teinte enregistree
-  // en base si elle existe deja, sinon un repli calcule depuis son nom
-  // (memes regles que le planning, resolveColor dans planning/page.tsx).
-  const ownerHue = typeof profile.color_hue === 'number' ? profile.color_hue : fallbackHueForName(`${profile.first_name} ${profile.last_name}`)
-  const ownerColor = oklchForHue(ownerHue)
+  // Couleur du titulaire (voir src/lib/colors.ts) : son index de palette
+  // enregistre en base (dans sa propre famille) si connu, sinon un repli
+  // calcule depuis son nom (memes regles que le planning, resolveColor
+  // dans planning/page.tsx).
+  const ownerIndex =
+    typeof profile.color_hue === 'number' ? profile.color_hue : fallbackIndexForName(`${profile.first_name} ${profile.last_name}`)
+  const ownerColor = colorForPaletteIndex(profile.family_group, ownerIndex)
 
-  const [guestEntries, setGuestEntries] = useState<{ localId: string; booking: BookingData | null; colorHue: number | null }[]>(
-    () => guestBookings.map((b) => ({ localId: b.id, booking: b, colorHue: typeof b.color_hue === 'number' ? b.color_hue : null }))
+  const [guestEntries, setGuestEntries] = useState<
+    { localId: string; booking: BookingData | null; colorHue: number | null; colorFamily: FamilyGroup | null }[]
+  >(() =>
+    guestBookings.map((b) => ({
+      localId: b.id,
+      booking: b,
+      colorHue: typeof b.color_hue === 'number' ? b.color_hue : null,
+      colorFamily: b.color_family ?? null,
+    }))
   )
   const [primaryBooking, setPrimaryBooking] = useState<BookingData | null>(booking)
   const [primaryResetKey, setPrimaryResetKey] = useState(0)
@@ -281,6 +293,7 @@ export function NextStayCard({
           house_side: saved.house_side,
         },
         colorHue: saved.colorHue,
+        colorFamily: saved.colorFamily,
       },
     ])
     setAddSlotResetKey((k) => k + 1)
@@ -309,11 +322,16 @@ export function NextStayCard({
       {guestEntries.map((entry) => {
         const bucket = findGuestBucket(tsBalance, entry.booking?.guest_name ?? null)
         const guestFirstName = entry.booking?.guest_name ? firstNameOnly(entry.booking.guest_name) : ''
-        // Couleur de cet accompagnant : sa teinte connue (chargee au
-        // montage, ou renvoyee par l'API a l'enregistrement — voir
-        // handleAddSlotSaved et le onSaved ci-dessous), sinon un repli
-        // calcule depuis son nom.
-        const guestColor = oklchForHue(entry.colorHue ?? fallbackHueForName(entry.booking?.guest_name || 'Accompagnant'))
+        // Couleur de cet accompagnant : son index de palette connu (charge
+        // au montage, ou renvoye par l'API a l'enregistrement — voir
+        // handleAddSlotSaved et le onSaved ci-dessous) dans sa famille
+        // connue (sinon celle du titulaire du compte, par defaut), sinon un
+        // repli calcule depuis son nom.
+        const guestFamily = entry.colorFamily ?? profile.family_group
+        const guestColor = colorForPaletteIndex(
+          guestFamily,
+          entry.colorHue ?? fallbackIndexForName(entry.booking?.guest_name || 'Accompagnant')
+        )
         return (
           <StayEntry
             key={entry.localId}
@@ -335,7 +353,7 @@ export function NextStayCard({
               // potentiellement, sa teinte assignee) : on la resynchronise
               // avec ce que l'API a renvoye plutot que de garder l'ancienne.
               setGuestEntries((prev) =>
-                prev.map((e) => (e.localId === entry.localId ? { ...e, colorHue: saved.colorHue } : e))
+                prev.map((e) => (e.localId === entry.localId ? { ...e, colorHue: saved.colorHue, colorFamily: saved.colorFamily } : e))
               )
             }}
             onDeleted={onBookingDeleted}
@@ -522,6 +540,7 @@ function StayEntry({
         guest_name: showNameField ? guestName.trim() || null : null,
         house_side: houseSide,
         colorHue: typeof data.colorHue === 'number' ? data.colorHue : null,
+        colorFamily: data.colorFamily ?? null,
       })
     } catch (err) {
       const timedOut = err instanceof Error && err.name === 'AbortError'

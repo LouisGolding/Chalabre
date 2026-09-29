@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { NextStayCard, SavedStayInfo } from '@/components/dashboard/NextStayCard'
 import type { TsBalanceResult } from '@/lib/ts-balance'
-import type { HouseSide, Profile, TSPayment } from '@/types'
+import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 
 interface BookingData {
   id: string
@@ -13,10 +13,13 @@ interface BookingData {
   house_side?: HouseSide | null
   notes?: string | null
   ts_payments?: TSPayment[]
-  // Teinte pastel de cet occupant (voir src/lib/colors.ts), resolue cote
-  // serveur (planning/page.tsx) -- sert a colorer le fond de la banniere
-  // correspondante dans NextStayCard.tsx (demande le 29/09/2026).
+  // Couleur de cet occupant (voir src/lib/colors.ts -- depuis le
+  // 29/09/2026, color_hue est un index de palette, a lire avec
+  // color_family), resolue cote serveur (planning/page.tsx) -- sert a
+  // colorer le fond de la banniere correspondante dans NextStayCard.tsx
+  // (demande le 29/09/2026).
   color_hue?: number | null
+  color_family?: FamilyGroup | null
 }
 
 interface ReserverSejourProps {
