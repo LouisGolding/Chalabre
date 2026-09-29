@@ -114,11 +114,12 @@ type ViewMode = 'week' | 'fortnight' | 'month' | 'year'
 const LABEL_COL = 'clamp(96px, 22vw, 190px)'
 
 // Nombre de jours gardés en mémoire tampon de chaque côté de la période
-// affichée (~2 mois, demandé par Nicolas le 29/09/2026), pour permettre
-// un aperçu par glissement horizontal sans recharger la grille — voir le
-// commentaire ci-dessus. En jours (et non en nombre de périodes) pour que
-// la profondeur du tampon soit la même en semaine et en quinzaine.
-const BUFFER_DAYS = 60
+// affichée (~1 mois, demandé par Nicolas le 29/09/2026 — d'abord 2 mois,
+// réduit le même jour), pour permettre un aperçu par glissement
+// horizontal sans recharger la grille — voir le commentaire ci-dessus. En
+// jours (et non en nombre de périodes) pour que la profondeur du tampon
+// soit la même en semaine et en quinzaine.
+const BUFFER_DAYS = 30
 
 interface Segment {
   id: string
@@ -860,7 +861,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
 
       {/* Grille. En semaine/quinzaine, la période affichée (7/14 jours)
           remplit exactement la largeur de l'écran (voir gridTemplateColumns),
-          mais quelques jours supplémentaires (~2 mois, BUFFER_DAYS) sont
+          mais quelques jours supplémentaires (~1 mois, BUFFER_DAYS) sont
           gardés en tampon de chaque côté : un glissement horizontal permet
           d'apercevoir les jours précédents/suivants — sans changer de
           période, la navigation passe toujours par les flèches uniquement
@@ -1008,6 +1009,20 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
 
               {section.rows.map((row, idx) => {
                 const gridRow = section.rowStarts[idx]
+                // Estompe le prénom dans la colonne fixe quand aucun des
+                // séjours de cette ligne ne recoupe la fenêtre de jours
+                // actuellement visible à l'écran (displayedStartIndex, mis
+                // à jour en temps réel pendant le scroll — voir
+                // handleScroll) : reste lisible pour repérer une présence
+                // toute proche hors écran, sans faire apparaître/
+                // disparaître la ligne elle-même ni changer la hauteur de
+                // la grille pendant le glissement. Toujours pleinement
+                // visible en mois/année (pas de fenêtre de scroll).
+                const isRowInView =
+                  !scrollableDays ||
+                  row.segments.some(
+                    (seg) => seg.end >= displayedStartIndex && seg.start <= displayedStartIndex + periodDayCount - 1
+                  )
                 return (
                   <Fragment key={row.key}>
                     <div
@@ -1018,7 +1033,12 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                       className="sticky left-0 z-10 flex min-w-0 items-center bg-card px-3 py-0.5"
                       style={{ gridColumn: 1, gridRow }}
                     >
-                      <span className="truncate text-sm font-medium leading-tight text-foreground">
+                      <span
+                        className={cn(
+                          'truncate text-sm font-medium leading-tight transition-opacity',
+                          isRowInView ? 'text-foreground' : 'text-foreground/30'
+                        )}
+                      >
                         {row.label}
                       </span>
                     </div>
