@@ -1,13 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 interface GuideCardProps {
   title: string
-  content: string
+  // Accepte aussi bien une simple chaine multi-lignes (whitespace-pre-line
+  // s'en charge) qu'un contenu plus riche (ex. mise en forme partielle
+  // pour "Dechetterie", tableau pour "Cheminee") -- demande par Nicolas
+  // le 29/09/2026.
+  content: ReactNode
   defaultOpen?: boolean
 }
 
@@ -40,7 +44,10 @@ export function GuideCard({ title, content, defaultOpen = false }: GuideCardProp
       </CardHeader>
       {isOpen && (
         <CardContent>
-          <p className="text-sm text-muted-foreground whitespace-pre-line">{content}</p>
+          {/* div plutot que p : certains contenus (tableau Cheminee)
+              incluent des elements de bloc, invalides a l'interieur d'un
+              <p>. whitespace-pre-line reste sans effet sur ce contenu. */}
+          <div className="text-sm text-muted-foreground whitespace-pre-line">{content}</div>
         </CardContent>
       )}
     </Card>

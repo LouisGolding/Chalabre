@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
@@ -5,8 +6,15 @@ import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
 import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
 import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
 import { GuideCard } from '@/components/guide/GuideCard'
+import { FireplacesTable } from '@/components/guide/FireplacesTable'
 
-const guideContent = [
+// Widgets temporairement masqués à la demande de Nicolas le 29/09/2026 —
+// le contenu / la logique restent en place (données, requêtes, imports),
+// prêts à être réaffichés en repassant ces constantes à true.
+const SHOW_ARRIVEE_SECTION = false
+const SHOW_GAS_BOTTLES = false
+
+const guideContent: { category: string; items: { title: string; content: ReactNode }[] }[] = [
   {
     category: 'Arrivée',
     items: [
@@ -31,11 +39,16 @@ const guideContent = [
       {
         title: 'Dernier occupant',
         content: [
+          // "ait" -> "a" (faute de conjugaison : "vérifiez que" appelle
+          // l'indicatif, pas le subjonctif) + nouvel item 4 "Videz les
+          // poubelles de la souillarde", numéros suivants décalés —
+          // demandé par Nicolas le 29/09/2026.
           '1. Mêmes actions pour votre chambre',
-          '2. Vérifiez que chaque chambre ait un couvre-lit, des volets et fenêtres fermées',
+          '2. Vérifiez que chaque chambre a un couvre-lit, des volets et fenêtres fermées',
           '3. Videz les 3 réfrigérateurs (Cave / Cuisine RDC / Cuisine 2ème)',
-          '4. Rentrez et rangez le mobilier de jardin',
-          '5. Prévoyez un passage de la femme de ménage si nécessaire',
+          '4. Videz les poubelles de la souillarde',
+          '5. Rentrez et rangez le mobilier de jardin',
+          '6. Prévoyez un passage de la femme de ménage si nécessaire',
         ].join('\n'),
       },
     ]
@@ -43,35 +56,42 @@ const guideContent = [
   {
     category: 'Organisation',
     items: [
-      { title: 'Draps et linge', content: 'Emplacement à compléter.' },
+      {
+        title: 'Draps et linge',
+        content: 'Vos draps doivent être lavés, pliés et rangés avant votre départ.',
+      },
       { title: 'Zoning des placards', content: 'Plan à compléter par l\'administrateur.' },
       {
         title: 'Poubelles',
-        content: 'À déposer à l\'entrée du village, après le pont, ou bien au Cazal.',
+        content: 'Les poubelles sont à déposer à l\'entrée du village, après le pont, ou bien au Cazal.',
       },
       {
         title: 'Déchetterie',
-        content: [
-          'Juillet / Août :',
-          '· Mardi au vendredi de 8h à 13h30',
-          '· Samedi de 8h à 12h',
-          '',
-          'Le reste de l\'année :',
-          '· Mardi 13h-16h30',
-          '· Mercredi, jeudi et vendredi 9h30-12h30 et 13h-16h30',
-          '· Samedi 9h30-12h30',
-          '',
-          'Se munir de la carte Nomitaove pour accéder à la déchetterie.',
-        ].join('\n'),
+        // "Juillet / Août" et "Le reste de l'année" en gras majuscules —
+        // demandé par Nicolas le 29/09/2026. Contenu enrichi (plus une
+        // simple chaîne) : voir GuideCard/content en ReactNode.
+        content: (
+          <div className="space-y-3">
+            <div>
+              <p className="font-bold uppercase text-foreground">Juillet / Août :</p>
+              <p>· Mardi au vendredi de 8h à 13h30</p>
+              <p>· Samedi de 8h à 12h</p>
+            </div>
+            <div>
+              <p className="font-bold uppercase text-foreground">Le reste de l&apos;année :</p>
+              <p>· Mardi 13h-16h30</p>
+              <p>· Mercredi, jeudi et vendredi 9h30-12h30 et 13h-16h30</p>
+              <p>· Samedi 9h30-12h30</p>
+            </div>
+            <p>Se munir de la carte Nomitaove pour accéder à la déchetterie.</p>
+          </div>
+        ),
       },
       {
         title: 'Cheminée',
-        content: [
-          'RDC – Bureau Antoine',
-          '· Ramonée : à compléter (oui/non)',
-          '· Date de dernier ramonage : à compléter',
-          '· Utilisable : à compléter (oui/non)',
-        ].join('\n'),
+        // Remplace l'ancienne fiche à une seule cheminée par le tableau
+        // complet (zone / étage / pièce) — voir FireplacesTable.tsx.
+        content: <FireplacesTable />,
       },
     ]
   },
@@ -86,7 +106,8 @@ export default async function GuidePage() {
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   // "Bouteilles de gaz" : modifiable par tout compte famille ou admin,
-  // jamais les amis — demandé par Aurélie le 22/09/2026.
+  // jamais les amis — demandé par Aurélie le 22/09/2026. Widget masqué
+  // pour le moment (voir SHOW_GAS_BOTTLES) mais logique conservée.
   const canEditGasBottles = profile?.role === 'admin' || profile?.role === 'family'
 
   const { data: gasBottlesStatus } = await supabase
@@ -118,16 +139,18 @@ export default async function GuidePage() {
         <p className="text-sm text-muted-foreground">15, route de Lavelanet · Chalabre, 11230</p>
       </div>
 
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-base px-3 py-1">Arrivée</Badge>
-        </h2>
-        <div className="space-y-3">
-          {arriveeItems.map(item => (
-            <GuideCard key={item.title} title={item.title} content={item.content} />
-          ))}
+      {SHOW_ARRIVEE_SECTION && (
+        <div>
+          <h2 className="text-lg font-semibold text-foreground mb-3">
+            <Badge variant="outline" className="text-base px-3 py-1">Arrivée</Badge>
+          </h2>
+          <div className="space-y-3">
+            {arriveeItems.map(item => (
+              <GuideCard key={item.title} title={item.title} content={item.content} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">
@@ -155,11 +178,13 @@ export default async function GuidePage() {
           {organisationBeforeGas.map(item => (
             <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
-          <GasBottlesCard
-            editable={canEditGasBottles}
-            initialCount={gasBottlesStatus?.count ?? null}
-            initialLastRefillDate={gasBottlesStatus?.last_refill_date ?? null}
-          />
+          {SHOW_GAS_BOTTLES && (
+            <GasBottlesCard
+              editable={canEditGasBottles}
+              initialCount={gasBottlesStatus?.count ?? null}
+              initialLastRefillDate={gasBottlesStatus?.last_refill_date ?? null}
+            />
+          )}
           {organisationAfterGas.map(item => (
             <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
