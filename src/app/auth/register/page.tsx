@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -89,16 +90,58 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50 px-4 py-8">
+    // Refonte visuelle du 29/09/2026, demandée par Nicolas : cette page
+    // était restée sur le gabarit shadcn par défaut (fond bg-stone-50,
+    // titres en gris stone-800/500), seule page du site à ne pas avoir
+    // suivi la refonte de fin septembre (texture papier, palette sépia,
+    // typographie EB Garamond des titres, pastilles noires). Le fond
+    // bg-stone-50 ci-dessous a simplement été retiré : la texture papier
+    // du <body> (voir globals.css, appliquée globalement) apparaît donc
+    // ici aussi, sans rien dupliquer. Tout le reste (Card, Input, Select,
+    // Button) utilisait déjà les bonnes variables de couleur du thème
+    // (bg-card, border-input, bg-primary...) — seul l'habillage de cette
+    // page elle-même (fond, titres, bouton) était resté générique.
+    <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-stone-800 mb-2">La Bâtisse</h1>
-          <p className="text-stone-500">Rejoindre la maison familiale</p>
+        {/* Logo + wordmark : remplace le simple texte "La Bâtisse" par le
+            même bloc dessin + wordmark que sur la page de connexion (voir
+            src/app/auth/login/page.tsx), réduit aux 3/4 (demandé par
+            Nicolas : "réduit sa taille de 1/4") puisque cette page n'a
+            pas de photo en fond pour lui donner de l'ampleur comme sur
+            login. "Rejoindre la maison familiale" est gardé en dessous
+            (rôle propre à cette page) plutôt que remplacé par "Chalabre
+            - 11230" (la légende utilisée sur login) : les deux pages ont
+            besoin d'un sous-titre différent. */}
+        <div className="mb-8 flex flex-col items-center text-center">
+          <Image
+            src="/images/logo-batisse-drawing.png"
+            alt="La Bâtisse"
+            width={1897}
+            height={652}
+            priority
+            className="h-auto w-[45%] max-w-[183px]"
+          />
+          <h1 className="mt-2 font-serif text-4xl uppercase tracking-[0.1em] text-foreground md:text-5xl">
+            La Bâtisse
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">Rejoindre la maison familiale</p>
         </div>
 
-        <Card>
+        {/* Card légèrement plus arrondie (rounded-2xl) + une ombre douce,
+            pour un rendu plus "dessiné" que le rounded-xl par défaut du
+            composant Card — cohérent avec la carte email/mot de passe de
+            la page de connexion (elle aussi rounded-2xl + shadow-lg). */}
+        <Card className="rounded-2xl shadow-lg">
           <CardHeader>
-            <CardTitle>Créer un compte</CardTitle>
+            {/* Même traitement que les titres de page du reste du site
+                (Planning, Entretien... voir dashboard/layout.tsx et le
+                point 18 de points-a-regler-avec-louis.md) : MAJUSCULES,
+                espacement de lettres, graisse normale — plutôt que le
+                CardTitle par défaut (petit, graisse medium, casse
+                normale). */}
+            <CardTitle className="text-lg font-normal uppercase tracking-wide text-foreground">
+              Créer un compte
+            </CardTitle>
             <CardDescription>Renseignez vos informations pour rejoindre La Bâtisse</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -180,7 +223,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -203,7 +246,7 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setShowConfirm(!showConfirm)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     tabIndex={-1}
                   >
                     {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -211,16 +254,25 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-sm text-destructive">{error}</p>}
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              {/* Pastille noire uniforme, comme les autres actions
+                  principales du site (ex. "Ajouter" sur Entretien, "SE
+                  CONNECTER" sur login) — remplace le bouton bg-primary
+                  (orange terracotta) par défaut de shadcn, qui ne sert
+                  nulle part ailleurs sur le site sous cette forme. */}
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-xl bg-foreground text-background uppercase tracking-[0.12em] hover:bg-foreground/85"
+              >
                 {loading ? 'Création du compte...' : 'Créer mon compte'}
               </Button>
             </form>
 
-            <p className="text-center text-sm text-stone-500">
+            <p className="text-center text-sm text-muted-foreground">
               Déjà un compte ?{' '}
-              <Link href="/auth/login" className="text-primary hover:underline font-medium">
+              <Link href="/auth/login" className="font-medium text-foreground hover:underline">
                 Se connecter
               </Link>
             </p>
