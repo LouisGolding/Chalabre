@@ -73,12 +73,12 @@ const guideContent: { category: string; items: { title: string; content: ReactNo
         content: (
           <div className="space-y-3">
             <div>
-              <p className="font-bold uppercase text-foreground">Juillet / Août :</p>
+              <p className="font-semibold uppercase text-foreground">Juillet / Août :</p>
               <p>· Mardi au vendredi de 8h à 13h30</p>
               <p>· Samedi de 8h à 12h</p>
             </div>
             <div>
-              <p className="font-bold uppercase text-foreground">Le reste de l&apos;année :</p>
+              <p className="font-semibold uppercase text-foreground">Le reste de l&apos;année :</p>
               <p>· Mardi 13h-16h30</p>
               <p>· Mercredi, jeudi et vendredi 9h30-12h30 et 13h-16h30</p>
               <p>· Samedi 9h30-12h30</p>
@@ -86,12 +86,6 @@ const guideContent: { category: string; items: { title: string; content: ReactNo
             <p>Se munir de la carte Nomitaove pour accéder à la déchetterie.</p>
           </div>
         ),
-      },
-      {
-        title: 'Cheminée',
-        // Remplace l'ancienne fiche à une seule cheminée par le tableau
-        // complet (zone / étage / pièce) — voir FireplacesTable.tsx.
-        content: <FireplacesTable />,
       },
     ]
   },
@@ -109,6 +103,10 @@ export default async function GuidePage() {
   // jamais les amis — demandé par Aurélie le 22/09/2026. Widget masqué
   // pour le moment (voir SHOW_GAS_BOTTLES) mais logique conservée.
   const canEditGasBottles = profile?.role === 'admin' || profile?.role === 'family'
+  // Tout l'onglet Guide sera à terme éditable par les comptes admin
+  // uniquement, fixe pour tous les autres — demandé par Nicolas le
+  // 29/09/2026. Premier widget concerné : "Cheminées" (voir plus bas).
+  const isAdmin = profile?.role === 'admin'
 
   const { data: gasBottlesStatus } = await supabase
     .from('gas_bottles_status')
@@ -117,11 +115,17 @@ export default async function GuidePage() {
     .limit(1)
     .maybeSingle()
 
+  const { data: fireplaceRows } = await supabase.from('fireplace_status').select('room_key, status')
+  const fireplaceStatuses: Record<string, 'usable' | 'not_usable' | null> = {}
+  for (const row of fireplaceRows ?? []) {
+    fireplaceStatuses[row.room_key] = row.status as 'usable' | 'not_usable' | null
+  }
+
   const arriveeItems = guideContent.find((c) => c.category === 'Arrivée')!.items
   const departItems = guideContent.find((c) => c.category === 'Départ')!.items
   const organisationItems = guideContent.find((c) => c.category === 'Organisation')!.items
   // "Bouteilles de gaz" est un widget éditable (voir GasBottlesCard),
-  // inséré entre "Déchetterie" et "Cheminée" — ordre demandé par Aurélie.
+  // inséré juste après "Déchetterie" — ordre demandé par Aurélie.
   const dechetterieIndex = organisationItems.findIndex((item) => item.title === 'Déchetterie')
   const organisationBeforeGas = organisationItems.slice(0, dechetterieIndex + 1)
   const organisationAfterGas = organisationItems.slice(dechetterieIndex + 1)
@@ -188,6 +192,13 @@ export default async function GuidePage() {
           {organisationAfterGas.map(item => (
             <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
+          {/* "Cheminées" : rendu à part (pas dans guideContent) car son
+              contenu dépend de données chargées ici (statuts + rôle admin)
+              — voir FireplacesTable.tsx. */}
+          <GuideCard
+            title="Cheminées"
+            content={<FireplacesTable isAdmin={isAdmin} initialStatuses={fireplaceStatuses} />}
+          />
         </div>
       </div>
     </div>
