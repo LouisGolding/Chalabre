@@ -1,60 +1,95 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 export interface MemberRow {
   id: string
   firstName: string
   lastName: string
   email: string
-  familyGroup: 'lalande' | 'canat' | 'friend'
   role: 'admin' | 'family' | 'friend'
-  tsDueThisYear: number
-  nextStay: string | null
   createdAt: string
 }
 
-const statusLabel: Record<MemberRow['familyGroup'], string> = {
-  lalande: 'Famille LALANDE',
-  canat: 'Famille CANAT',
-  friend: 'Invité',
+// Libellé affiché sur la pastille "Autorisations" — un compte 'family' et
+// un compte 'friend' s'affichent tous deux "Membre" (seule la distinction
+// admin/non-admin est actionnable ici, voir toggleAdmin) : même
+// simplification que dans la version précédente de ce tableau. Exposé en
+// dehors du composant pour être réutilisé aussi bien à l'affichage qu'au
+// tri par colonne "Autorisations" (voir sortValue ci-dessous).
+function roleLabel(role: MemberRow['role']): string {
+  return role === 'admin' ? 'Admin' : 'Membre'
 }
 
-type SortKey = 'alpha' | 'stay' | 'due'
+type SortKey = 'lastName' | 'firstName' | 'email' | 'role' | 'createdAt'
+type SortDir = 'asc' | 'desc'
 
-const SORT_LABELS: Record<SortKey, string> = {
-  alpha: 'Ordre alphabétique',
-  stay: 'Date de séjour',
-  due: 'Taxe due',
+const COLUMNS: { key: SortKey; label: string }[] = [
+  { key: 'lastName', label: 'Nom' },
+  { key: 'firstName', label: 'Prénom' },
+  { key: 'email', label: 'Email' },
+  { key: 'role', label: 'Autorisations' },
+  { key: 'createdAt', label: 'Créé le' },
+]
+
+function sortValue(row: MemberRow, key: SortKey): string {
+  switch (key) {
+    case 'lastName':
+      return row.lastName
+    case 'firstName':
+      return row.firstName
+    case 'email':
+      return row.email
+    case 'role':
+      return roleLabel(row.role)
+    case 'createdAt':
+      return row.createdAt
+  }
 }
 
-// Tableau "Membres" (admin uniquement) : liste de tous les comptes, avec
-// leur solde de taxe de séjour sur l'année en cours et un bouton
-// "Autorisations" pour donner/retirer l'accès admin — un peu comme la
-// case admin d'un groupe WhatsApp. Tri au choix : alphabétique, date de
-// séjour (le prochain à venir), ou taxe due (la plus élevée en premier).
+// Tableau "Membres" (admin uniquement) — un par catégorie (CANAT / LALANDE
+// / INVITÉS, voir admin/page.tsx qui instancie ce composant trois fois),
+// avec un bouton "Autorisations" pour donner/retirer l'accès admin — un
+// peu comme la case admin d'un groupe WhatsApp.
+//
+// Refonte du 29/09/2026, demandée par Nicolas : plus de rangée de
+// pastilles "Trier par :" au-dessus du tableau — le tri se fait
+// maintenant en cliquant directement sur l'en-tête d'une colonne
+// (Nom/Prénom/Email/Autorisations/Créé le), un second clic sur la même
+// colonne inverse l'ordre (même mécanique qu'un tableur). Tri par défaut :
+// Nom, ordre alphabétique. Les colonnes Statut (redondante maintenant que
+// chaque famille a son propre tableau) et Solde TS année en cours (qui
+// rejoindra l'onglet Suivi paiements plus tard) ont été retirées.
 export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
   const [rows, setRows] = useState(initialRows)
-  const [sortKey, setSortKey] = useState<SortKey>('alpha')
+  const [sortKey, setSortKey] = useState<SortKey>('lastName')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [pending, setPending] = useState<string | null>(null)
 
-  const sorted = useMemo(() => {
-    const copy = [...rows]
-    if (sortKey === 'alpha') {
-      copy.sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
-    } else if (sortKey === 'stay') {
-      copy.sort((a, b) => {
-        if (!a.nextStay && !b.nextStay) return 0
-        if (!a.nextStay) return 1
-        if (!b.nextStay) return -1
-        return a.nextStay.localeCompare(b.nextStay)
-      })
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     } else {
-      copy.sort((a, b) => b.tsDueThisYear - a.tsDueThisYear)
+      setSortKey(key)
+      setSortDir('asc')
     }
+  }
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
+    const copy = [...rows]
+    copy.sort((a, b) => {
+      const primary = sortValue(a, sortKey).localeCompare(sortValue(b, sortKey))
+      if (primary !== 0) return dir * primary
+      // Égalité (ex. deux "Membre", ou même nom de famille) : on retombe
+      // toujours sur Nom puis Prénom pour un ordre stable et prévisible.
+      return (
+        dir * (a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
+      )
+    })
     return copy
-  }, [rows, sortKey])
+  }, [rows, sortKey, sortDir])
 
   const toggleAdmin = async (row: MemberRow) => {
     const makeAdmin = row.role !== 'admin'
@@ -76,68 +111,56 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Trier par :</span>
-        {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setSortKey(key)}
-            className={`inline-flex h-7 items-center justify-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
-              sortKey === key
-                ? 'bg-foreground text-background'
-                : 'border border-border bg-card text-foreground hover:bg-muted'
-            }`}
-          >
-            {SORT_LABELS[key]}
-          </button>
-        ))}
-      </div>
-
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[880px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-              <th className="px-3 py-2 font-medium">Nom</th>
-              <th className="px-3 py-2 font-medium">Prénom</th>
-              <th className="px-3 py-2 font-medium">Email</th>
-              <th className="px-3 py-2 font-medium">Statut</th>
-              <th className="px-3 py-2 font-medium">Solde TS (année en cours)</th>
-              <th className="px-3 py-2 font-medium">Autorisations</th>
-              <th className="px-3 py-2 font-medium">Créé le</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((row) => (
-              <tr key={row.id} className="border-b border-border last:border-0">
-                <td className="px-3 py-2.5 font-medium text-foreground">{row.lastName}</td>
-                <td className="px-3 py-2.5 text-foreground">{row.firstName}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{row.email}</td>
-                <td className="px-3 py-2.5 text-foreground">{statusLabel[row.familyGroup]}</td>
-                <td className="px-3 py-2.5 text-foreground">
-                  {row.tsDueThisYear > 0 ? formatCurrency(row.tsDueThisYear) : '—'}
-                </td>
-                <td className="px-3 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => toggleAdmin(row)}
-                    disabled={pending === row.id}
-                    className={`inline-flex h-7 items-center justify-center rounded-lg px-2.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                      row.role === 'admin'
-                        ? 'bg-foreground text-background'
-                        : 'border border-border bg-card text-foreground hover:bg-muted'
-                    }`}
-                  >
-                    {row.role === 'admin' ? 'Admin' : 'Membre'}
-                  </button>
-                </td>
-                <td className="px-3 py-2.5 text-muted-foreground">{formatDate(row.createdAt)}</td>
-              </tr>
+    <div className="overflow-x-auto rounded-lg border border-border">
+      <table className="w-full min-w-[640px] text-left text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+            {COLUMNS.map((col) => (
+              <th key={col.key} className="px-3 py-2 font-medium">
+                <button
+                  type="button"
+                  onClick={() => handleSort(col.key)}
+                  className="inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-foreground"
+                >
+                  {col.label}
+                  {sortKey === col.key && <span aria-hidden="true">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                </button>
+              </th>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => (
+            <tr key={row.id} className="border-b border-border last:border-0">
+              <td className="px-3 py-2.5 font-medium text-foreground">{row.lastName}</td>
+              <td className="px-3 py-2.5 text-foreground">{row.firstName}</td>
+              <td className="px-3 py-2.5 text-muted-foreground">{row.email}</td>
+              <td className="px-3 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => toggleAdmin(row)}
+                  disabled={pending === row.id}
+                  className={`inline-flex h-7 items-center justify-center rounded-lg px-2.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                    row.role === 'admin'
+                      ? 'bg-foreground text-background'
+                      : 'border border-border bg-card text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {roleLabel(row.role)}
+                </button>
+              </td>
+              <td className="px-3 py-2.5 text-muted-foreground">{formatDate(row.createdAt)}</td>
+            </tr>
+          ))}
+          {sorted.length === 0 && (
+            <tr>
+              <td colSpan={COLUMNS.length} className="px-3 py-4 text-center text-muted-foreground">
+                Aucun membre pour l&apos;instant.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   )
 }
