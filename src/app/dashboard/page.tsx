@@ -152,16 +152,19 @@ export default async function DashboardPage() {
             - activité (tiret) -> "Tâche ce mois ci" : 2×G (mt-12)
             Texte courant en casse normale, lignes de données en
             MAJUSCULES super bold (font-extrabold — le poids le plus fort
-            que l'EB Garamond variable propose). Couleur : blanc à 60%
-            d'opacité (text-white/60), pas blanc plein — changé le
-            29/09/2026 à la demande de Nicolas, pour reprendre le même
-            gris clair que les libellés du bandeau du bas sur cette page
-            (Membres/Suivi paiements/Se déconnecter, voir BottomNav.tsx)
-            plutôt que du blanc pur. isFriend / CotisationPill :
+            que l'EB Garamond variable propose). Couleur : text-background
+            ("blanc cassé", le ton crème du fond de page ailleurs sur le
+            site, oklch(0.98 0.007 75) — voir globals.css), pas blanc pur.
+            Un premier essai en blanc à 60% d'opacité (text-white/60), le
+            29/09/2026, a été jugé par Nicolas trop peu lisible sur la
+            photo — remplacé le jour même par ce blanc cassé à pleine
+            opacité, gardé aussi pour le bandeau du bas sur cette page
+            (Membres/Suivi paiements/Se déconnecter, voir BottomNav.tsx).
+            isFriend / CotisationPill :
             la pastille "Cotisation mensuelle" qui vivait ici est retirée
             de l'accueil (toujours utilisée ailleurs, composant non
             supprimé). */}
-        <h1 className="text-2xl font-normal text-white/60 md:text-3xl">
+        <h1 className="text-2xl font-normal text-background md:text-3xl">
           Bonjour {profile.first_name}
         </h1>
 
@@ -171,8 +174,8 @@ export default async function DashboardPage() {
             demandé par Nicolas). */}
         {nextBooking ? (
           <div className="mt-6">
-            <p className="text-lg font-normal text-white/60 md:text-xl">Votre prochain séjour</p>
-            <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.12em] text-white/60 md:text-base">
+            <p className="text-lg font-normal text-background md:text-xl">Votre prochain séjour</p>
+            <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.12em] text-background md:text-base">
               {formatDateLong(nextBooking.check_in)} - {formatDateLong(nextBooking.check_out)}
             </p>
             {tsBalance && (
@@ -186,7 +189,7 @@ export default async function DashboardPage() {
           </div>
         ) : (
           lastStaySentence && (
-            <p className="mt-6 text-sm font-light text-white/60 md:text-base">{lastStaySentence}</p>
+            <p className="mt-6 text-sm font-light text-background md:text-base">{lastStaySentence}</p>
           )
         )}
 
@@ -201,12 +204,12 @@ export default async function DashboardPage() {
             (demandé par Nicolas : "doivent toujours être alignées"). */}
         <div className="mt-12 grid grid-cols-2 gap-x-4">
           <div>
-            <p className="text-lg font-normal text-white/60 md:text-xl">Aujourd&rsquo;hui</p>
-            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-white/60 md:text-sm">-</p>
+            <p className="text-lg font-normal text-background md:text-xl">Aujourd&rsquo;hui</p>
+            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
           </div>
           <div>
-            <p className="text-lg font-normal text-white/60 md:text-xl">Demain</p>
-            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-white/60 md:text-sm">-</p>
+            <p className="text-lg font-normal text-background md:text-xl">Demain</p>
+            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
           </div>
         </div>
 
@@ -216,14 +219,14 @@ export default async function DashboardPage() {
             développer plus tard, demandé par Nicolas : pour l'instant
             tiret "-" en attendant. */}
         <Link href="/dashboard/taches" className="mt-12 block w-fit">
-          <p className="text-lg font-normal text-white/60 md:text-xl">Tâche ce mois ci</p>
-          <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-white/60 md:text-sm">-</p>
+          <p className="text-lg font-normal text-background md:text-xl">Tâche ce mois ci</p>
+          <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
         </Link>
 
         {/* "Présents en ce moment" masqué (pas supprimé) le 27/09/2026 à la
             demande de Nicolas : "je verrai plus tard comment et où on
             l'affiche". presentSentence reste calculé plus haut. */}
-        {/* <p className="mt-[85px] font-normal text-base md:text-lg text-white/60">{presentSentence}</p> */}
+        {/* <p className="mt-[85px] font-normal text-base md:text-lg text-background">{presentSentence}</p> */}
       </div>
 
 

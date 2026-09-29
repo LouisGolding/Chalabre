@@ -28,20 +28,22 @@ const ADMIN_ITEMS = [
 //
 // Fond noir (bg-foreground) retiré le 27/09/2026 à la demande de Nicolas :
 // transparent, laisse voir la photo plein écran de la page d'accueil
-// (voir dashboard/page.tsx) au lieu d'un bandeau noir. Texte en blanc
-// (comme le reste du contenu sur la photo depuis le retrait du voile)
-// plutôt que text-background/text-foreground, pensés pour un fond noir
-// opaque — uniquement sur l'accueil : ailleurs (fond texturé, voir
-// globals.css), le blanc devenait quasi illisible sur ce fond clair.
-// Texte en text-foreground sur ces pages, demandé par Nicolas le
-// 28/09/2026 : même couleur que les libellés de la grille d'onglets
-// (Planning, Entretien, Réalisations... voir TileNav.tsx).
+// (voir dashboard/page.tsx) au lieu d'un bandeau noir. Texte en
+// text-foreground sur les pages à fond texturé (Planning, Entretien...),
+// demandé par Nicolas le 28/09/2026 : même couleur que les libellés de
+// la grille d'onglets (voir TileNav.tsx).
+//
+// Sur l'accueil (photo en fond) uniquement : texte en text-background
+// ("blanc cassé", le ton crème du fond de page ailleurs sur le site —
+// voir globals.css) plutôt que du blanc pur ou du gris. Deux essais
+// avant celui-ci, le 29/09/2026 : blanc plein d'abord, puis blanc à 60%
+// d'opacité (jugé peu lisible par Nicolas) — voir dashboard/page.tsx
+// pour le même historique sur le reste du texte de cette page, qui
+// utilise désormais la même couleur.
 //
 // Graisse normale (font-normal), pas grasse — changé le 29/09/2026 à la
-// demande de Nicolas (était en font-bold depuis toujours). Sert aussi de
-// référence de couleur pour l'accueil (voir dashboard/page.tsx,
-// text-white/60) : les libellés inactifs de ce bandeau utilisent déjà ce
-// même blanc à 60% d'opacité sur fond photo.
+// demande de Nicolas (était en font-bold depuis toujours), sur tous les
+// onglets (pas seulement l'accueil).
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   const items = role === 'admin' ? ADMIN_ITEMS : []
@@ -52,8 +54,8 @@ export function BottomNav({ role }: { role: UserRole }) {
       'text-xs md:text-sm font-normal uppercase tracking-wide transition-opacity',
       hasPhotoBackground
         ? active
-          ? 'text-white'
-          : 'text-white/60 hover:text-white'
+          ? 'text-background'
+          : 'text-background/60 hover:text-background'
         : active
           ? 'text-foreground'
           : 'text-foreground/60 hover:text-foreground'
