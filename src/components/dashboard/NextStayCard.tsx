@@ -652,8 +652,12 @@ function StayEntry({
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Ex: Gare de Pamiers 14h45"
           className={cn(
-            'min-w-[9rem] flex-1 border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-muted-foreground md:text-sm',
-            light ? 'text-foreground/60' : 'text-foreground'
+            'min-w-[9rem] flex-1 border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground placeholder:font-normal placeholder:normal-case placeholder:tracking-normal md:text-sm',
+            // Gris clair du placeholder aligne sur les libelles non
+            // selectionnes (0-16 ans / Canat / Petite maison, opacity-60
+            // sur text-foreground) plutot que le token muted-foreground
+            // (trop brun/fonce) -- demande par Nicolas le 29/09/2026.
+            light ? 'text-foreground/60 placeholder:text-foreground/40' : 'text-foreground placeholder:text-foreground/60'
           )}
         />
       </div>
