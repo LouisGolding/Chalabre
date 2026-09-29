@@ -806,8 +806,9 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
           </Button>
           {/* Majuscules (au lieu de capitalize, qui ne mettait en
               majuscule que la premiere lettre) demande par Nicolas le
-              29/09/2026 -- le gras (font-semibold) est conserve. */}
-          <h2 className="text-lg font-semibold text-foreground uppercase min-w-[140px] text-center">
+              29/09/2026 -- le gras (font-semibold) est conserve. Taille
+              ramenee de 18px (text-lg) a 16px (text-base) le meme jour. */}
+          <h2 className="text-base font-semibold text-foreground uppercase min-w-[140px] text-center">
             {title}
           </h2>
           <Button
