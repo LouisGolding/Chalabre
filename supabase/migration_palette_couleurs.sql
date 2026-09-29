@@ -221,25 +221,60 @@ from per_person pp
 where pp.id = p.id;
 
 -- --- 5. Recalcul de color_hue pour les accompagnants sans compte -----
--- Toujours ancrés à la couleur (fraîchement recalculée ci-dessus) de la
+-- Par défaut, ancré à la couleur (fraîchement recalculée ci-dessus) de la
 -- personne qui a saisi leur tout premier séjour — même mécanisme que
--- ensureGuestColor() dans src/app/api/bookings/quick/route.ts. Les
--- lignes dont le créateur n'existe plus (created_by devenu null, compte
--- supprimé) ne sont pas concernées par cette jointure et gardent leur
--- ancienne valeur — sans conséquence grave : colorForPaletteIndex() côté
--- JS ramène toujours n'importe quelle valeur dans la palette par modulo,
--- jamais d'erreur, juste une teinte pas recalculée.
+-- ensureGuestColor() dans src/app/api/bookings/quick/route.ts. Depuis le
+-- 29/09/2026 (suite à un test réel de Nicolas : "Otto Lalande" saisi
+-- comme accompagnant, ni rattaché à la famille Lalande ni rapproché de sa
+-- couleur), quand le PRÉNOM de l'accompagnant correspond à une famille
+-- nucléaire connue (_nuclear_family_lookup ci-dessus), on s'ancre plutôt
+-- sur le membre le plus ANCIEN de cette même famille nucléaire — plus
+-- fiable que "qui a saisi le séjour" (ex. Otto reste proche de Nicolas
+-- même si un jour c'est Aurélie qui saisit son séjour). Même logique que
+-- nuclearFamilyFor() côté JS (src/lib/colors.ts), à garder synchronisée.
+-- Les lignes dont le créateur n'existe plus (created_by devenu null,
+-- compte supprimé) ne sont pas concernées par cette jointure et gardent
+-- leur ancienne valeur — sans conséquence grave : colorForPaletteIndex()
+-- côté JS ramène toujours n'importe quelle valeur dans la palette par
+-- modulo, jamais d'erreur, juste une teinte pas recalculée.
+with guest_family as (
+  select
+    g.id,
+    g.name,
+    coalesce(g.family_group, p.family_group) as resolved_family,
+    p.color_hue as creator_hue
+  from public.guest_people g
+  join public.profiles p on p.id = g.created_by
+),
+guest_anchor as (
+  select
+    gf.id,
+    gf.name,
+    gf.resolved_family,
+    coalesce(
+      (
+        select pp.color_hue
+        from public.profiles pp
+        where pp.family_group = gf.resolved_family
+          and pp.nuclear_family = public._nuclear_family_lookup(gf.resolved_family, split_part(gf.name, ' ', 1))
+        order by pp.created_at asc
+        limit 1
+      ),
+      gf.creator_hue
+    ) as anchor_hue
+  from guest_family gf
+)
 update public.guest_people g
 set
   color_hue = mod(
-    round(p.color_hue)::int
+    round(ga.anchor_hue)::int
       + round(((abs(mod(hashtext(lower(btrim(g.name)))::bigint, 2000))) / 1000.0 - 1) * 3)::int
       + 50,
     50
   ),
-  family_group = coalesce(g.family_group, p.family_group)
-from public.profiles p
-where p.id = g.created_by;
+  family_group = ga.resolved_family
+from guest_anchor ga
+where ga.id = g.id;
 
 -- --- 6. handle_new_user() : palette + famille nucléaire pour les -----
 --        futures inscriptions

@@ -110,14 +110,19 @@ export default async function PlanningPage() {
   // déjà attribuée à la personne, la même que sur le planning).
   const { data: allProfilesForColor } = await supabase
     .from('profiles')
-    .select('first_name, last_name, family_group, color_hue')
+    .select('id, first_name, last_name, family_group, color_hue')
 
   const { data: guestPeople } = await supabase
     .from('guest_people')
-    .select('name, family_group, color_hue')
+    .select('name, family_group, color_hue, created_by')
 
   const colorByName = new Map<string, PaletteRef>()
+  // Famille de chaque compte, par id -- sert de repli ci-dessous pour un
+  // accompagnant dont la famille n'a pas (encore) été enregistrée (voir
+  // le repli sur celle du créateur, juste après).
+  const familyById = new Map<string, FamilyGroup>()
   for (const p of allProfilesForColor ?? []) {
+    if (p.family_group) familyById.set(p.id, p.family_group as FamilyGroup)
     if (typeof p.color_hue === 'number' && p.family_group) {
       colorByName.set(`${p.first_name} ${p.last_name}`.trim().toLowerCase(), {
         family: p.family_group as FamilyGroup,
@@ -127,9 +132,16 @@ export default async function PlanningPage() {
   }
   for (const g of guestPeople ?? []) {
     const key = g.name.trim().toLowerCase()
-    if (!colorByName.has(key) && typeof g.color_hue === 'number' && g.family_group) {
-      colorByName.set(key, { family: g.family_group as FamilyGroup, index: g.color_hue })
-    }
+    if (colorByName.has(key) || typeof g.color_hue !== 'number') continue
+    // Repli si `family_group` n'a pas (encore) été enregistré sur cette
+    // entrée (ex. accompagnant saisi avant l'ajout de cette détection,
+    // voir src/app/api/bookings/quick/route.ts, ensureGuestColor, qui la
+    // répare désormais au prochain enregistrement touchant ce nom) : on
+    // reprend la famille de la personne qui l'a saisi plutôt que de
+    // retomber sur la palette "invité" par défaut, presque toujours fausse
+    // pour un accompagnant réellement membre de la famille (ex. Otto).
+    const family = (g.family_group as FamilyGroup | null) ?? (g.created_by ? familyById.get(g.created_by) : undefined)
+    if (family) colorByName.set(key, { family, index: g.color_hue })
   }
   const resolveColor = buildColorResolver(colorByName)
   // Même correspondance, mais renvoie la référence de palette (famille +

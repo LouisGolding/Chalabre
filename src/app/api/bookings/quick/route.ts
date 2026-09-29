@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { fallbackIndexForName, nearbyIndex } from '@/lib/colors'
+import { fallbackIndexForName, nearbyIndex, nuclearFamilyFor } from '@/lib/colors'
 import type { FamilyGroup } from '@/types'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
@@ -60,7 +60,9 @@ async function ensureGuestColor(
 ): Promise<GuestColorResult> {
   const typed = guestName.trim()
 
-  const { data: profiles } = await supabase.from('profiles').select('first_name, last_name, family_group, color_hue')
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('first_name, last_name, family_group, color_hue, created_at')
   const profileNames = (profiles ?? []).map((p) => `${p.first_name} ${p.last_name}`.trim())
   const profileMatchIndex = findClosestNameMatch(typed, profileNames)
   if (profileMatchIndex !== -1) {
@@ -69,18 +71,6 @@ async function ensureGuestColor(
       hue: matched.color_hue ?? null,
       family: (matched.family_group as FamilyGroup) ?? null,
       canonicalName: profileNames[profileMatchIndex],
-    }
-  }
-
-  const { data: guests } = await supabase.from('guest_people').select('name, family_group, color_hue')
-  const guestNames = (guests ?? []).map((g) => g.name)
-  const guestMatchIndex = findClosestNameMatch(typed, guestNames)
-  if (guestMatchIndex !== -1) {
-    const matched = guests![guestMatchIndex]
-    return {
-      hue: matched.color_hue ?? null,
-      family: (matched.family_group as FamilyGroup) ?? null,
-      canonicalName: matched.name,
     }
   }
 
@@ -95,7 +85,54 @@ async function ensureGuestColor(
   // 'friend' par défaut si, pour une raison ou une autre, le créateur n'a
   // pas de family_group (ne devrait pas arriver, colonne obligatoire).
   const family: FamilyGroup = (creator?.family_group as FamilyGroup) ?? 'friend'
-  const anchorIndex = creator?.color_hue ?? fallbackIndexForName(typed)
+
+  // Famille nucléaire de l'accompagnant saisi (ajouté le 29/09/2026, suite
+  // à un test réel de Nicolas : "Otto Lalande" saisi comme accompagnant
+  // n'était ni rattaché à la famille Lalande, ni rapproché de sa couleur).
+  // Si son PRÉNOM correspond à une famille nucléaire connue (voir
+  // nuclearFamilyFor, src/lib/colors.ts), on cherche le membre le plus
+  // ANCIEN déjà inscrit dans cette même famille nucléaire pour s'ancrer
+  // sur SA couleur -- plus fiable que de s'ancrer sur le créateur du
+  // séjour, qui n'est pas forcément le bon repère (ex. si un jour
+  // quelqu'un d'autre que Nicolas/Aurélie saisit le séjour d'Otto).
+  const guestFirstName = typed.split(' ')[0] ?? typed
+  const nuclearKey = nuclearFamilyFor(family, guestFirstName)
+  const nuclearAnchorIndex = (() => {
+    if (!nuclearKey) return null
+    const members = (profiles ?? [])
+      .filter(
+        (p) =>
+          p.family_group === family &&
+          typeof p.color_hue === 'number' &&
+          nuclearFamilyFor(family, p.first_name) === nuclearKey
+      )
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    return members[0]?.color_hue ?? null
+  })()
+
+  const { data: guests } = await supabase.from('guest_people').select('id, name, family_group, color_hue')
+  const guestNames = (guests ?? []).map((g) => g.name)
+  const guestMatchIndex = findClosestNameMatch(typed, guestNames)
+  if (guestMatchIndex !== -1) {
+    const matched = guests![guestMatchIndex]
+    if (!matched.family_group) {
+      // Réparation d'une entrée existante mal rattachée (family_group
+      // manquant -- ex. Otto, saisi avant que cette détection existe) :
+      // on complète sa famille, et si on a trouvé une famille nucléaire,
+      // on recale aussi sa couleur sur le bon ancrage plutôt que de la
+      // laisser indéfiniment dans le repli "invité".
+      const repairedHue = nuclearAnchorIndex !== null ? nearbyIndex(nuclearAnchorIndex, typed.toLowerCase()) : matched.color_hue
+      await supabase.from('guest_people').update({ family_group: family, color_hue: repairedHue }).eq('id', matched.id)
+      return { hue: repairedHue ?? null, family, canonicalName: matched.name }
+    }
+    return {
+      hue: matched.color_hue ?? null,
+      family: (matched.family_group as FamilyGroup) ?? null,
+      canonicalName: matched.name,
+    }
+  }
+
+  const anchorIndex = nuclearAnchorIndex ?? creator?.color_hue ?? fallbackIndexForName(typed)
   const hue = nearbyIndex(anchorIndex, typed.toLowerCase())
 
   const { error: insertError } = await supabase.from('guest_people').insert({

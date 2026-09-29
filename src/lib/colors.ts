@@ -178,3 +178,121 @@ export function fallbackIndexForName(name: string, size: number = PALETTE_SIZE):
 export function colorForName(name: string, family: FamilyGroup = 'friend'): string {
   return colorForPaletteIndex(family, fallbackIndexForName(name))
 }
+
+// ============================================================
+// Familles nucléaires — détection par prénom (ajoutée le 29/09/2026,
+// suite à un test réel de Nicolas : "Otto Lalande" saisi comme
+// accompagnant sans compte n'était rattaché ni à la famille Lalande, ni
+// rapproché de la couleur de Nicolas). Reprend EXACTEMENT la même liste
+// que la fonction SQL public._nuclear_family_lookup() dans
+// supabase/migration_palette_couleurs.sql — les deux doivent rester
+// synchronisées à la main (même limite déjà acceptée pour la formule de
+// l'angle d'or, dupliquée entre ce fichier et handle_new_user()).
+//
+// Utilisée pour deux choses :
+//   1. src/app/api/bookings/quick/route.ts (ensureGuestColor) : quand un
+//      accompagnant SANS COMPTE est saisi, détecter s'il appartient à une
+//      famille nucléaire connue pour l'ancrer sur le bon membre (le plus
+//      ancien déjà inscrit dans cette famille nucléaire) plutôt que sur
+//      la seule personne qui a saisi le séjour.
+//   2. La migration SQL fait la même chose côté handle_new_user() pour
+//      les comptes -- cette liste JS ne duplique PAS ce mécanisme-là
+//      (aucune requête profiles.nuclear_family ici, cette colonne peut ne
+//      pas encore exister tant que la migration n'est pas appliquée) :
+//      elle ne sert qu'à repérer, par PRÉNOM, un candidat parmi les
+//      comptes déjà chargés en mémoire côté appelant.
+//
+// ⚠️ Même avertissement que côté SQL : correspondance par PRÉNOM SEUL
+// (aucun nom de famille donné par Nicolas pour la plupart des personnes),
+// risque d'homonymie au sein d'une même family_group.
+const NUCLEAR_FAMILY_LOOKUP: readonly [FamilyGroup, string, string][] = [
+  // LALANDE
+  ['lalande', 'emmanuelle', 'lal-emmanuelle-barbarin'],
+  ['lalande', 'guilhem', 'lal-emmanuelle-barbarin'],
+  ['lalande', 'zoé', 'lal-emmanuelle-barbarin'],
+  ['lalande', 'zoe', 'lal-emmanuelle-barbarin'],
+  ['lalande', 'agathe', 'lal-emmanuelle-barbarin'],
+  ['lalande', 'oscar', 'lal-emmanuelle-barbarin'],
+  ['lalande', 'olivier', 'lal-olivier'],
+  ['lalande', 'claire', 'lal-olivier'],
+  ['lalande', 'audrey', 'lal-olivier'],
+  ['lalande', 'frédéric', 'lal-frederic'],
+  ['lalande', 'frederic', 'lal-frederic'],
+  ['lalande', 'véronique', 'lal-frederic'],
+  ['lalande', 'veronique', 'lal-frederic'],
+  ['lalande', 'chloé', 'lal-frederic'],
+  ['lalande', 'chloe', 'lal-frederic'],
+  ['lalande', 'mathieu', 'lal-mathieu'],
+  ['lalande', 'sabine', 'lal-mathieu'],
+  ['lalande', 'charlotte', 'lal-mathieu'],
+  ['lalande', 'tabatha', 'lal-mathieu'],
+  ['lalande', 'juliette', 'lal-mathieu'],
+  ['lalande', 'nicolas', 'lal-nicolas-aurelie'],
+  ['lalande', 'aurélie', 'lal-nicolas-aurelie'],
+  ['lalande', 'aurelie', 'lal-nicolas-aurelie'],
+  ['lalande', 'otto', 'lal-nicolas-aurelie'],
+  ['lalande', 'margaux', 'lal-margaux'],
+  ['lalande', 'virgil', 'lal-margaux'],
+  ['lalande', 'alma', 'lal-margaux'],
+  ['lalande', 'antoine', 'lal-antoine'],
+  ['lalande', 'sarah', 'lal-antoine'],
+  ['lalande', 'joanna', 'lal-antoine'],
+  ['lalande', 'nicole', 'lal-nicole-claude'],
+  ['lalande', 'claude', 'lal-nicole-claude'],
+  ['lalande', 'michel', 'lal-michel-douce'],
+  ['lalande', 'douce', 'lal-michel-douce'],
+  ['lalande', 'thierry', 'lal-thierry-michele'],
+  ['lalande', 'michele', 'lal-thierry-michele'],
+  ['lalande', 'michèle', 'lal-thierry-michele'],
+  ['lalande', 'fleur', 'lal-fleur-louane'],
+  ['lalande', 'louane', 'lal-fleur-louane'],
+  // CANAT
+  ['canat', 'jean pierre', 'can-jp-brigitte'],
+  ['canat', 'jean-pierre', 'can-jp-brigitte'],
+  ['canat', 'brigitte', 'can-jp-brigitte'],
+  ['canat', 'antonia', 'can-antonia-xavier'],
+  ['canat', 'xavier', 'can-antonia-xavier'],
+  ['canat', 'louis', 'can-antonia-xavier'],
+  ['canat', 'anaïs', 'can-antonia-xavier'],
+  ['canat', 'anais', 'can-antonia-xavier'],
+  ['canat', 'valentin', 'can-antonia-xavier'],
+  ['canat', 'guillaume', 'can-guillaume'],
+  ['canat', 'eva', 'can-guillaume'],
+  ['canat', 'viktor', 'can-guillaume'],
+  ['canat', 'sofia', 'can-guillaume'],
+  ['canat', 'alice', 'can-alice'],
+  ['canat', 'greg', 'can-alice'],
+  ['canat', 'mickael', 'can-alice'],
+  ['canat', 'mickaël', 'can-alice'],
+  ['canat', 'samuel', 'can-alice'],
+  ['canat', 'clémentine', 'can-clementine'],
+  ['canat', 'clementine', 'can-clementine'],
+  ['canat', 'eric', 'can-clementine'],
+  ['canat', 'éric', 'can-clementine'],
+  ['canat', 'amicie', 'can-clementine'],
+  ['canat', 'timéo', 'can-clementine'],
+  ['canat', 'timeo', 'can-clementine'],
+  ['canat', 'matis', 'can-clementine'],
+  ['canat', 'claire', 'can-claire-laurent'],
+  ['canat', 'laurent', 'can-claire-laurent'],
+  ['canat', 'marius', 'can-claire-laurent'],
+  ['canat', 'galade', 'can-claire-laurent'],
+  ['canat', 'guilhem', 'can-claire-laurent'],
+  ['canat', 'manon', 'can-claire-laurent'],
+  ['canat', 'jacquis', 'can-jacques-claudie'],
+  ['canat', 'jacques', 'can-jacques-claudie'],
+  ['canat', 'claudie', 'can-jacques-claudie'],
+  ['canat', 'clodie', 'can-jacques-claudie'],
+]
+
+/**
+ * Clé de famille nucléaire pour un prénom donné, au sein d'une famille
+ * (lalande/canat) -- null si aucune correspondance (personne seule, ou
+ * famille 'friend', aucune liste fournie pour l'instant). Voir
+ * l'avertissement ci-dessus sur le risque d'homonymie (prénom seul).
+ */
+export function nuclearFamilyFor(family: FamilyGroup, firstName: string): string | null {
+  const key = firstName.trim().toLowerCase()
+  const hit = NUCLEAR_FAMILY_LOOKUP.find(([fam, name]) => fam === family && name === key)
+  return hit ? hit[2] : null
+}
