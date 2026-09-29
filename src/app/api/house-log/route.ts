@@ -9,8 +9,11 @@ import { createClient } from '@/lib/supabase/server'
 //
 // Un post reste éditable/supprimable par son auteur ; les posts des
 // autres ne le sont que par un admin (RLS house_log_update_own_or_admin /
-// house_log_delete_own_or_admin — voir migration_house_log_realisations.sql,
-// pas encore appliquée en base, cf. points-a-regler-avec-louis.md).
+// house_log_delete_own_or_admin — voir migration_house_log_realisations.sql).
+// Corrigé le 29/09/2026 : cette migration EST déjà appliquée en base
+// depuis le 19/09/2026 (par Nicolas, exceptionnellement sans attendre la
+// relecture de Louis — voir point 13 de points-a-regler-avec-louis.md,
+// toujours pas relue par lui à ce jour, à signaler).
 
 export async function POST(request: Request) {
   const supabase = await createClient()

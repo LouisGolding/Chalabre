@@ -9,9 +9,11 @@ import { createClient } from '@/lib/supabase/server'
 // l'affichage côté admin n'existe pas encore (à construire plus tard),
 // cette route ne fait que préparer l'enregistrement des données.
 //
-// Mode développement : tant que NODE_ENV !== 'production', cette route ne
-// touche jamais Supabase — elle simule un identifiant pour que le widget
-// réagisse normalement pendant les tests.
+// Commentaire "mode développement" retiré le 29/09/2026 (n'était plus
+// vrai) : Louis a supprimé le mode simulé (isDev) de toutes les routes
+// d'écriture le 19/09/2026 — cette route écrit donc réellement dans
+// Supabase dès qu'elle est appelée, y compris en local (voir tout en haut
+// de claude/points-a-regler-avec-louis.md).
 
 const ALLOWED_CATEGORIES = ['electrique', 'eau']
 const ALLOWED_STATUSES = ['in_progress', 'resolved', 'persistent']

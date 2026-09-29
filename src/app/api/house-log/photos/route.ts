@@ -7,8 +7,10 @@ import { createClient } from '@/lib/supabase/server'
 // vérifier que l'appelant en est l'auteur ou un admin.
 //
 // Le bucket "house-log" est privé (migration_house_log_realisations.sql,
-// pas encore appliquée en base) : l'affichage passe par des URLs signées
-// générées côté serveur dans la page, jamais par une URL publique.
+// déjà appliquée en base depuis le 19/09/2026 — corrigé le 29/09/2026,
+// voir point 13 de points-a-regler-avec-louis.md) : l'affichage passe par
+// des URLs signées générées côté serveur dans la page, jamais par une URL
+// publique.
 
 const BUCKET = 'house-log'
 

@@ -13,11 +13,16 @@ import { findClosestNameMatch } from '@/lib/fuzzy-name'
 // Si le solde est négatif (trop perçu), aucun paiement n'est créé — seul
 // l'affichage côté client le montre.
 //
-// houseSide ('canat' | 'lalande', demandé par Aurélie le 18/09/2026) :
-// indique de quel côté de la maison la personne dort, pour savoir sur
-// quel compte bancaire (Canat ou Lalande) verser la taxe de séjour de ce
-// séjour. Obligatoire pour enregistrer un séjour (voir migration
-// supabase/migration_bookings_house_side.sql, à appliquer par Louis).
+// houseSide ('canat' | 'lalande' | 'petite_maison', demandé par Aurélie
+// le 18/09/2026, complété le 21/09/2026) : indique de quel côté de la
+// maison la personne dort, pour savoir sur quel compte bancaire (Canat ou
+// Lalande — Petite maison suit celui de Lalande, voir migration_house_
+// side_petite_maison.sql) verser la taxe de séjour de ce séjour.
+// Obligatoire pour enregistrer un séjour. Commentaire corrigé le
+// 29/09/2026 : migration_bookings_house_side.sql (colonne + 'canat'/
+// 'lalande') est déjà appliquée en production depuis le 19/09/2026 ;
+// seule migration_house_side_petite_maison.sql (valeur 'petite_maison')
+// reste en attente de l'accord de Louis.
 //
 
 // Couleur persistée par personne (demandé par Nicolas le 19/09/2026) : dès

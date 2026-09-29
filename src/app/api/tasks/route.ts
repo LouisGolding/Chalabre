@@ -10,8 +10,11 @@ import { createClient } from '@/lib/supabase/server'
 // (TasksBoard.tsx) doit pouvoir tourner depuis n'importe quel compte
 // connecté qui ouvre la page.
 //
-// Mode développement : comme les autres routes d'écriture de l'app, rien
-// n'est enregistré dans Supabase tant que NODE_ENV !== 'production'.
+// Commentaire "mode développement" retiré le 29/09/2026 (n'était plus
+// vrai) : Louis a supprimé le mode simulé (isDev) de toutes les routes
+// d'écriture le 19/09/2026 — cette route écrit donc réellement dans
+// Supabase dès qu'elle est appelée, y compris en local (voir tout en haut
+// de claude/points-a-regler-avec-louis.md).
 
 export async function POST(request: Request) {
   const supabase = await createClient()

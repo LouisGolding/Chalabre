@@ -6,9 +6,11 @@ import { CONTACT_CATEGORY_IDS } from '@/lib/contact-categories'
 // Réservé aux admins côté base (policy "contacts_admin") — tout le monde
 // peut lire et trier la liste, seul un admin peut l'éditer.
 //
-// Mode développement : tant que NODE_ENV !== 'production', ces routes ne
-// touchent jamais Supabase — elles simulent la réponse attendue pour que
-// l'interface réagisse normalement pendant les tests.
+// Commentaire "mode développement" retiré le 29/09/2026 (n'était plus
+// vrai) : Louis a supprimé le mode simulé (isDev) de toutes les routes
+// d'écriture le 19/09/2026 — ces routes écrivent donc réellement dans
+// Supabase dès qu'elles sont appelées, y compris en local (voir tout en
+// haut de claude/points-a-regler-avec-louis.md).
 
 type ContactFields = {
   name?: string
