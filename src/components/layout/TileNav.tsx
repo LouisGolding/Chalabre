@@ -10,9 +10,10 @@ import type { UserRole } from '@/types'
 interface Tile {
   href: string
   label: string
-  // Comptes "invité" : mêmes tuiles masquées qu'avant dans TopBanner
-  // (Réalisations, Budget — voir l'historique de ce fichier avant le
-  // 27/09/2026). Documents n'a pas de tuile pour l'instant : Nicolas
+  // Comptes "invité" : toute la 2e ligne de la grille (voir plus bas),
+  // donc Réalisations, Entretien et Budget depuis le 29/09/2026 (Entretien
+  // s'y est ajouté à cette date, auparavant visible pour tous — demandé
+  // par Nicolas). Documents n'a pas de tuile pour l'instant : Nicolas
   // réfléchit encore à où le faire apparaître (27/09/2026).
   hiddenForFriend?: boolean
 }
@@ -23,12 +24,19 @@ interface Tile {
 // avant dans le bandeau du haut (TopBanner, désormais réduit au seul
 // dessin de la bâtisse). "Entretien" est un renommage de l'ancien onglet
 // "Tâches" (même route /dashboard/taches), pas un nouvel onglet.
+// Ordre demandé par Nicolas le 29/09/2026 (2 lignes de 3) :
+// ligne 1 - Planning / Guide de la maison / Contacts
+// ligne 2 - Réalisations / Entretien / Budget
+// Toute la 2e ligne est masquée pour les comptes "invité" (hiddenForFriend
+// sur ses 3 tuiles) : Entretien rejoint donc Réalisations et Budget dans
+// ce qu'un invité ne voit plus du tout, plutôt que de rester affiché seul
+// sur une 2e ligne vide.
 const TILES: Tile[] = [
   { href: '/dashboard/planning', label: 'Planning' },
-  { href: '/dashboard/taches', label: 'Entretien' },
-  { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
   { href: '/dashboard/guide', label: 'Guide de la maison' },
   { href: '/dashboard/contacts', label: 'Contacts' },
+  { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
+  { href: '/dashboard/taches', label: 'Entretien', hiddenForFriend: true },
   { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
 ]
 
