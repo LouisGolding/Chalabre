@@ -8,17 +8,43 @@ import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
 import { GuideCard } from '@/components/guide/GuideCard'
 import { FireplacesTable } from '@/components/guide/FireplacesTable'
 
-// Widgets temporairement masqués à la demande de Nicolas le 29/09/2026 —
+// Widget temporairement masqué à la demande de Nicolas le 29/09/2026 —
 // le contenu / la logique restent en place (données, requêtes, imports),
-// prêts à être réaffichés en repassant ces constantes à true.
-const SHOW_ARRIVEE_SECTION = false
+// prêt à être réaffiché en repassant cette constante à true. "Arrivée" a
+// été remasqué puis, plus tard le même jour, redemandé avec un nouveau
+// contenu (gares/taxis, voir "Avant votre arrivée" ci-dessous) — repassé
+// à true à ce moment-là.
+const SHOW_ARRIVEE_SECTION = true
 const SHOW_GAS_BOTTLES = false
 
 const guideContent: { category: string; items: { title: string; content: ReactNode }[] }[] = [
   {
     category: 'Arrivée',
     items: [
-      { title: 'Ouverture de la maison', content: 'Instructions à compléter par l\'administrateur.' },
+      {
+        title: 'Avant votre arrivée',
+        // Gares les plus proches + taxi local, donnés par Nicolas le
+        // 29/09/2026 (remplace "Ouverture de la maison", qui restait
+        // "à compléter" depuis le début). "Gares..." en semi-gras,
+        // "Taxis" en gras (distinction demandée explicitement).
+        content: (
+          <div className="space-y-3">
+            <div>
+              <p className="font-semibold uppercase text-foreground">Gares les plus proches</p>
+              <p>Limoux - 25 km</p>
+              <p>Pamiers - 43 km</p>
+              <p>Carcassonne - 50 km</p>
+              <p>Toulouse Matabiau - 110 km</p>
+            </div>
+            <div>
+              <p className="font-bold uppercase text-foreground">Taxis</p>
+              <p>
+                Taxis du Kercorb - <a href="tel:0681787587" className="underline">06 81 78 75 87</a>
+              </p>
+            </div>
+          </div>
+        ),
+      },
     ]
   },
   {

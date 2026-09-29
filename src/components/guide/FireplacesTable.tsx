@@ -10,10 +10,14 @@ import { Fragment, useState } from 'react'
 // - Zone en majuscules/semi-gras, étage en majuscules/regular, pièce en
 //   écriture normale (seule la première lettre est en majuscule).
 // - 2 cases à cocher par ligne, "Utilisable" / "Ne pas utiliser",
-//   mutuellement exclusives (une seule cochée à la fois par ligne),
-//   éditables par les comptes admin uniquement, fixes pour tous les
-//   autres (lecture seule) — voir /api/guide/fireplace-status et
-//   migration_fireplace_status.sql.
+//   mutuellement exclusives : une seule cochée par ligne, jamais les
+//   deux, et une fois choisie elle ne peut plus repasser à "aucune" (on
+//   ne peut que basculer sur l'autre case) — précisé par Nicolas le
+//   29/09/2026. Éditables par les comptes admin uniquement, fixes pour
+//   tous les autres (lecture seule) — voir /api/guide/fireplace-status
+//   et migration_fireplace_status.sql. Tant qu'un admin n'a pas encore
+//   fait son premier choix sur une ligne, aucune case n'est cochée
+//   ("à compléter", pas de statut par défaut communiqué par Nicolas).
 interface Room {
   key: string
   name: string
@@ -45,7 +49,7 @@ const ZONES: Zone[] = [
   {
     label: 'Canat',
     floors: [
-      { label: 'RDC', rooms: [{ key: 'canat-rdc-salle-a-manger', name: 'Salle à manger' }] },
+      { label: 'RDC', rooms: [{ key: 'canat-rdc-salon', name: 'Salon' }] },
       { label: 'R+1', rooms: [{ key: 'canat-r1-chambre-simone', name: 'Chambre Simone' }] },
     ],
   },
@@ -84,13 +88,16 @@ export function FireplacesTable({ isAdmin, initialStatuses }: FireplacesTablePro
   const [statuses, setStatuses] = useState<Record<string, Status>>(initialStatuses)
   const [pending, setPending] = useState<string | null>(null)
 
-  // Cocher une case déjà cochée la décoche (repasse à "à compléter") ;
-  // cocher l'autre case de la même ligne bascule directement dessus (une
-  // seule case cochée par ligne, jamais les deux) — demandé par Nicolas.
+  // Toujours exactement une case cochée par ligne une fois choisie,
+  // jamais zéro et jamais deux — demandé par Nicolas le 29/09/2026.
+  // Cliquer sur la case déjà cochée ne fait donc rien (pas de "toggle
+  // off") ; cliquer sur l'autre case de la ligne bascule directement
+  // dessus.
   const toggle = async (roomKey: string, column: 'usable' | 'not_usable') => {
     if (!isAdmin) return
     const current = statuses[roomKey] ?? null
-    const next: Status = current === column ? null : column
+    if (current === column) return
+    const next: Status = column
 
     const previous = statuses
     setStatuses((s) => ({ ...s, [roomKey]: next }))
