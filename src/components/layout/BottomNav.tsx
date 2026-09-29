@@ -21,10 +21,18 @@ const ADMIN_ITEMS = [
 // "Guide de la maison" (src/app/dashboard/guide/page.tsx), jugé plus
 // pertinent qu'un onglet à part entière. "Réalisations" est rangé dans le
 // menu du haut (TopBanner) avec les autres onglets, pas ici. "Se
-// déconnecter" (19/09/2026) reste ici, en dernier, pour tous les comptes
+// déconnecter" (19/09/2026) reste dans ce bandeau pour tous les comptes
 // — seul lui pour un compte non-admin (items vide), donc centré
 // horizontalement par le justify-center du <nav> ci-dessous (seul enfant
 // du flex).
+//
+// Position de "Se déconnecter" pour un compte admin — changé le
+// 29/09/2026 à la demande de Nicolas : au MILIEU des 3 libellés (Membres,
+// Se déconnecter, Suivi paiements), pas après les deux autres comme
+// avant. Calculé en coupant ADMIN_ITEMS en deux autour de son milieu
+// (itemsBefore/itemsAfter ci-dessous) plutôt qu'en codant en dur "1er
+// item, déconnexion, 2e item", pour rester correct si la liste
+// ADMIN_ITEMS change de taille un jour.
 //
 // Fond noir (bg-foreground) retiré le 27/09/2026 à la demande de Nicolas :
 // transparent, laisse voir la photo plein écran de la page d'accueil
@@ -48,6 +56,9 @@ export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   const items = role === 'admin' ? ADMIN_ITEMS : []
   const hasPhotoBackground = pathname === '/dashboard'
+  const middle = Math.ceil(items.length / 2)
+  const itemsBefore = items.slice(0, middle)
+  const itemsAfter = items.slice(middle)
 
   const linkClass = (active: boolean) =>
     cn(
@@ -75,7 +86,7 @@ export function BottomNav({ role }: { role: UserRole }) {
           "bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
       )}
     >
-      {items.map((item) => (
+      {itemsBefore.map((item) => (
         <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
           {item.label}
         </Link>
@@ -85,6 +96,11 @@ export function BottomNav({ role }: { role: UserRole }) {
           Se déconnecter
         </button>
       </form>
+      {itemsAfter.map((item) => (
+        <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
+          {item.label}
+        </Link>
+      ))}
     </nav>
   )
 }
