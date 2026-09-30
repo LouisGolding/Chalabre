@@ -114,9 +114,9 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead>
-          <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+          <tr className="border-b border-border bg-muted/40 text-sm md:text-base uppercase tracking-wide text-muted-foreground">
             {COLUMNS.map((col) => (
-              <th key={col.key} className="px-3 py-2 font-medium">
+              <th key={col.key} className="px-3 py-2 font-normal">
                 <button
                   type="button"
                   onClick={() => handleSort(col.key)}

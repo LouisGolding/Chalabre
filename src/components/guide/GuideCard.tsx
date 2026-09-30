@@ -15,12 +15,13 @@ interface GuideCardProps {
   defaultOpen?: boolean
 }
 
-// Widget repliable du "Guide de la maison" (catégories hors Urgences,
-// qui reste gérée par EmergencyGuide.tsx) : le titre reste toujours
+// Widget repliable du "Guide de la maison" : le titre reste toujours
 // visible, le texte est masqué par défaut et se révèle au clic — reprend
 // la logique d'ouverture/fermeture des pastilles "Prochain séjour X"
 // (voir StayBanner dans NextStayCard.tsx). Demandé par Nicolas le
-// 28/09/2026.
+// 28/09/2026. Titre remonté à 16px/20px (md) + tracking 0,08em +
+// MAJUSCULES le 30/09/2026 (harmonisation typo, voir
+// "Typographie La Batisse.pdf").
 export function GuideCard({ title, content, defaultOpen = false }: GuideCardProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
@@ -33,7 +34,7 @@ export function GuideCard({ title, content, defaultOpen = false }: GuideCardProp
           aria-expanded={isOpen}
           className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
         >
-          <CardTitle className="text-base">{title}</CardTitle>
+          <CardTitle className="text-base md:text-xl uppercase tracking-[0.08em]">{title}</CardTitle>
           <ChevronDown
             className={cn(
               'h-4 w-4 shrink-0 text-muted-foreground transition-transform',

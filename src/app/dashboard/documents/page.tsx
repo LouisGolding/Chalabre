@@ -49,7 +49,7 @@ export default async function DocumentsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl md:text-3xl font-semibold text-foreground text-center md:text-left">Documents</h1>
+      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground text-center md:text-left">Documents</h1>
 
       {isAdmin && <DocumentUploadForm />}
 

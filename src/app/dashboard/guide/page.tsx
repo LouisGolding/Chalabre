@@ -2,8 +2,6 @@ import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
-import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
-import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
 import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
 import { GuideCard } from '@/components/guide/GuideCard'
 import { FireplacesTable } from '@/components/guide/FireplacesTable'
@@ -25,19 +23,20 @@ const guideContent: { category: string; items: { title: string; content: ReactNo
         title: 'Avant votre arrivée',
         // Gares les plus proches + taxi local, donnés par Nicolas le
         // 29/09/2026 (remplace "Ouverture de la maison", qui restait
-        // "à compléter" depuis le début). "Gares..." en semi-gras,
-        // "Taxis" en gras (distinction demandée explicitement).
+        // "à compléter" depuis le début). Les deux sous-titres partagent
+        // la même graisse (normale) depuis le 30/09/2026 -- harmonisation
+        // typo, voir "Typographie La Batisse.pdf".
         content: (
           <div className="space-y-3">
             <div>
-              <p className="font-semibold uppercase text-foreground">Gares les plus proches</p>
+              <p className="text-sm md:text-base font-normal uppercase text-foreground">Gares les plus proches</p>
               <p>Limoux - 25 km</p>
               <p>Pamiers - 43 km</p>
               <p>Carcassonne - 50 km</p>
               <p>Toulouse Matabiau - 110 km</p>
             </div>
             <div>
-              <p className="font-bold uppercase text-foreground">Taxis</p>
+              <p className="text-sm md:text-base font-normal uppercase text-foreground">Taxis</p>
               <p>
                 Taxis du Kercorb - <a href="tel:0681787587" className="underline">06 81 78 75 87</a>
               </p>
@@ -93,18 +92,19 @@ const guideContent: { category: string; items: { title: string; content: ReactNo
       },
       {
         title: 'Déchetterie',
-        // "Juillet / Août" et "Le reste de l'année" en gras majuscules —
-        // demandé par Nicolas le 29/09/2026. Contenu enrichi (plus une
-        // simple chaîne) : voir GuideCard/content en ReactNode.
+        // "Juillet / Août" et "Le reste de l'année" en majuscules, graisse
+        // normale depuis le 30/09/2026 (harmonisation typo, voir
+        // "Typographie La Batisse.pdf"). Contenu enrichi (plus une simple
+        // chaîne) : voir GuideCard/content en ReactNode.
         content: (
           <div className="space-y-3">
             <div>
-              <p className="font-semibold uppercase text-foreground">Juillet / Août :</p>
+              <p className="text-sm md:text-base font-normal uppercase text-foreground">Juillet / Août :</p>
               <p>· Mardi au vendredi de 8h à 13h30</p>
               <p>· Samedi de 8h à 12h</p>
             </div>
             <div>
-              <p className="font-semibold uppercase text-foreground">Le reste de l&apos;année :</p>
+              <p className="text-sm md:text-base font-normal uppercase text-foreground">Le reste de l&apos;année :</p>
               <p>· Mardi 13h-16h30</p>
               <p>· Mercredi, jeudi et vendredi 9h30-12h30 et 13h-16h30</p>
               <p>· Samedi 9h30-12h30</p>
@@ -121,8 +121,6 @@ export default async function GuidePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
-
-  const { data: contacts } = await supabase.from('contacts').select('*')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   // "Bouteilles de gaz" : modifiable par tout compte famille ou admin,
@@ -172,7 +170,7 @@ export default async function GuidePage() {
       {SHOW_ARRIVEE_SECTION && (
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-3">
-            <Badge variant="outline" className="text-base px-3 py-1">Arrivée</Badge>
+            <Badge variant="outline" className="text-lg md:text-[22px] font-semibold uppercase tracking-[0.08em] px-3 py-1">Arrivée</Badge>
           </h2>
           <div className="space-y-3">
             {arriveeItems.map(item => (
@@ -184,7 +182,7 @@ export default async function GuidePage() {
 
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-base px-3 py-1">Départ</Badge>
+          <Badge variant="outline" className="text-lg md:text-[22px] font-semibold uppercase tracking-[0.08em] px-3 py-1">Départ</Badge>
         </h2>
         <div className="space-y-3">
           {departItems.map(item => (
@@ -195,14 +193,7 @@ export default async function GuidePage() {
 
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-base px-3 py-1">Urgences</Badge>
-        </h2>
-        <EmergencyGuide categories={EMERGENCY_CATEGORIES} contacts={contacts ?? []} />
-      </div>
-
-      <div>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-base px-3 py-1">Organisation</Badge>
+          <Badge variant="outline" className="text-lg md:text-[22px] font-semibold uppercase tracking-[0.08em] px-3 py-1">Organisation</Badge>
         </h2>
         <div className="space-y-3">
           {organisationBeforeGas.map(item => (

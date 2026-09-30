@@ -55,7 +55,7 @@ export default async function AdminPaiementsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-stone-800 text-center md:text-left">Suivi des paiements</h1>
+      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground text-center md:text-left">Suivi des paiements</h1>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

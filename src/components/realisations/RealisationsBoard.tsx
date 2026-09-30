@@ -175,7 +175,7 @@ export function RealisationsBoard({
         onSubmit={handleSubmit}
         className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10"
       >
-        <p className="text-sm font-medium text-foreground">Partager ce qui a été fait</p>
+        <p className="text-base md:text-xl font-medium uppercase tracking-[0.08em] text-foreground">Partager ce qui a été fait</p>
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -329,7 +329,7 @@ function RealisationCard({
     <article className="rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-foreground">{authorName}</p>
+          <p className="text-sm md:text-base font-normal uppercase text-foreground">{authorName}</p>
           <p className="text-xs text-muted-foreground">
             {format(parseISO(entry.created_at), 'd MMMM yyyy', { locale: fr })}
           </p>

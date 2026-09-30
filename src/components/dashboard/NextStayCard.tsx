@@ -99,6 +99,14 @@ function soldeLabel(pending: number) {
 const stayPillOuterClass =
   'group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors hover:bg-white disabled:pointer-events-none disabled:opacity-50 md:text-sm'
 
+// Pastilles de solde ("TS :" / "Total taxe de sejour :") : meme pastille
+// que les boutons d'action (Supprimer/Valider) mais tracking resserre a
+// 0,08em (au lieu de 0,1em) et libelle en semi-gras (au lieu d'extra-gras)
+// -- harmonisation typo demandee par Nicolas le 30/09/2026, voir
+// "Typographie La Batisse.pdf". Les boutons d'action (stayPillOuterClass
+// employe directement plus bas) ne sont pas concernes par cette demande.
+const balancePillOuterClass = stayPillOuterClass.replace('tracking-[0.1em]', 'tracking-[0.08em]')
+
 function stayPillTextClass(light: boolean, extra?: string) {
   return cn('bg-clip-text transition-colors group-hover:text-transparent', light ? 'text-foreground/60' : 'text-foreground', extra)
 }
@@ -127,17 +135,17 @@ function StayPillAmount({ pending, light }: { pending: number; light: boolean })
 function BalancePill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
   const content = (
     <>
-      <span className={stayPillTextClass(light, 'font-extrabold')} style={stayPillTextStyle}>
+      <span className={stayPillTextClass(light, 'font-semibold')} style={stayPillTextStyle}>
         TS:
       </span>{' '}
       <StayPillAmount pending={pending} light={light} />
     </>
   )
   if (ids.length === 0) {
-    return <span className={stayPillOuterClass}>{content}</span>
+    return <span className={balancePillOuterClass}>{content}</span>
   }
   return (
-    <TSBalancePayButton ids={ids} className={stayPillOuterClass}>
+    <TSBalancePayButton ids={ids} className={balancePillOuterClass}>
       {content}
     </TSBalancePayButton>
   )
@@ -146,17 +154,17 @@ function BalancePill({ pending, ids, light }: { pending: number; ids: string[]; 
 function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
   const inner = (
     <>
-      <span className={stayPillTextClass(light, 'font-extrabold')} style={stayPillTextStyle}>
+      <span className={stayPillTextClass(light, 'font-semibold')} style={stayPillTextStyle}>
         Total taxe de séjour :
       </span>{' '}
       <StayPillAmount pending={pending} light={light} />
     </>
   )
   if (ids.length === 0) {
-    return <span className={stayPillOuterClass}>{inner}</span>
+    return <span className={balancePillOuterClass}>{inner}</span>
   }
   return (
-    <TSBalancePayButton ids={ids} className={stayPillOuterClass}>
+    <TSBalancePayButton ids={ids} className={balancePillOuterClass}>
       {inner}
     </TSBalancePayButton>
   )
@@ -201,7 +209,7 @@ function StayBanner({
           onClick={onToggle}
           aria-expanded={isOpen}
           className={cn(
-            'flex min-w-0 items-center gap-2 text-left text-lg md:text-xl font-normal hover:opacity-80',
+            'flex min-w-0 items-center gap-2 text-left text-lg md:text-xl font-semibold uppercase hover:opacity-80',
             light ? 'text-foreground/60' : 'text-foreground'
           )}
         >

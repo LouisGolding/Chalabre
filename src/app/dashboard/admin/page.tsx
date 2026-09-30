@@ -62,7 +62,7 @@ export default async function AdminPage() {
       <div className="space-y-6">
         {groups.map(({ key, label }) => (
           <div key={key} className="space-y-2">
-            <h2 className="bg-muted/70 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <h2 className="bg-muted/70 px-3 py-1.5 text-lg md:text-[22px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
               {label}
             </h2>
             <MembersTable rows={toRows(key)} />
