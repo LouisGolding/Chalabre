@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { Plus, Trash2, ChevronDown, Phone, Mail, Globe, ArrowRightLeft } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 import { CONTACT_CATEGORIES } from '@/lib/contact-categories'
 import { Contact } from '@/types'
 
@@ -147,7 +149,7 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-card/60 backdrop-blur-sm p-3">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs text-muted-foreground">Trier par :</span>
         {(['nom', 'service'] as SortKey[]).map((key) => (
@@ -291,9 +293,62 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
   )
 }
 
-export function ContactsBoard({ contacts, isAdmin }: { contacts: Contact[]; isAdmin: boolean }) {
-  const [openCategory, setOpenCategory] = useState<string | null>(null)
+// Pastille de catégorie repliable — reprend exactement le style et le
+// comportement des widgets du "Guide de la maison" (GuideCard.tsx) :
+// une pastille par ligne, pleine largeur du conteneur (donc pleine
+// largeur d'écran en mobile, où c'est le seul format demandé), et le
+// tableau de cette catégorie apparaît directement en dessous d'elle au
+// clic, indépendamment des autres. Remplace l'ancienne barre de
+// pastilles en ligne (largeur au contenu) + panneau unique affiché tout
+// en bas de la liste — demandé par Nicolas le 30/09/2026.
+function ContactCategoryCard({
+  category,
+  contacts,
+  isAdmin,
+}: {
+  category: (typeof CONTACT_CATEGORIES)[number]
+  contacts: Contact[]
+  isAdmin: boolean
+}) {
+  const [isOpen, setIsOpen] = useState(false)
 
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <button
+          type="button"
+          onClick={() => setIsOpen((v) => !v)}
+          aria-expanded={isOpen}
+          className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
+        >
+          <CardTitle className="text-base">
+            {category.label}
+            {contacts.length > 0 && (
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">({contacts.length})</span>
+            )}
+          </CardTitle>
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+              isOpen && 'rotate-180'
+            )}
+          />
+        </button>
+      </CardHeader>
+      {isOpen && (
+        <CardContent>
+          {/* key=category.id : force un remount à la réouverture, pour
+              repartir des données à jour plutôt que de garder l'état
+              (lignes, tri) de la dernière fois où cette pastille était
+              ouverte — même logique que l'ancien remount par catégorie. */}
+          <CategoryPanel key={category.id} categoryId={category.id} contacts={contacts} isAdmin={isAdmin} />
+        </CardContent>
+      )}
+    </Card>
+  )
+}
+
+export function ContactsBoard({ contacts, isAdmin }: { contacts: Contact[]; isAdmin: boolean }) {
   const byCategory = useMemo(() => {
     const map: Record<string, Contact[]> = {}
     for (const c of contacts) {
@@ -305,31 +360,14 @@ export function ContactsBoard({ contacts, isAdmin }: { contacts: Contact[]; isAd
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {CONTACT_CATEGORIES.map((cat) => {
-          const count = byCategory[cat.id]?.length ?? 0
-          const active = openCategory === cat.id
-          return (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => setOpenCategory(active ? null : cat.id)}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors ${active ? 'bg-foreground text-background' : 'border border-border bg-card/60 backdrop-blur-sm text-foreground hover:bg-muted'}`}
-            >
-              {cat.label}
-              {count > 0 && <span className="text-xs opacity-70">({count})</span>}
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${active ? 'rotate-180' : ''}`} />
-            </button>
-          )
-        })}
-      </div>
-
-      {openCategory && (
-        // key=openCategory force un remount au changement de catégorie,
-        // pour que l'état interne (lignes, tri) reparte à zéro plutôt que
-        // de garder les lignes de la catégorie précédente.
-        <CategoryPanel key={openCategory} categoryId={openCategory} contacts={byCategory[openCategory] ?? []} isAdmin={isAdmin} />
-      )}
+      {CONTACT_CATEGORIES.map((cat) => (
+        <ContactCategoryCard
+          key={cat.id}
+          category={cat}
+          contacts={byCategory[cat.id] ?? []}
+          isAdmin={isAdmin}
+        />
+      ))}
     </div>
   )
 }
