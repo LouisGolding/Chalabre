@@ -807,8 +807,10 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
           {/* Majuscules (au lieu de capitalize, qui ne mettait en
               majuscule que la premiere lettre) demande par Nicolas le
               29/09/2026 -- le gras (font-semibold) est conserve. Taille
-              ramenee de 18px (text-lg) a 16px (text-base) le meme jour. */}
-          <h2 className="text-base font-semibold text-foreground uppercase min-w-[140px] text-center">
+              remontee a 18px (mobile) / 22px (md), + tracking 0.08em --
+              harmonisation typo demandee par Nicolas le 30/09/2026 (voir
+              "Typographie La Batisse.pdf"). */}
+          <h2 className="text-[18px] md:text-[22px] font-semibold uppercase tracking-[0.08em] text-foreground min-w-[140px] text-center">
             {title}
           </h2>
           <Button
