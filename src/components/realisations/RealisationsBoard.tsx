@@ -282,7 +282,7 @@ function YearGroup({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-full bg-card/60 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-foreground/10 hover:text-foreground transition-colors"
+        className="card-canson inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-foreground/10 hover:text-foreground transition-colors"
       >
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         Réalisations année {year} ({entries.length})

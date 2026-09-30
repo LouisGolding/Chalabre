@@ -140,6 +140,29 @@
   .dark body {
     background-image: none;
   }
+
+  /* Texture "canson" pour les widgets/pastilles a fond blanc/beige
+     (Guide de la maison, Contacts, Entretien, Realisations, "Ajouter
+     un sejour"...) -- demande par Nicolas le 29/09/2026, puis
+     retouchee le 30/09/2026 : le meme multiply plein (comme sur le
+     fond de page ci-dessus) rendait ces widgets visiblement plus
+     beiges/grisonnants que la grille d'onglets (TileNav.tsx, simple
+     bg-card sans texture, donc quasi blanche) -- la texture est
+     desormais "lavee" a 60% de blanc avant d'etre multipliee sur
+     bg-card, pour rester tres proche de cette meme couleur tout en
+     gardant un grain de papier visible. Desactivee en mode sombre,
+     meme raison que body ci-dessus. */
+  .card-canson {
+    background-color: var(--card);
+    background-image: linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6)),
+      url('/images/texture-papier.jpg');
+    background-repeat: repeat;
+    background-size: 307px 205px;
+    background-blend-mode: normal, multiply;
+  }
+  .dark .card-canson {
+    background-image: none;
+  }
   html {
     @apply font-sans;
   }

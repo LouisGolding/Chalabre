@@ -171,8 +171,10 @@ function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids
 }
 
 // Bannière dépliable : titre à gauche (bascule le contenu au clic),
-// pastille de solde à droite (clic séparé, lien de paiement). Même
-// esthétique que les autres pastilles du site (bg-card/40 + flou).
+// pastille de solde à droite (clic séparé, lien de paiement). Fond
+// "canson" opaque (classe .card-canson, globals.css) pour la
+// bannière générique "Ajouter un séjour" -- même couleur que la
+// grille d'onglets (TileNav.tsx), demandé par Nicolas le 30/09/2026.
 function StayBanner({
   title,
   pill,
@@ -190,7 +192,7 @@ function StayBanner({
   // concernee (meme teinte que sur le planning, voir src/lib/colors.ts) --
   // demande par Nicolas le 29/09/2026. Absente pour la banniere generique
   // "Ajouter un sejour" (personne encore identifiee), qui garde le fond
-  // translucide par defaut.
+  // "canson" opaque par defaut (.card-canson).
   bgColor?: string
 }) {
   // Widget colore (bgColor present) : texte en transparence pour laisser
@@ -200,11 +202,7 @@ function StayBanner({
   const light = !!bgColor
   return (
     <div
-      className={cn(
-        'rounded-xl border border-border backdrop-blur-sm',
-        !bgColor &&
-          "bg-card/40 bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] bg-blend-multiply dark:bg-none"
-      )}
+      className={cn('rounded-xl border border-border', !bgColor && 'card-canson')}
       style={bgColor ? coloredTextureStyle(bgColor) : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
