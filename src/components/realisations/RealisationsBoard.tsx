@@ -175,7 +175,7 @@ export function RealisationsBoard({
         onSubmit={handleSubmit}
         className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10"
       >
-        <p className="text-base md:text-xl font-medium uppercase tracking-[0.08em] text-foreground">Partager ce qui a été fait</p>
+        <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">Partager ce qui a été fait</p>
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}

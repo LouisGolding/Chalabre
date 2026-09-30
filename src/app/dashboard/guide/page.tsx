@@ -170,7 +170,7 @@ export default async function GuidePage() {
       {SHOW_ARRIVEE_SECTION && (
         <div>
           <h2 className="text-lg font-semibold text-foreground mb-3">
-            <Badge variant="outline" className="text-lg md:text-[22px] font-semibold uppercase tracking-[0.08em] px-3 py-1">Arrivée</Badge>
+            <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Arrivée</Badge>
           </h2>
           <div className="space-y-3">
             {arriveeItems.map(item => (
@@ -182,7 +182,7 @@ export default async function GuidePage() {
 
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-lg md:text-[22px] font-semibold uppercase tracking-[0.08em] px-3 py-1">Départ</Badge>
+          <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Départ</Badge>
         </h2>
         <div className="space-y-3">
           {departItems.map(item => (
@@ -193,7 +193,7 @@ export default async function GuidePage() {
 
       <div>
         <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-lg md:text-[22px] font-semibold uppercase tracking-[0.08em] px-3 py-1">Organisation</Badge>
+          <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Organisation</Badge>
         </h2>
         <div className="space-y-3">
           {organisationBeforeGas.map(item => (

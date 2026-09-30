@@ -366,7 +366,7 @@ function ContactCategoryCard({
           aria-expanded={isOpen}
           className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
         >
-          <CardTitle className="text-base md:text-xl uppercase tracking-[0.08em]">
+          <CardTitle className="text-sm md:text-base uppercase tracking-wide">
             {category.label}
             {contacts.length > 0 && (
               <span className="ml-1.5 text-xs font-normal text-muted-foreground">({contacts.length})</span>

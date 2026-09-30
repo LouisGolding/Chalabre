@@ -34,7 +34,7 @@ export function GuideCard({ title, content, defaultOpen = false }: GuideCardProp
           aria-expanded={isOpen}
           className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
         >
-          <CardTitle className="text-base md:text-xl uppercase tracking-[0.08em]">{title}</CardTitle>
+          <CardTitle className="text-sm md:text-base uppercase tracking-wide">{title}</CardTitle>
           <ChevronDown
             className={cn(
               'h-4 w-4 shrink-0 text-muted-foreground transition-transform',

@@ -314,7 +314,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
           }
         }}
       >
-        <CardTitle className="flex items-center justify-between gap-2 text-base md:text-xl uppercase tracking-[0.08em]">
+        <CardTitle className="flex items-center justify-between gap-2 text-sm md:text-base uppercase tracking-wide">
           Entretien et réparations
           <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', formOpen && 'rotate-180')} />
         </CardTitle>
@@ -330,7 +330,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
             />
 
             <div>
-              <p className="mb-1.5 text-base md:text-xl font-medium uppercase tracking-[0.08em] text-muted-foreground">Catégorie</p>
+              <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Catégorie</p>
               <div className="flex flex-wrap gap-1.5">
                 {SELECTABLE_CATEGORIES.map((c) => (
                   <button
@@ -351,7 +351,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
             </div>
 
             <div>
-              <p className="mb-1.5 text-base md:text-xl font-medium uppercase tracking-[0.08em] text-muted-foreground">Urgence</p>
+              <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Urgence</p>
               <div className="flex flex-wrap gap-1.5">
                 {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => (
                   <button
@@ -372,7 +372,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
             </div>
 
             <div>
-              <p className="mb-1.5 text-base md:text-xl font-medium uppercase tracking-[0.08em] text-muted-foreground">Période</p>
+              <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Période</p>
               <select
                 value={period}
                 onChange={(e) => setPeriod(e.target.value as TaskPeriod | '')}
@@ -398,7 +398,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 clôture — voir le commentaire en tête de fichier. */}
             {category === 'jardin' && (
               <div>
-                <p className="mb-1.5 text-base md:text-xl font-medium uppercase tracking-[0.08em] text-muted-foreground">Récurrence</p>
+                <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Récurrence</p>
                 <div className="flex flex-wrap gap-1.5">
                   {(Object.keys(RECURRENCE_LABEL) as Recurrence[]).map((r) => (
                     <button
@@ -504,7 +504,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
             <button
               type="button"
               onClick={() => setArchivesOpen((v) => !v)}
-              className="flex items-center gap-1.5 text-base md:text-xl font-medium uppercase tracking-[0.08em] text-muted-foreground"
+              className="flex items-center gap-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground"
             >
               <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', archivesOpen && 'rotate-180')} />
               Archives
@@ -552,7 +552,7 @@ function TaskList({
 }) {
   return (
     <div className="space-y-2">
-      {title && <p className="text-base md:text-xl font-medium uppercase tracking-[0.08em] text-muted-foreground">{title}</p>}
+      {title && <p className="text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">{title}</p>}
       {tasks.map((task) => (
         <div key={task.id}>
           <TaskRow task={task} canEdit={canEdit} onToggle={() => onToggle(task)} onDelete={() => onDelete(task.id)} />
