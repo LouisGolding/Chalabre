@@ -138,6 +138,7 @@ export interface Document {
 
 export interface HouseLogEntry {
   id: string
+  title: string | null
   content: string
   entry_type: 'info' | 'travaux' | 'evenement'
   created_by: string

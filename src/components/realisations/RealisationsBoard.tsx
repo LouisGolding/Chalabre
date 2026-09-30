@@ -47,6 +47,7 @@ export function RealisationsBoard({
 }) {
   const supabase = useMemo(() => createClient(), [])
   const [entries, setEntries] = useState(initialEntries)
+  const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -111,7 +112,7 @@ export function RealisationsBoard({
       const res = await fetch('/api/house-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: content.trim() }),
+        body: JSON.stringify({ title: title.trim(), content: content.trim() }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erreur lors de la publication')
@@ -119,6 +120,7 @@ export function RealisationsBoard({
       const photos = pendingFiles.length > 0 ? await uploadPhotos(data.entry.id, pendingFiles) : []
 
       setEntries((prev) => [{ ...data.entry, photos }, ...prev])
+      setTitle('')
       setContent('')
       setPendingFiles([])
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -135,15 +137,19 @@ export function RealisationsBoard({
     if (res.ok) setEntries((prev) => prev.filter((e) => e.id !== id))
   }
 
-  const handleSaveEntry = async (id: string, newContent: string) => {
+  const handleSaveEntry = async (id: string, newTitle: string, newContent: string) => {
     const res = await fetch('/api/house-log', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, content: newContent }),
+      body: JSON.stringify({ id, title: newTitle, content: newContent }),
     })
     if (!res.ok) return false
     setEntries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, content: newContent, updated_at: new Date().toISOString() } : e))
+      prev.map((e) =>
+        e.id === id
+          ? { ...e, title: newTitle.trim() || null, content: newContent, updated_at: new Date().toISOString() }
+          : e
+      )
     )
     return true
   }
@@ -176,6 +182,16 @@ export function RealisationsBoard({
         className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10"
       >
         <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">Partager ce qui a été fait</p>
+        <div>
+          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Titre</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ex. : Tonte du jardin"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -214,7 +230,7 @@ export function RealisationsBoard({
             entry={entry}
             canEdit={canEdit(entry)}
             onDelete={() => handleDeleteEntry(entry.id)}
-            onSave={(newContent) => handleSaveEntry(entry.id, newContent)}
+            onSave={(newTitle, newContent) => handleSaveEntry(entry.id, newTitle, newContent)}
             onAddPhotos={(files) => handleAddPhotos(entry.id, files)}
             onDeletePhoto={(photoId) => handleDeletePhoto(entry.id, photoId)}
           />
@@ -255,7 +271,7 @@ function YearGroup({
   entries: RealisationEntry[]
   canEdit: (entry: RealisationEntry) => boolean
   onDeleteEntry: (id: string) => void
-  onSaveEntry: (id: string, content: string) => Promise<boolean>
+  onSaveEntry: (id: string, title: string, content: string) => Promise<boolean>
   onAddPhotos: (entryId: string, files: FileList | null) => void
   onDeletePhoto: (entryId: string, photoId: string) => void
 }) {
@@ -279,7 +295,7 @@ function YearGroup({
               entry={entry}
               canEdit={canEdit(entry)}
               onDelete={() => onDeleteEntry(entry.id)}
-              onSave={(newContent) => onSaveEntry(entry.id, newContent)}
+              onSave={(newTitle, newContent) => onSaveEntry(entry.id, newTitle, newContent)}
               onAddPhotos={(files) => onAddPhotos(entry.id, files)}
               onDeletePhoto={(photoId) => onDeletePhoto(entry.id, photoId)}
             />
@@ -301,11 +317,12 @@ function RealisationCard({
   entry: RealisationEntry
   canEdit: boolean
   onDelete: () => void
-  onSave: (content: string) => Promise<boolean>
+  onSave: (title: string, content: string) => Promise<boolean>
   onAddPhotos: (files: FileList | null) => void
   onDeletePhoto: (photoId: string) => void
 }) {
   const [editing, setEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState(entry.title ?? '')
   const [editContent, setEditContent] = useState(entry.content)
   const [saving, setSaving] = useState(false)
   const addPhotoInputRef = useRef<HTMLInputElement>(null)
@@ -318,7 +335,7 @@ function RealisationCard({
     if (!editContent.trim()) return
     setSaving(true)
     try {
-      const ok = await onSave(editContent.trim())
+      const ok = await onSave(editTitle.trim(), editContent.trim())
       if (ok) setEditing(false)
     } finally {
       setSaving(false)
@@ -329,9 +346,9 @@ function RealisationCard({
     <article className="rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm md:text-base font-normal uppercase text-foreground">{authorName}</p>
+          <p className="text-sm md:text-base font-normal uppercase text-foreground">{entry.title || 'Réalisation'}</p>
           <p className="text-xs text-muted-foreground">
-            {format(parseISO(entry.created_at), 'd MMMM yyyy', { locale: fr })}
+            {authorName}, {format(parseISO(entry.created_at), 'd MMMM yyyy', { locale: fr })}
           </p>
         </div>
         {canEdit && !editing && (
@@ -358,6 +375,16 @@ function RealisationCard({
 
       {editing ? (
         <div className="mt-3 space-y-2">
+          <div>
+            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Titre</label>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              placeholder="Ex. : Tonte du jardin"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
@@ -377,6 +404,7 @@ function RealisationCard({
               type="button"
               onClick={() => {
                 setEditing(false)
+                setEditTitle(entry.title ?? '')
                 setEditContent(entry.content)
               }}
               className="inline-flex h-7 items-center justify-center rounded-lg px-3 text-xs font-medium text-muted-foreground hover:text-foreground"

@@ -810,7 +810,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
               remontee a 18px (mobile) / 22px (md), + tracking 0.08em --
               harmonisation typo demandee par Nicolas le 30/09/2026 (voir
               "Typographie La Batisse.pdf"). */}
-          <h2 className="text-[18px] md:text-[22px] font-semibold uppercase tracking-[0.08em] text-foreground min-w-[140px] text-center">
+          <h2 className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground min-w-[140px] text-center">
             {title}
           </h2>
           <Button

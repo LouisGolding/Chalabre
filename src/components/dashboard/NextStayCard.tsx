@@ -200,7 +200,11 @@ function StayBanner({
   const light = !!bgColor
   return (
     <div
-      className={cn('rounded-xl border border-border backdrop-blur-sm', !bgColor && 'bg-card/40')}
+      className={cn(
+        'rounded-xl border border-border backdrop-blur-sm',
+        !bgColor &&
+          "bg-card/40 bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] bg-blend-multiply dark:bg-none"
+      )}
       style={bgColor ? coloredTextureStyle(bgColor) : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
@@ -209,7 +213,7 @@ function StayBanner({
           onClick={onToggle}
           aria-expanded={isOpen}
           className={cn(
-            'flex min-w-0 items-center gap-2 text-left text-lg md:text-xl font-semibold uppercase hover:opacity-80',
+            'flex min-w-0 items-center gap-2 text-left text-sm md:text-base font-medium uppercase tracking-wide hover:opacity-80',
             light ? 'text-foreground/60' : 'text-foreground'
           )}
         >

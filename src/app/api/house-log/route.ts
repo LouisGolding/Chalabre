@@ -27,14 +27,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Réservé aux membres de la famille' }, { status: 403 })
   }
 
-  const { content } = await request.json()
+  const { title, content } = await request.json()
   if (typeof content !== 'string' || !content.trim()) {
     return NextResponse.json({ error: 'Le contenu du post est vide' }, { status: 400 })
   }
+  if (title !== undefined && typeof title !== 'string') {
+    return NextResponse.json({ error: 'Titre invalide' }, { status: 400 })
+  }
+  const trimmedTitle = typeof title === 'string' ? title.trim() : ''
 
   const { data: entry, error } = await supabase
     .from('house_log')
-    .insert({ content: content.trim(), created_by: user.id })
+    .insert({ title: trimmedTitle || null, content: content.trim(), created_by: user.id })
     .select('*, profile:profiles(first_name, last_name, family_group)')
     .single()
 
@@ -51,17 +55,27 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const { id, content } = await request.json()
+  const { id, title, content } = await request.json()
   if (typeof id !== 'string' || !id || typeof content !== 'string' || !content.trim()) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
+  }
+  if (title !== undefined && typeof title !== 'string') {
+    return NextResponse.json({ error: 'Titre invalide' }, { status: 400 })
   }
 
   // La RLS (house_log_update_own_or_admin) refuse déjà la mise à jour si ce
   // n'est ni l'auteur ni un admin ; le count permet de renvoyer un message
   // clair côté client plutôt qu'un succès silencieux à 0 ligne modifiée.
+  const update: { content: string; updated_at: string; title?: string | null } = {
+    content: content.trim(),
+    updated_at: new Date().toISOString(),
+  }
+  if (typeof title === 'string') {
+    update.title = title.trim() || null
+  }
   const { data, error } = await supabase
     .from('house_log')
-    .update({ content: content.trim(), updated_at: new Date().toISOString() })
+    .update(update)
     .eq('id', id)
     .select('id')
 
