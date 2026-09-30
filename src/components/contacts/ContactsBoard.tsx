@@ -7,8 +7,6 @@ import { cn } from '@/lib/utils'
 import { CONTACT_CATEGORIES } from '@/lib/contact-categories'
 import { Contact } from '@/types'
 
-type SortKey = 'nom' | 'service'
-
 // Ajoute https:// devant un site web saisi sans protocole (ex.
 // "brocantemirepoix.fr"), pour que le lien fonctionne tel quel.
 function toHref(url: string) {
@@ -77,19 +75,75 @@ function EditableCell({
   )
 }
 
+type SortKey = 'role' | 'name' | 'notes' | 'phone' | 'address' | 'email' | 'website'
+type SortDir = 'asc' | 'desc'
+
+const COLUMNS: { key: SortKey; label: string }[] = [
+  { key: 'role', label: 'Type de service' },
+  { key: 'name', label: 'Nom' },
+  { key: 'notes', label: 'Commentaire' },
+  { key: 'phone', label: 'Téléphone' },
+  { key: 'address', label: 'Adresse' },
+  { key: 'email', label: 'Email' },
+  { key: 'website', label: 'Website' },
+]
+
+function sortValue(row: Contact, key: SortKey): string {
+  switch (key) {
+    case 'role':
+      return row.role
+    case 'name':
+      return row.name
+    case 'notes':
+      return row.notes ?? ''
+    case 'phone':
+      return row.phone ?? ''
+    case 'address':
+      return row.address ?? ''
+    case 'email':
+      return row.email ?? ''
+    case 'website':
+      return row.website ?? ''
+  }
+}
+
+// Tableau d'une catégorie de contacts — reprend le même tri que le
+// tableau "Membres" (MembersTable.tsx) : plus de rangée de pastilles
+// "Trier par :" au-dessus du tableau, le tri se fait en cliquant
+// directement sur l'en-tête d'une colonne, un second clic sur la même
+// colonne inverse l'ordre. Tri par défaut : Nom, ordre alphabétique.
+// Mêmes caractéristiques visuelles que ce tableau (en-tête gris clair
+// majuscules, bordures, espacements des cellules) — demandé par
+// Nicolas le 30/09/2026.
 function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; contacts: Contact[]; isAdmin: boolean }) {
   const [rows, setRows] = useState(contacts)
-  const [sortKey, setSortKey] = useState<SortKey>('nom')
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [adding, setAdding] = useState(false)
   const [movingId, setMovingId] = useState<string | null>(null)
 
+  const handleSort = (key: SortKey) => {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
+
   const sorted = useMemo(() => {
+    const dir = sortDir === 'asc' ? 1 : -1
     const copy = [...rows]
-    copy.sort((a, b) =>
-      sortKey === 'nom' ? a.name.localeCompare(b.name) : a.role.localeCompare(b.role)
-    )
+    copy.sort((a, b) => {
+      const primary = sortValue(a, sortKey).localeCompare(sortValue(b, sortKey))
+      if (primary !== 0) return dir * primary
+      // Égalité (ex. même type de service, ou champ vide des deux
+      // côtés) : on retombe toujours sur Nom puis Type de service pour
+      // un ordre stable et prévisible.
+      return dir * (a.name.localeCompare(b.name) || a.role.localeCompare(b.role))
+    })
     return copy
-  }, [rows, sortKey])
+  }, [rows, sortKey, sortDir])
 
   const patch = async (id: string, field: keyof Contact, next: string) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: next } : r)))
@@ -150,48 +204,39 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">Trier par :</span>
-        {(['nom', 'service'] as SortKey[]).map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setSortKey(key)}
-            className={`inline-flex h-6 items-center justify-center rounded-lg px-2 text-xs font-medium transition-colors ${sortKey === key ? 'bg-foreground text-background' : 'border border-border bg-background text-foreground hover:bg-muted'}`}
-          >
-            {key === 'nom' ? 'Nom' : 'Type de service'}
-          </button>
-        ))}
-      </div>
-
       {sorted.length > 0 ? (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead>
-              <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
-                <th className="px-1.5 py-1.5 font-medium">Type de service</th>
-                <th className="px-1.5 py-1.5 font-medium">Nom</th>
-                <th className="px-1.5 py-1.5 font-medium">Commentaire</th>
-                <th className="px-1.5 py-1.5 font-medium">Téléphone</th>
-                <th className="px-1.5 py-1.5 font-medium">Adresse</th>
-                <th className="px-1.5 py-1.5 font-medium">Email</th>
-                <th className="px-1.5 py-1.5 font-medium">Website</th>
+              <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                {COLUMNS.map((col) => (
+                  <th key={col.key} className="px-3 py-2 font-medium">
+                    <button
+                      type="button"
+                      onClick={() => handleSort(col.key)}
+                      className="inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-foreground"
+                    >
+                      {col.label}
+                      {sortKey === col.key && <span aria-hidden="true">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+                    </button>
+                  </th>
+                ))}
                 {isAdmin && <th className="w-14" />}
               </tr>
             </thead>
             <tbody>
               {sorted.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="px-1.5 py-1">
+                  <td className="px-3 py-2.5">
                     <EditableCell value={c.role} editable={isAdmin} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
                   </td>
-                  <td className="px-1.5 py-1">
+                  <td className="px-3 py-2.5 font-medium text-foreground">
                     <EditableCell value={c.name} editable={isAdmin} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
                   </td>
-                  <td className="px-1.5 py-1">
+                  <td className="px-3 py-2.5">
                     <EditableCell value={c.notes ?? ''} editable={isAdmin} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
                   </td>
-                  <td className="px-1.5 py-1">
+                  <td className="px-3 py-2.5">
                     {isAdmin ? (
                       <EditableCell value={c.phone ?? ''} editable type="tel" placeholder="Téléphone" onSave={(v) => patch(c.id, 'phone', v)} />
                     ) : c.phone ? (
@@ -203,10 +248,10 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                       <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  <td className="px-1.5 py-1">
+                  <td className="px-3 py-2.5">
                     <EditableCell value={c.address ?? ''} editable={isAdmin} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
                   </td>
-                  <td className="px-1.5 py-1">
+                  <td className="px-3 py-2.5">
                     {isAdmin ? (
                       <EditableCell value={c.email ?? ''} editable type="email" placeholder="Email" onSave={(v) => patch(c.id, 'email', v)} />
                     ) : c.email ? (
@@ -218,7 +263,7 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                       <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  <td className="px-1.5 py-1">
+                  <td className="px-3 py-2.5">
                     {isAdmin ? (
                       <EditableCell value={c.website ?? ''} editable placeholder="Site web" onSave={(v) => patch(c.id, 'website', v)} />
                     ) : c.website ? (
@@ -231,7 +276,7 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                     )}
                   </td>
                   {isAdmin && (
-                    <td className="px-1.5 py-1">
+                    <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
                         {movingId === c.id ? (
                           <select
