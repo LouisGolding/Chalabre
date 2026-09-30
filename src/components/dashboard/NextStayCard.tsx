@@ -205,7 +205,7 @@ function StayBanner({
       className={cn('rounded-xl border border-border', !bgColor && 'card-canson')}
       style={bgColor ? coloredTextureStyle(bgColor) : undefined}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2">
         <button
           type="button"
           onClick={onToggle}
@@ -221,9 +221,11 @@ function StayBanner({
         {!isOpen && pill}
       </div>
       {/* Plus de ligne de separation ni de padding haut uniforme : l'espace
-          entre le titre et la pastille "Total taxe de sejour" doit faire
-          exactement 16px (12px de py-3 sur l'entete + 4px de pt-1 ici),
-          comme demande par Nicolas le 29/09/2026. */}
+          entre le titre et la pastille "Total taxe de sejour" fait
+          12px (8px de py-2 sur l'entete + 4px de pt-1 ici) -- entete
+          reduit de 12px a 8px de hauteur le 30/09/2026 a la demande de
+          Nicolas (toutes les bannieres repliees), qui avait initialement
+          ete calee a 16px le 29/09/2026. */}
       {isOpen && <div className="space-y-4 px-4 pt-1 pb-4">{children}</div>}
     </div>
   )
