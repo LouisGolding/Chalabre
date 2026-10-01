@@ -26,13 +26,19 @@ export function GuideCard({ title, content, defaultOpen = false }: GuideCardProp
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className="py-0">
+      {/* Entete replie cale a exactement 40px de hauteur totale (Card
+          sans padding vertical propre + bouton h-10), titre et chevron
+          parfaitement centres verticalement via items-center -- demande
+          par Nicolas le 01/10/2026 ("Guide de la maison" + "Contacts",
+          cf. ContactsBoard.tsx pour la pastille de categorie, meme
+          traitement). */}
+      <CardHeader>
         <button
           type="button"
           onClick={() => setIsOpen((v) => !v)}
           aria-expanded={isOpen}
-          className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
+          className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
         >
           <CardTitle className="text-sm md:text-base uppercase tracking-wide">{title}</CardTitle>
           <ChevronDown
@@ -44,7 +50,7 @@ export function GuideCard({ title, content, defaultOpen = false }: GuideCardProp
         </button>
       </CardHeader>
       {isOpen && (
-        <CardContent>
+        <CardContent className="pb-4">
           {/* div plutot que p : certains contenus (tableau Cheminee)
               incluent des elements de bloc, invalides a l'interieur d'un
               <p>. whitespace-pre-line reste sans effet sur ce contenu. */}

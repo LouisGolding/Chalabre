@@ -358,13 +358,16 @@ function ContactCategoryCard({
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className="py-0">
+      {/* Entete replie cale a exactement 40px de hauteur totale, titre
+          centre verticalement -- voir GuideCard.tsx, meme traitement,
+          demande par Nicolas le 01/10/2026. */}
+      <CardHeader>
         <button
           type="button"
           onClick={() => setIsOpen((v) => !v)}
           aria-expanded={isOpen}
-          className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
+          className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
         >
           <CardTitle className="text-sm md:text-base uppercase tracking-wide">
             {category.label}
@@ -381,7 +384,7 @@ function ContactCategoryCard({
         </button>
       </CardHeader>
       {isOpen && (
-        <CardContent>
+        <CardContent className="pb-4">
           {/* key=category.id : force un remount à la réouverture, pour
               repartir des données à jour plutôt que de garder l'état
               (lignes, tri) de la dernière fois où cette pastille était
