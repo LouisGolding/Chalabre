@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
+import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
 import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
 import { GuideCard } from '@/components/guide/GuideCard'
 import { FireplacesTable } from '@/components/guide/FireplacesTable'
@@ -122,6 +124,8 @@ export default async function GuidePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
+  const { data: contacts } = await supabase.from('contacts').select('*')
+
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   // "Bouteilles de gaz" : modifiable par tout compte famille ou admin,
   // jamais les amis — demandé par Aurélie le 22/09/2026. Widget masqué
@@ -189,6 +193,13 @@ export default async function GuidePage() {
             <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
         </div>
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold text-foreground mb-3">
+          <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Urgences</Badge>
+        </h2>
+        <EmergencyGuide categories={EMERGENCY_CATEGORIES} contacts={contacts ?? []} />
       </div>
 
       <div>
