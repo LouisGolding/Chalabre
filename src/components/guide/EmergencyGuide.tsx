@@ -424,12 +424,23 @@ function FullscreenPlanViewer({ level, onClose }: { level: LocatorLevel; onClose
       <div ref={containerRef} className="h-full w-full overflow-auto" onClick={onClose}>
         {containerSize.width > 0 && containerSize.height > 0 && (
           <div className="relative mx-auto" style={{ width, height }}>
+            {/* unoptimized : en plein écran, la largeur réelle affichée
+                dépasse largement la largeur de l'écran dès le mode "pleine
+                hauteur" (plan très large), et davantage encore une fois
+                pincé/zoomé -- l'optimiseur d'images de Next.js choisirait
+                une résolution basée sur la largeur de l'écran seule (trop
+                petite), produisant un agrandissement flou. On sert donc le
+                fichier original tel quel ici, demandé par Nicolas le
+                02/10/2026 après avoir constaté une perte de netteté au
+                zoom. La vignette repliée (LocatorPlanImage, jamais
+                zoomée) garde l'optimisation normale. */}
             <Image
               src={level.planImage}
               alt={`Extincteurs — ${level.label}`}
               fill
               className="object-contain"
               sizes="100vw"
+              unoptimized
             />
           </div>
         )}
