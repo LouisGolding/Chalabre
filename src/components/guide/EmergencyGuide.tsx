@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -204,20 +204,33 @@ function DiagnosticCard({
 // compris une fois qu'une est sélectionnée (c'est elle qui est mise en
 // évidence). Cliquer sur le plan affiché l'agrandit en plein écran ;
 // recliquer dessus le referme. Sur mobile uniquement, glisser le doigt
-// sur le plan (gauche/droite) passe au niveau précédent/suivant -- un
-// simple onTouchStart/onTouchEnd suffit à restreindre ce geste aux
-// écrans tactiles, sans détection d'appareil séparée.
+// sur la vignette (pas sur le plan plein écran, voir plus bas) passe au
+// niveau précédent/suivant -- un simple onTouchStart/onTouchEnd suffit à
+// restreindre ce geste aux écrans tactiles, sans détection d'appareil
+// séparée.
+//
+// Complété le 02/10/2026 (2) : la vignette adopte désormais le format
+// réel des plans (plus de cadre 192px fixe, qui laissait des bandes
+// vides) ; le plein écran s'ouvre d'office en pleine hauteur (au lieu
+// d'être contenu dans l'écran, ce qui laissait les plans -- très larges
+// et peu hauts -- minuscules sur un téléphone en portrait) et peut être
+// pincé à deux doigts pour zoomer/dézoomer -- voir FullscreenPlanViewer.
 
 const SWIPE_THRESHOLD_PX = 40
 
+// Les 4 plans fournis par Nicolas partagent tous le même format
+// (6000x2138px, vérifié à l'ajout) : un seul ratio sert donc à la fois à
+// donner sa forme à la vignette (CSS aspect-ratio) et à calculer la
+// largeur du plan en plein écran à partir de sa hauteur (voir
+// FullscreenPlanViewer). À adapter si un futur plan a un format différent.
+const PLAN_ASPECT_RATIO = 6000 / 2138
+
 function LocatorPlanImage({
   level,
-  fullscreen,
   onToggle,
   onSwipe,
 }: {
   level: LocatorLevel
-  fullscreen: boolean
   onToggle: () => void
   onSwipe: (direction: 1 | -1) => void
 }) {
@@ -238,7 +251,10 @@ function LocatorPlanImage({
 
   if (!level.planImage) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+      <div
+        className="flex items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground"
+        style={{ aspectRatio: PLAN_ASPECT_RATIO }}
+      >
         Plan à venir
       </div>
     )
@@ -250,14 +266,148 @@ function LocatorPlanImage({
       onClick={onToggle}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      aria-label={fullscreen ? 'Fermer le plan en plein écran' : 'Agrandir le plan'}
-      className={cn(
-        'relative block w-full overflow-hidden border-border bg-muted',
-        fullscreen ? 'h-full rounded-none border-0' : 'h-48 rounded-lg border'
-      )}
+      aria-label="Agrandir le plan"
+      className="relative block w-full overflow-hidden rounded-lg border border-border bg-muted"
+      style={{ aspectRatio: PLAN_ASPECT_RATIO }}
     >
-      <Image src={level.planImage} alt={`Extincteurs — ${level.label}`} fill className="object-contain" />
+      <Image
+        src={level.planImage}
+        alt={`Extincteurs — ${level.label}`}
+        fill
+        className="object-contain"
+        sizes="(max-width: 768px) 100vw, 700px"
+      />
     </button>
+  )
+}
+
+const ZOOM_MIN = 1
+const ZOOM_MAX = 4
+
+// Plan en plein écran : pleine hauteur par défaut, pincement à deux
+// doigts pour zoomer, glisser pour se déplacer une fois zoomé -- demandé
+// par Nicolas le 02/10/2026. Le conteneur défilant (overflow-auto) gère
+// le déplacement nativement (comportement standard du navigateur, pas de
+// code à écrire) : l'image est dimensionnée en pixels réels à partir de
+// `zoomScale` (pas via une transformation CSS, qui ne change que l'aspect
+// visuel sans agrandir la zone de défilement) afin que chaque partie de
+// l'image agrandie reste atteignable en glissant.
+function FullscreenPlanViewer({ level, onClose }: { level: LocatorLevel; onClose: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [baseHeight, setBaseHeight] = useState(0)
+  const [zoomScale, setZoomScale] = useState(1)
+  const pinchRef = useRef<{ startDistance: number; startScale: number } | null>(null)
+
+  // Hauteur de référence ("pleine hauteur" du conteneur), mesurée à
+  // l'ouverture et à chaque redimensionnement -- l'image part toujours de
+  // cette hauteur (zoomScale = 1 = pleine hauteur), jamais d'un simple
+  // h-full CSS, pour que le calcul de largeur (PLAN_ASPECT_RATIO) et le
+  // zoom restent cohérents entre eux.
+  useEffect(() => {
+    const measure = () => setBaseHeight(containerRef.current?.clientHeight ?? 0)
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+
+  // Remet le zoom à 1 à chaque changement de plan (nouveau niveau choisi
+  // pendant que le plein écran est ouvert, ou réouverture) -- jamais de
+  // zoom hérité du plan précédent. Ajustement de state pendant le rendu
+  // (compare à la dernière valeur connue) plutôt qu'un useEffect, pour
+  // rester conforme à la règle eslint react-hooks/set-state-in-effect du
+  // projet (même motif qu'au point 31, TileNav.tsx).
+  const [lastLevelId, setLastLevelId] = useState(level.id)
+  if (level.id !== lastLevelId) {
+    setLastLevelId(level.id)
+    setZoomScale(1)
+  }
+
+  // Recentre horizontalement le défilement à chaque changement de plan --
+  // pure manipulation du DOM (pas de setState ici), donc un useEffect
+  // classique convient.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    requestAnimationFrame(() => {
+      el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2
+      el.scrollTop = 0
+    })
+  }, [level.id])
+
+  // Pincement à deux doigts : addEventListener natif plutôt que les props
+  // React onTouchMove (passives par défaut pour les événements tactiles,
+  // donc impossible d'y appeler preventDefault), nécessaire pour bloquer
+  // le zoom natif de la page pendant le geste.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const distance = (touches: TouchList) => {
+      const a = touches[0]
+      const b = touches[1]
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        pinchRef.current = { startDistance: distance(e.touches), startScale: zoomScale }
+      }
+    }
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchRef.current) {
+        e.preventDefault()
+        const ratio = distance(e.touches) / pinchRef.current.startDistance
+        const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, pinchRef.current.startScale * ratio))
+        setZoomScale(next)
+      }
+    }
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinchRef.current = null
+    }
+
+    el.addEventListener('touchstart', handleTouchStart, { passive: true })
+    el.addEventListener('touchmove', handleTouchMove, { passive: false })
+    el.addEventListener('touchend', handleTouchEnd, { passive: true })
+    return () => {
+      el.removeEventListener('touchstart', handleTouchStart)
+      el.removeEventListener('touchmove', handleTouchMove)
+      el.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [zoomScale])
+
+  if (!level.planImage) return null
+
+  const height = Math.round(baseHeight * zoomScale)
+  const width = Math.round(height * PLAN_ASPECT_RATIO)
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/95">
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Fermer le plan en plein écran"
+        className="absolute right-4 top-4 z-10 text-white/80 hover:text-white"
+      >
+        <X className="h-6 w-6" />
+      </button>
+      {/* onClick ici (pas stopPropagation sur l'image) : un tap simple,
+          sur le plan ou à côté, referme -- seul un glisser (pincement ou
+          défilement) ne déclenche pas de clic, comportement natif du
+          navigateur, rien à coder en plus pour distinguer les deux. */}
+      <div ref={containerRef} className="h-full w-full overflow-auto" onClick={onClose}>
+        {baseHeight > 0 && (
+          <div className="relative mx-auto" style={{ width, height }}>
+            <Image
+              src={level.planImage}
+              alt={`Extincteurs — ${level.label}`}
+              fill
+              className="object-contain"
+              sizes="100vw"
+            />
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -293,33 +443,9 @@ function LocatorCard({ category }: { category: Extract<EmergencyCategory, { kind
         ))}
       </div>
 
-      {level && (
-        <LocatorPlanImage
-          level={level}
-          fullscreen={false}
-          onToggle={() => setIsFullscreen(true)}
-          onSwipe={goToOffset}
-        />
-      )}
+      {level && <LocatorPlanImage level={level} onToggle={() => setIsFullscreen(true)} onSwipe={goToOffset} />}
 
-      {isFullscreen && level && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-          onClick={() => setIsFullscreen(false)}
-        >
-          <button
-            type="button"
-            onClick={() => setIsFullscreen(false)}
-            aria-label="Fermer le plan en plein écran"
-            className="absolute right-4 top-4 text-white/80 hover:text-white"
-          >
-            <X className="h-6 w-6" />
-          </button>
-          <div className="relative h-full w-full" onClick={(e) => e.stopPropagation()}>
-            <LocatorPlanImage level={level} fullscreen onToggle={() => setIsFullscreen(false)} onSwipe={goToOffset} />
-          </div>
-        </div>
-      )}
+      {isFullscreen && level && <FullscreenPlanViewer level={level} onClose={() => setIsFullscreen(false)} />}
     </div>
   )
 }
