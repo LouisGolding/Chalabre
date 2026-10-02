@@ -1168,7 +1168,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                           )}
                           {isRevealed && booking?.notes?.trim() && (
                             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                              <span className="whitespace-nowrap rounded-full bg-foreground px-2 py-0.5 text-[10px] font-medium leading-none text-background shadow-sm">
+                              <span className="lowercase whitespace-nowrap rounded-full bg-background/95 ring-1 ring-foreground/10 px-2 py-0.5 text-[10px] font-normal leading-none text-muted-foreground shadow-sm">
                                 {booking.notes.trim()}
                               </span>
                             </div>
