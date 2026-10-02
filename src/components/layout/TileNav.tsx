@@ -86,6 +86,22 @@ export function TileNav({ role }: { role: UserRole }) {
   // photo plein écran y justifiait une grille imposante en permanence,
   // pas les pages au fond texturé.
   const [isOpen, setIsOpen] = useState(false)
+  // Repliée par défaut à CHAQUE arrivée sur un onglet, pas seulement au tout
+  // premier chargement (demandé par Nicolas le 02/10/2026) : TileNav vit
+  // dans le layout partagé du tableau de bord (dashboard/layout.tsx) et
+  // n'est donc jamais remontée par une navigation interne (Planning -> Guide
+  // de la maison, etc.) -- useState(false) seul ne referme la grille qu'au
+  // tout premier rendu ; sans ceci, une grille laissée ouverte sur un onglet
+  // restait ouverte en changeant d'onglet. Ajustement de state pendant le
+  // rendu (motif recommandé par React pour réagir à un changement de prop/
+  // route, voir "Adjusting state when a prop changes") plutôt qu'un
+  // useEffect, pour rester conforme à la règle eslint
+  // react-hooks/set-state-in-effect du projet.
+  const [lastPathname, setLastPathname] = useState(pathname)
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname)
+    setIsOpen(false)
+  }
   const showToggle = !hasPhotoBackground
   const isExpanded = showToggle ? isOpen : true
 
