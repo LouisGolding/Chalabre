@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { differenceInYears, parseISO } from 'date-fns'
 import { calculateTotalTS, cn, firstNameOnly, formatCurrency, normalizeName, stayPhase } from '@/lib/utils'
 import { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
@@ -251,18 +251,65 @@ export function NextStayCard({
   const ownerColor = colorForPaletteIndex(profile.family_group, ownerIndex)
 
   const [guestEntries, setGuestEntries] = useState<
-    { localId: string; booking: BookingData | null; colorHue: number | null; colorFamily: FamilyGroup | null }[]
+    {
+      localId: string
+      booking: BookingData | null
+      colorHue: number | null
+      colorFamily: FamilyGroup | null
+      // Incrémenté pour forcer StayEntry à remonter avec ses dates à jour --
+      // voir l'effet de resynchronisation plus bas (glisser sur le planning).
+      remountKey: number
+    }[]
   >(() =>
     guestBookings.map((b) => ({
       localId: b.id,
       booking: b,
       colorHue: typeof b.color_hue === 'number' ? b.color_hue : null,
       colorFamily: b.color_family ?? null,
+      remountKey: 0,
     }))
   )
   const [primaryBooking, setPrimaryBooking] = useState<BookingData | null>(booking)
   const [primaryResetKey, setPrimaryResetKey] = useState(0)
   const [addSlotResetKey, setAddSlotResetKey] = useState(0)
+
+  // Resynchronisation depuis un glisser fait directement sur une bande
+  // colorée du planning (voir PlanningPageClient.handleDatesPersistedFromCalendar) :
+  // les champs de StayEntry (checkIn/checkOut...) ne sont initialisés qu'une
+  // fois, au montage, depuis `booking`/`guestBookings` -- un simple
+  // changement de ces props ne suffit donc pas à les mettre à jour, il faut
+  // remonter StayEntry (changement de `key`). On ne le fait que lorsque les
+  // dates ont réellement changé (comparées à une signature mémorisée), pour
+  // ne jamais remonter -- et donc refermer -- une bannière pour rien à
+  // chaque re-rendu. Demandé par Nicolas le 02/10/2026 : "si je réduis la
+  // bande d'Otto ... son widget doit automatiquement changer, sa taxe de
+  // séjour aussi".
+  const primarySignatureRef = useRef(`${booking?.id ?? ''}|${booking?.check_in ?? ''}|${booking?.check_out ?? ''}`)
+  useEffect(() => {
+    const sig = `${booking?.id ?? ''}|${booking?.check_in ?? ''}|${booking?.check_out ?? ''}`
+    if (sig === primarySignatureRef.current) return
+    primarySignatureRef.current = sig
+    setPrimaryBooking(booking)
+    setPrimaryResetKey((k) => k + 1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking?.id, booking?.check_in, booking?.check_out])
+
+  const guestSignaturesRef = useRef(new Map(guestBookings.map((b) => [b.id, `${b.check_in}|${b.check_out}`])))
+  useEffect(() => {
+    setGuestEntries((prev) => {
+      let changed = false
+      const next = prev.map((entry) => {
+        const incoming = guestBookings.find((b) => b.id === entry.localId)
+        if (!incoming) return entry
+        const sig = `${incoming.check_in}|${incoming.check_out}`
+        if (guestSignaturesRef.current.get(entry.localId) === sig) return entry
+        guestSignaturesRef.current.set(entry.localId, sig)
+        changed = true
+        return { ...entry, booking: incoming, remountKey: entry.remountKey + 1 }
+      })
+      return changed ? next : prev
+    })
+  }, [guestBookings])
 
   // Union des séjours masqués (planning) remontés par chaque bannière
   // pendant qu'elle est en cours de modification — voir StayEntry plus
@@ -306,6 +353,7 @@ export function NextStayCard({
         },
         colorHue: saved.colorHue,
         colorFamily: saved.colorFamily,
+        remountKey: 0,
       },
     ])
     setAddSlotResetKey((k) => k + 1)
@@ -346,7 +394,7 @@ export function NextStayCard({
         )
         return (
           <StayEntry
-            key={entry.localId}
+            key={`${entry.localId}:${entry.remountKey}`}
             entryKey={entry.localId}
             booking={entry.booking}
             defaultAgeBracket="adult"

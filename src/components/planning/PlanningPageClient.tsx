@@ -56,6 +56,21 @@ export function PlanningPageClient({
 }: PlanningPageClientProps) {
   const [planningBookings, setPlanningBookings] = useState(initialPlanningBookings)
 
+  // Copie locale de "nextBooking"/"guestFutureBookings" (sejour du
+  // titulaire + ceux déjà saisis pour des accompagnants, ex. Otto) : ces
+  // props ne servent normalement qu'à initialiser NextStayCard (qui gère
+  // ensuite ses propres séjours enregistrés/modifiés depuis le widget lui-
+  // même) -- mais depuis le 02/10/2026, un glisser fait directement sur une
+  // bande colorée du planning (PlanningView.tsx, persistDates) doit aussi
+  // mettre à jour la bannière correspondante dans ce widget, sans qu'on soit
+  // passé par lui. Voir handleDatesPersistedFromCalendar ci-dessous.
+  const [nextBookingState, setNextBookingState] = useState(nextBooking)
+  const [guestFutureBookingsState, setGuestFutureBookingsState] = useState(guestFutureBookings)
+  // Incrémenté à chaque glisser persisté sur le planning : signale à
+  // ReserverSejour qu'il doit rappeler /api/ts-balance, puisque le montant de
+  // taxe de séjour a pu changer sans passer par le widget "Prochain séjour".
+  const [calendarSyncSignal, setCalendarSyncSignal] = useState(0)
+
   // Séjours déjà validés mais en cours de modification dans une bannière du
   // widget "Prochain séjour" (voir NextStayCard.tsx, refonte du
   // 23/09/2026) : masqués du planning tant qu'ils ne sont pas revalidés,
@@ -121,20 +136,34 @@ export function PlanningPageClient({
     setPlanningBookings((prev) => prev.filter((b) => b.id !== bookingId))
   }
 
+  // Glisser fait directement sur une bande colorée du planning (voir
+  // PlanningView.tsx, persistDates) : répercute les nouvelles dates sur la
+  // bannière correspondante du widget "Prochain séjour" (titulaire ou
+  // accompagnant), et déclenche un rafraîchissement du solde TS -- demandé
+  // par Nicolas le 02/10/2026 ("si je réduis la bande d'Otto ... son widget
+  // doit automatiquement changer, sa taxe de séjour aussi").
+  const handleDatesPersistedFromCalendar = (bookingId: string, checkIn: string, checkOut: string) => {
+    setNextBookingState((prev) => (prev && prev.id === bookingId ? { ...prev, check_in: checkIn, check_out: checkOut } : prev))
+    setGuestFutureBookingsState((prev) => prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkIn, check_out: checkOut } : b)))
+    setCalendarSyncSignal((n) => n + 1)
+  }
+
   return (
     <>
       <ReserverSejour
         profile={profile}
-        booking={nextBooking}
-        guestBookings={guestFutureBookings}
+        booking={nextBookingState}
+        guestBookings={guestFutureBookingsState}
         initialTsBalance={initialTsBalance}
         onBookingSaved={handleBookingSaved}
         onBookingDeleted={handleBookingDeleted}
         onHiddenBookingIdsChange={setHiddenBookingIds}
+        externalTsRefreshSignal={calendarSyncSignal}
       />
       <PlanningView
         bookings={visiblePlanningBookings}
         onBookingsChange={handlePlanningBookingsChange}
+        onDatesPersisted={handleDatesPersistedFromCalendar}
         events={planningEvents}
         currentUserId={currentUserId}
         isAdmin={isAdmin}

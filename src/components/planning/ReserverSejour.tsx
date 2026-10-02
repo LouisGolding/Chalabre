@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NextStayCard, SavedStayInfo } from '@/components/dashboard/NextStayCard'
 import type { TsBalanceResult } from '@/lib/ts-balance'
 import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
@@ -35,6 +35,11 @@ interface ReserverSejourProps {
   onBookingSaved?: (booking: SavedStayInfo) => void
   onBookingDeleted?: (bookingId: string) => void
   onHiddenBookingIdsChange?: (ids: string[]) => void
+  // Change de valeur à chaque glisser persisté directement sur le planning
+  // (voir PlanningPageClient.handleDatesPersistedFromCalendar) : rappelle
+  // /api/ts-balance, puisque le montant de taxe de séjour a pu changer sans
+  // passer par ce widget -- demandé par Nicolas le 02/10/2026.
+  externalTsRefreshSignal?: number
 }
 
 // En-tête de l'onglet Planning : titre "Planning", puis le widget
@@ -51,6 +56,7 @@ export function ReserverSejour({
   onBookingSaved,
   onBookingDeleted,
   onHiddenBookingIdsChange,
+  externalTsRefreshSignal,
 }: ReserverSejourProps) {
   const [tsBalance, setTsBalance] = useState<TsBalanceResult>(initialTsBalance)
 
@@ -75,6 +81,30 @@ export function ReserverSejour({
     onBookingSaved?.(saved)
     void refreshTsBalance()
   }
+
+  // 0 au montage (aucun rafraîchissement à faire) ; toute valeur positive
+  // suivante signale un glisser fait directement sur le planning. Le fetch
+  // est fait ici en ligne plutôt que via refreshTsBalance (appel direct
+  // d'une fonction qui modifie l'état déclenchée par un effet, à éviter) --
+  // même requête, avec un garde-fou pour ignorer une réponse tardive si le
+  // composant a changé de signal entre-temps.
+  useEffect(() => {
+    if (!externalTsRefreshSignal) return
+    let active = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/ts-balance')
+        if (!res.ok) return
+        const data = await res.json()
+        if (active && data?.own && Array.isArray(data?.guests)) setTsBalance(data)
+      } catch {
+        // Pas grave : les pastilles gardent leur dernière valeur connue.
+      }
+    })()
+    return () => {
+      active = false
+    }
+  }, [externalTsRefreshSignal])
   const handleDeleted = (bookingId: string) => {
     onBookingDeleted?.(bookingId)
     void refreshTsBalance()

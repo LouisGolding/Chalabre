@@ -32,6 +32,15 @@ import { colorForName, coloredTextureStyle } from '@/lib/colors'
 import { BookingEditModal } from '@/components/planning/BookingEditModal'
 import type { HouseSide } from '@/types'
 
+// Clic sur sa propre bande colorée du planning : ouvrait jusqu'ici la modale
+// d'édition (dates / côté maison / tranche d'âge) -- désactivé temporairement
+// à la demande de Nicolas le 02/10/2026, le temps que la modification directe
+// de la bande (glisser, voir handlePointerDownOnSegment) devienne la seule
+// façon d'éditer un séjour depuis le planning. La modale et son code restent
+// intacts (BookingEditModal, handleModalSave/handleModalDelete) -- repasser ce
+// drapeau à true pour réactiver l'ouverture au clic.
+const SHOW_BOOKING_EDIT_MODAL_ON_CLICK = false
+
 export interface PlanningBooking {
   id: string
   // Titulaire du compte sur lequel ce séjour est enregistré (jamais
@@ -92,6 +101,13 @@ interface PlanningViewProps {
   // Nicolas le 21/09/2026.
   currentUserId: string
   isAdmin: boolean
+  // Remonte un changement de dates fait directement sur la bande colorée
+  // (glisser) au parent (PlanningPageClient.tsx), pour qu'il resynchronise le
+  // widget "Prochain séjour" correspondant (NextStayCard) et sa taxe de séjour
+  // -- demandé par Nicolas le 02/10/2026. N'est pas appelé pour une
+  // modification faite depuis la modale (désactivée pour le moment, voir
+  // SHOW_BOOKING_EDIT_MODAL_ON_CLICK), uniquement pour le glisser direct.
+  onDatesPersisted?: (bookingId: string, checkIn: string, checkOut: string) => void
 }
 
 type ViewMode = 'week' | 'fortnight' | 'month' | 'year'
@@ -219,7 +235,7 @@ interface DragState {
   moved: boolean
 }
 
-export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin }: PlanningViewProps) {
+export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin, onDatesPersisted }: PlanningViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   // Vue par défaut : "semaine", pas "mois" comme avant — depuis que le
   // mobile n'affiche plus que Semaine/Quinzaine (28/09/2026, demandé par
@@ -640,6 +656,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
       setBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkInStr, check_out: checkOutStr } : b))
       )
+      onDatesPersisted?.(bookingId, checkInStr, checkOutStr)
       return true
     } catch (err) {
       setModalError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement')
@@ -1114,6 +1131,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               setRevealedBookingId((prev) => (prev === seg.id ? null : seg.id))
                               return
                             }
+                            if (!SHOW_BOOKING_EDIT_MODAL_ON_CLICK) return
                             setModalError(null)
                             setEditingBookingId(seg.id)
                           }}
@@ -1125,6 +1143,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                                 setRevealedBookingId((prev) => (prev === seg.id ? null : seg.id))
                                 return
                               }
+                              if (!SHOW_BOOKING_EDIT_MODAL_ON_CLICK) return
                               setModalError(null)
                               setEditingBookingId(seg.id)
                             }
@@ -1166,9 +1185,15 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               aria-hidden="true"
                             />
                           )}
+                          {/* Sans fond, a la demande de Nicolas le 02/10/2026
+                              (un premier essai avec une pastille a fond clair
+                              avait ete fait par precaution de lisibilite, voir
+                              claude/points-a-regler-avec-louis.md point 29) --
+                              uniquement du texte gris, en minuscule, graisse
+                              normale, par-dessus la bande colorée/texturée. */}
                           {isRevealed && booking?.notes?.trim() && (
                             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                              <span className="lowercase whitespace-nowrap rounded-full bg-background/95 ring-1 ring-foreground/10 px-2 py-0.5 text-[10px] font-normal leading-none text-muted-foreground shadow-sm">
+                              <span className="lowercase whitespace-nowrap px-2 text-[10px] font-normal leading-none text-muted-foreground">
                                 {booking.notes.trim()}
                               </span>
                             </div>
