@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Zap, Droplet, Flame, Thermometer, ArrowLeft, Phone, Mail, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { GuideCard } from '@/components/guide/GuideCard'
+import { Zap, Droplet, Flame, Thermometer, ArrowLeft, Phone, Mail, CheckCircle2, AlertTriangle, X } from 'lucide-react'
 import { EmergencyCategory, DiagnosticZone, LocatorLevel } from '@/lib/emergency-guide'
 import { Contact } from '@/types'
+import { cn } from '@/lib/utils'
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
   electrique: Zap,
@@ -195,58 +197,130 @@ function DiagnosticCard({
 }
 
 // --- Catégorie "locator" (extincteurs) ----------------------------------
+//
+// Refonte du 02/10/2026, demandée par Nicolas : plus d'étape "Voir les
+// emplacements" / "Quel niveau ?" ni de bouton "Annuler" -- les 4
+// pastilles de niveau (RDC/1er/2e/3e) restent toujours visibles, y
+// compris une fois qu'une est sélectionnée (c'est elle qui est mise en
+// évidence). Cliquer sur le plan affiché l'agrandit en plein écran ;
+// recliquer dessus le referme. Sur mobile uniquement, glisser le doigt
+// sur le plan (gauche/droite) passe au niveau précédent/suivant -- un
+// simple onTouchStart/onTouchEnd suffit à restreindre ce geste aux
+// écrans tactiles, sans détection d'appareil séparée.
 
-type LocatorStep = 'idle' | 'levels' | 'plan'
+const SWIPE_THRESHOLD_PX = 40
 
-function LocatorCard({ category }: { category: Extract<EmergencyCategory, { kind: 'locator' }> }) {
-  const [step, setStep] = useState<LocatorStep>('idle')
-  const [level, setLevel] = useState<LocatorLevel | null>(null)
-  const Icon = CATEGORY_ICONS[category.id]
+function LocatorPlanImage({
+  level,
+  fullscreen,
+  onToggle,
+  onSwipe,
+}: {
+  level: LocatorLevel
+  fullscreen: boolean
+  onToggle: () => void
+  onSwipe: (direction: 1 | -1) => void
+}) {
+  const touchStartXRef = useRef<number | null>(null)
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0]?.clientX ?? null
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const startX = touchStartXRef.current
+    touchStartXRef.current = null
+    if (startX === null) return
+    const endX = e.changedTouches[0]?.clientX ?? startX
+    const deltaX = endX - startX
+    if (deltaX > SWIPE_THRESHOLD_PX) onSwipe(-1)
+    else if (deltaX < -SWIPE_THRESHOLD_PX) onSwipe(1)
+  }
+
+  if (!level.planImage) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">
+        Plan à venir
+      </div>
+    )
+  }
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className="h-4 w-4 text-muted-foreground" />
-          {category.label}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {step === 'idle' && (
-          <Button type="button" variant="outline" size="sm" className="bg-card/60 backdrop-blur-sm" onClick={() => setStep('levels')}>
-            Voir les emplacements
+    <button
+      type="button"
+      onClick={onToggle}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      aria-label={fullscreen ? 'Fermer le plan en plein écran' : 'Agrandir le plan'}
+      className={cn(
+        'relative block w-full overflow-hidden border-border bg-muted',
+        fullscreen ? 'h-full rounded-none border-0' : 'h-48 rounded-lg border'
+      )}
+    >
+      <Image src={level.planImage} alt={`Extincteurs — ${level.label}`} fill className="object-contain" />
+    </button>
+  )
+}
+
+function LocatorCard({ category }: { category: Extract<EmergencyCategory, { kind: 'locator' }> }) {
+  const [levelId, setLevelId] = useState<string | null>(category.levels[0]?.id ?? null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const levelIndex = category.levels.findIndex((l) => l.id === levelId)
+  const level = levelIndex >= 0 ? category.levels[levelIndex] : null
+
+  const goToOffset = (offset: 1 | -1) => {
+    if (levelIndex < 0) return
+    const nextIndex = (levelIndex + offset + category.levels.length) % category.levels.length
+    setLevelId(category.levels[nextIndex].id)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {category.levels.map((l) => (
+          <Button
+            key={l.id}
+            type="button"
+            variant="outline"
+            size="sm"
+            className={cn(
+              'bg-card/60 backdrop-blur-sm',
+              l.id === levelId && 'bg-foreground text-background hover:bg-foreground hover:text-background'
+            )}
+            onClick={() => setLevelId(l.id)}
+          >
+            {l.label}
           </Button>
-        )}
+        ))}
+      </div>
 
-        {step === 'levels' && (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">Quel niveau ?</p>
-            <div className="flex flex-wrap gap-2">
-              {category.levels.map((l) => (
-                <Button key={l.id} type="button" variant="outline" size="sm" className="bg-card/60 backdrop-blur-sm" onClick={() => { setLevel(l); setStep('plan') }}>
-                  {l.label}
-                </Button>
-              ))}
-            </div>
-            <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setStep('idle')}>
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Annuler
-            </Button>
-          </div>
-        )}
+      {level && (
+        <LocatorPlanImage
+          level={level}
+          fullscreen={false}
+          onToggle={() => setIsFullscreen(true)}
+          onSwipe={goToOffset}
+        />
+      )}
 
-        {step === 'plan' && level && (
-          <div className="space-y-3">
-            <p className="text-sm text-foreground">{level.label}</p>
-            <PlanImage src={level.planImage} alt={`Extincteur — ${level.label}`} />
-            <Button type="button" variant="ghost" size="sm" className="gap-1 text-muted-foreground" onClick={() => setStep('levels')}>
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Autre niveau
-            </Button>
+      {isFullscreen && level && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          onClick={() => setIsFullscreen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(false)}
+            aria-label="Fermer le plan en plein écran"
+            className="absolute right-4 top-4 text-white/80 hover:text-white"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <div className="relative h-full w-full" onClick={(e) => e.stopPropagation()}>
+            <LocatorPlanImage level={level} fullscreen onToggle={() => setIsFullscreen(false)} onSwipe={goToOffset} />
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -257,7 +331,10 @@ export function EmergencyGuide({ categories, contacts }: { categories: Emergency
         category.kind === 'diagnostic' ? (
           <DiagnosticCard key={category.id} category={category} contacts={contacts} />
         ) : (
-          <LocatorCard key={category.id} category={category} />
+          // Repliable comme les autres widgets du Guide de la maison (voir
+          // GuideCard.tsx) -- demandé par Nicolas le 02/10/2026, "même
+          // mécanisme que les autres widgets de la page".
+          <GuideCard key={category.id} title={category.label} content={<LocatorCard category={category} />} />
         )
       )}
     </div>

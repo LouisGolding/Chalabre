@@ -150,11 +150,14 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
     kind: 'locator',
     id: 'extincteurs',
     label: 'Extincteurs',
+    // Plans fournis par Nicolas le 02/10/2026 (captures "PREMIER ÉTAGE",
+    // "DEUXIÈME ÉTAGE", "REZ-DE-CHAUSSÉE", "TROISIÈME ÉTAGE", pastille rouge =
+    // emplacement d'un extincteur) -- déposés dans /public/images/plans/.
     levels: [
-      { id: 'rdc', label: 'RDC' }, // plan suggéré : /images/plans/extincteurs-rdc.png
-      { id: '1er', label: '1er étage' }, // plan suggéré : /images/plans/extincteurs-1er.png
-      { id: '2e', label: '2ème étage' }, // plan suggéré : /images/plans/extincteurs-2e.png
-      { id: '3e', label: '3ème étage' }, // plan suggéré : /images/plans/extincteurs-3e.png
+      { id: 'rdc', label: 'RDC', planImage: '/images/plans/extincteurs-rdc.jpg' },
+      { id: '1er', label: '1er étage', planImage: '/images/plans/extincteurs-1er.jpg' },
+      { id: '2e', label: '2ème étage', planImage: '/images/plans/extincteurs-2e.jpg' },
+      { id: '3e', label: '3ème étage', planImage: '/images/plans/extincteurs-3e.jpg' },
     ],
   },
 ]
