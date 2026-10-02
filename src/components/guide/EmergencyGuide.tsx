@@ -294,20 +294,39 @@ const ZOOM_MAX = 4
 // l'image agrandie reste atteignable en glissant.
 function FullscreenPlanViewer({ level, onClose }: { level: LocatorLevel; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [baseHeight, setBaseHeight] = useState(0)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  // "Pleine hauteur d'office" ne s'applique qu'au mobile (précision de
+  // Nicolas le 02/10/2026) -- sur bureau, le plan garde le comportement
+  // d'origine (entièrement contenu dans l'écran, comme object-contain).
+  // Même seuil que le "md" de Tailwind (768px), utilisé partout ailleurs
+  // en CSS sur le site -- initialisé à true pour que le tout premier
+  // rendu (avant que l'effet ci-dessous ne mesure la vraie largeur) se
+  // comporte comme sur mobile plutôt que de clignoter.
+  const [isMobile, setIsMobile] = useState(true)
   const [zoomScale, setZoomScale] = useState(1)
   const pinchRef = useRef<{ startDistance: number; startScale: number } | null>(null)
 
-  // Hauteur de référence ("pleine hauteur" du conteneur), mesurée à
-  // l'ouverture et à chaque redimensionnement -- l'image part toujours de
-  // cette hauteur (zoomScale = 1 = pleine hauteur), jamais d'un simple
-  // h-full CSS, pour que le calcul de largeur (PLAN_ASPECT_RATIO) et le
-  // zoom restent cohérents entre eux.
+  // Taille de référence du conteneur, mesurée à l'ouverture et à chaque
+  // redimensionnement -- l'image part toujours de cette taille (zoomScale
+  // = 1), jamais d'un simple h-full/w-full CSS, pour que le calcul de
+  // largeur (PLAN_ASPECT_RATIO) et le zoom restent cohérents entre eux.
   useEffect(() => {
-    const measure = () => setBaseHeight(containerRef.current?.clientHeight ?? 0)
+    const measure = () => {
+      const el = containerRef.current
+      if (!el) return
+      setContainerSize({ width: el.clientWidth, height: el.clientHeight })
+    }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
+  }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)')
+    const update = () => setIsMobile(!mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
   }, [])
 
   // Remet le zoom à 1 à chaque changement de plan (nouveau niveau choisi
@@ -377,7 +396,15 @@ function FullscreenPlanViewer({ level, onClose }: { level: LocatorLevel; onClose
 
   if (!level.planImage) return null
 
-  const height = Math.round(baseHeight * zoomScale)
+  // Base avant zoom : pleine hauteur sur mobile (déborde en largeur, vue
+  // par défilement) ; sur bureau, contenu dans les deux dimensions à la
+  // fois (la plus contraignante des deux l'emporte), comme avant cette
+  // demande -- les plans sont très larges, donc sur un grand écran c'est
+  // en général la largeur qui limite, pas la hauteur.
+  const baseHeightPx = isMobile
+    ? containerSize.height
+    : Math.min(containerSize.height, containerSize.width / PLAN_ASPECT_RATIO)
+  const height = Math.round(baseHeightPx * zoomScale)
   const width = Math.round(height * PLAN_ASPECT_RATIO)
 
   return (
@@ -395,7 +422,7 @@ function FullscreenPlanViewer({ level, onClose }: { level: LocatorLevel; onClose
           défilement) ne déclenche pas de clic, comportement natif du
           navigateur, rien à coder en plus pour distinguer les deux. */}
       <div ref={containerRef} className="h-full w-full overflow-auto" onClick={onClose}>
-        {baseHeight > 0 && (
+        {containerSize.width > 0 && containerSize.height > 0 && (
           <div className="relative mx-auto" style={{ width, height }}>
             <Image
               src={level.planImage}
