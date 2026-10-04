@@ -88,16 +88,21 @@ function soldeLabel(pending: number) {
 
 // Pastilles liees au solde TS ("TS: X€" fermee, "Total taxe de sejour: X€"
 // ouverte) et pastilles d'action du widget deplie ("Supprimer ce sejour",
-// "Modifier"/"Valider") : encadre transparent, typo en transparence sur la
-// couleur du widget, majuscules trackees -- puis, au survol/clic, meme
-// mecanique que TaxeSejourPill.tsx sur l'accueil (le cadre se remplit de
-// blanc, le texte devient un decoupage qui laisse deviner la photo de fond
-// fixe de la page d'accueil). Les deux pastilles de solde sont en plus
-// toujours en gras, et gardent le rouge d'alerte sur le montant quand il
-// est negatif (montant du) plutot que la transparence -- demande par
-// Nicolas le 29/09/2026.
+// "Modifier"/"Valider") : encadre transparent, typo dans la couleur du
+// widget, majuscules trackees. Jusqu'au 04/10/2026, le survol/clic
+// reprenait le mecanisme de TaxeSejourPill.tsx sur l'accueil (le cadre se
+// remplit de blanc, le texte se decoupe pour laisser deviner la photo de
+// fond fixe de l'accueil) -- mais sur Planning, le fond reel n'est jamais
+// cette photo (c'est le beige canson du widget), donc le survol affichait
+// un carre blanc plaque, incoherent avec le reste de la page. Nicolas a
+// demande de garder le cadre transparent au survol/clic, pour laisser voir
+// le fond canson a la place -- l'ancien decoupage photo (propre a l'accueil,
+// voir stayPillTextClass plus bas) a ete retire avec. Les deux pastilles de
+// solde restent toujours en gras, et gardent le rouge d'alerte sur le
+// montant quand il est negatif (montant du) -- demande par Nicolas le
+// 29/09/2026.
 const stayPillOuterClass =
-  'group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors hover:bg-white disabled:pointer-events-none disabled:opacity-50 md:text-sm'
+  'group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors hover:bg-transparent disabled:pointer-events-none disabled:opacity-50 md:text-sm'
 
 // Pastilles de solde ("TS :" / "Total taxe de sejour :") : meme pastille
 // que les boutons d'action (Supprimer/Valider) mais tracking resserre a
@@ -107,15 +112,11 @@ const stayPillOuterClass =
 // employe directement plus bas) ne sont pas concernes par cette demande.
 const balancePillOuterClass = stayPillOuterClass.replace('tracking-[0.1em]', 'tracking-[0.08em]')
 
+// Demande par Nicolas le 04/10/2026 : plus de decoupage photo au survol
+// (voir stayPillOuterClass ci-dessus) -- le texte garde simplement sa
+// couleur, lisible directement sur le fond canson du widget.
 function stayPillTextClass(light: boolean, extra?: string) {
-  return cn('bg-clip-text transition-colors group-hover:text-transparent', light ? 'text-foreground/60' : 'text-foreground', extra)
-}
-
-const stayPillTextStyle: React.CSSProperties = {
-  backgroundImage: "url('/images/accueil-bg-v2.jpg')",
-  backgroundSize: 'cover',
-  backgroundPosition: 'center center',
-  backgroundAttachment: 'fixed',
+  return cn('transition-colors', light ? 'text-foreground/60' : 'text-foreground', extra)
 }
 
 // Montant d'une pastille de solde : rouge plein (pas de decoupage photo,
@@ -126,7 +127,7 @@ function StayPillAmount({ pending, light }: { pending: number; light: boolean })
     return <span className="font-extrabold text-red-600">{soldeLabel(pending)}€</span>
   }
   return (
-    <span className={stayPillTextClass(light, 'font-extrabold')} style={stayPillTextStyle}>
+    <span className={stayPillTextClass(light, 'font-extrabold')}>
       {soldeLabel(pending)}€
     </span>
   )
@@ -135,7 +136,7 @@ function StayPillAmount({ pending, light }: { pending: number; light: boolean })
 function BalancePill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
   const content = (
     <>
-      <span className={stayPillTextClass(light, 'font-semibold')} style={stayPillTextStyle}>
+      <span className={stayPillTextClass(light, 'font-semibold')}>
         TS:
       </span>{' '}
       <StayPillAmount pending={pending} light={light} />
@@ -154,7 +155,7 @@ function BalancePill({ pending, ids, light }: { pending: number; ids: string[]; 
 function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
   const inner = (
     <>
-      <span className={stayPillTextClass(light, 'font-semibold')} style={stayPillTextStyle}>
+      <span className={stayPillTextClass(light, 'font-semibold')}>
         Total taxe de séjour :
       </span>{' '}
       <StayPillAmount pending={pending} light={light} />
@@ -795,7 +796,7 @@ function StayEntry({
         {showDelete ? (
           <button type="button" className={stayPillOuterClass} onClick={handleRemove} disabled={removing || saving}>
             <Minus className={cn('h-3.5 w-3.5', light ? 'text-foreground/60' : 'text-foreground')} />
-            <span className={stayPillTextClass(light)} style={stayPillTextStyle}>
+            <span className={stayPillTextClass(light)}>
               Supprimer ce séjour
             </span>
           </button>
@@ -803,7 +804,7 @@ function StayEntry({
           <span />
         )}
         <button type="button" className={stayPillOuterClass} disabled={!canSubmit || saving} onClick={handleValidate}>
-          <span className={stayPillTextClass(light)} style={stayPillTextStyle}>
+          <span className={stayPillTextClass(light)}>
             {saving ? 'Enregistrement...' : hasSavedBooking && !dirty ? 'Modifier' : 'Valider'}
           </span>
         </button>
