@@ -7,6 +7,9 @@ import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
 import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
 import { GuideCard } from '@/components/guide/GuideCard'
 import { FireplacesTable } from '@/components/guide/FireplacesTable'
+import { StorageOrganization } from '@/components/guide/StorageOrganization'
+import { StorageSlotsAdmin } from '@/components/guide/StorageSlotsAdmin'
+import type { StorageSlotRow } from '@/lib/storage-guide'
 
 // Widget temporairement masqué à la demande de Nicolas le 29/09/2026 —
 // le contenu / la logique restent en place (données, requêtes, imports),
@@ -87,7 +90,6 @@ const guideContent: { category: string; items: { title: string; content: ReactNo
         title: 'Draps et linge',
         content: 'Vos draps doivent être lavés, pliés et rangés avant votre départ.',
       },
-      { title: 'Zoning des placards', content: 'Plan à compléter par l\'administrateur.' },
       {
         title: 'Poubelles',
         content: 'Les poubelles sont à déposer à l\'entrée du village, après le pont, ou bien au Cazal.',
@@ -149,6 +151,11 @@ export default async function GuidePage() {
     fireplaceStatuses[row.room_key] = row.status as 'usable' | 'not_usable' | null
   }
 
+  const { data: storageSlotRows } = await supabase
+    .from('storage_slots')
+    .select('slot_key, floor, slot_number, house_side, content')
+  const storageSlots: StorageSlotRow[] = storageSlotRows ?? []
+
   const arriveeItems = guideContent.find((c) => c.category === 'Arrivée')!.items
   const departItems = guideContent.find((c) => c.category === 'Départ')!.items
   const organisationItems = guideContent.find((c) => c.category === 'Organisation')!.items
@@ -157,6 +164,13 @@ export default async function GuidePage() {
   const dechetterieIndex = organisationItems.findIndex((item) => item.title === 'Déchetterie')
   const organisationBeforeGas = organisationItems.slice(0, dechetterieIndex + 1)
   const organisationAfterGas = organisationItems.slice(dechetterieIndex + 1)
+  // "Organisation des placards"/"Rangement indications" (voir plus bas)
+  // reprennent exactement la place de l'ancienne pastille statique
+  // "Zoning des placards" : juste après "Draps et linge", avant
+  // "Poubelles" -- donc avant "Déchetterie" lui aussi, pas après.
+  const drapsIndex = organisationBeforeGas.findIndex((item) => item.title === 'Draps et linge')
+  const organisationBeforePlacards = organisationBeforeGas.slice(0, drapsIndex + 1)
+  const organisationAfterPlacards = organisationBeforeGas.slice(drapsIndex + 1)
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -207,7 +221,14 @@ export default async function GuidePage() {
           <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Organisation</Badge>
         </h2>
         <div className="space-y-3">
-          {organisationBeforeGas.map(item => (
+          {organisationBeforePlacards.map(item => (
+            <GuideCard key={item.title} title={item.title} content={item.content} />
+          ))}
+          <GuideCard title="Organisation des placards" content={<StorageOrganization slots={storageSlots} />} />
+          {isAdmin && (
+            <GuideCard title="Rangement indications" content={<StorageSlotsAdmin initialSlots={storageSlots} />} />
+          )}
+          {organisationAfterPlacards.map(item => (
             <GuideCard key={item.title} title={item.title} content={item.content} />
           ))}
           {SHOW_GAS_BOTTLES && (
