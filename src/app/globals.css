@@ -163,6 +163,24 @@
   .dark .card-canson {
     background-image: none;
   }
+
+  /* Pastilles du widget "Prochain sejour" (NextStayCard.tsx, Planning) :
+     au survol/clic, meme texture papier que le fond de page (pas la
+     version "lavee" de .card-canson ci-dessus, pensee pour les larges
+     widgets -- ici la pastille est petite, la texture pleine reste
+     discrete et colle davantage a la couleur reelle du fond de page).
+     Un premier essai en aplat uni (hover:bg-background) a ete juge
+     insuffisant par Nicolas le 04/10/2026 : il voulait aussi le grain.
+     Desactivee en mode sombre, meme raison que body/.card-canson. */
+  .pill-canson-hover:hover {
+    background-color: var(--background);
+    background-image: url('/images/texture-papier.jpg');
+    background-repeat: repeat;
+    background-size: 307px 205px;
+  }
+  .dark .pill-canson-hover:hover {
+    background-image: none;
+  }
   html {
     @apply font-sans;
   }
