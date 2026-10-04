@@ -94,15 +94,18 @@ function soldeLabel(pending: number) {
 // remplit de blanc, le texte se decoupe pour laisser deviner la photo de
 // fond fixe de l'accueil) -- mais sur Planning, le fond reel n'est jamais
 // cette photo (c'est le beige canson du widget), donc le survol affichait
-// un carre blanc plaque, incoherent avec le reste de la page. Nicolas a
-// demande de garder le cadre transparent au survol/clic, pour laisser voir
-// le fond canson a la place -- l'ancien decoupage photo (propre a l'accueil,
-// voir stayPillTextClass plus bas) a ete retire avec. Les deux pastilles de
-// solde restent toujours en gras, et gardent le rouge d'alerte sur le
-// montant quand il est negatif (montant du) -- demande par Nicolas le
-// 29/09/2026.
+// un carre blanc plaque, incoherent avec le reste de la page. Un premier
+// correctif a rendu le cadre entierement transparent au survol/clic, mais
+// Nicolas a precise vouloir un vrai changement de couleur visible, dans le
+// meme beige canson que le fond de la page (`--background`, voir
+// globals.css) plutot qu'aucun changement du tout -- d'ou `hover:bg-background`
+// ci-dessous (et non `hover:bg-transparent`). L'ancien decoupage photo du
+// texte (propre a l'accueil, voir stayPillTextClass plus bas) reste retire,
+// toujours sans objet ici. Les deux pastilles de solde restent toujours en
+// gras, et gardent le rouge d'alerte sur le montant quand il est negatif
+// (montant du) -- demande par Nicolas le 29/09/2026.
 const stayPillOuterClass =
-  'group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors hover:bg-transparent disabled:pointer-events-none disabled:opacity-50 md:text-sm'
+  'group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors hover:bg-background disabled:pointer-events-none disabled:opacity-50 md:text-sm'
 
 // Pastilles de solde ("TS :" / "Total taxe de sejour :") : meme pastille
 // que les boutons d'action (Supprimer/Valider) mais tracking resserre a
