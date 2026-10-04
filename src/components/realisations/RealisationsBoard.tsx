@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { actionPillClass, cn } from '@/lib/utils'
 import type { HouseLogEntry } from '@/types'
 
 export type RealisationEntry = Omit<HouseLogEntry, 'photos'> & { photos: { id: string; url: string }[] }
@@ -182,16 +183,15 @@ export function RealisationsBoard({
         className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10"
       >
         <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">Partager ce qui a été fait</p>
-        <div>
-          <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Titre</label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Ex. : Tonte du jardin"
-            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-          />
-        </div>
+        {/* Plus de libelle "Titre" au-dessus : induit par la presence de
+            l'encadre editable -- demande par Nicolas le 04/10/2026. */}
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Titre"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+        />
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -200,7 +200,7 @@ export function RealisationsBoard({
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none"
         />
         <div className="flex items-center justify-between gap-3">
-          <label className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-border px-3 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground hover:border-foreground/40 transition-colors">
+          <label className={cn(actionPillClass, 'cursor-pointer')}>
             <Plus className="h-3.5 w-3.5" />
             {pendingFiles.length > 0 ? `${pendingFiles.length} photo(s)` : 'Ajouter des photos'}
             <input
@@ -212,11 +212,7 @@ export function RealisationsBoard({
               onChange={(e) => setPendingFiles(Array.from(e.target.files ?? []))}
             />
           </label>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="inline-flex h-8 items-center justify-center rounded-lg bg-foreground px-4 text-xs font-medium text-background transition-opacity disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} className={actionPillClass}>
             {submitting ? 'Publication...' : 'Publier'}
           </button>
         </div>
@@ -375,16 +371,13 @@ function RealisationCard({
 
       {editing ? (
         <div className="mt-3 space-y-2">
-          <div>
-            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">Titre</label>
-            <input
-              type="text"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-              placeholder="Ex. : Tonte du jardin"
-              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-            />
-          </div>
+          <input
+            type="text"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            placeholder="Titre"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+          />
           <textarea
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
@@ -422,7 +415,7 @@ function RealisationCard({
       )}
 
       {canEdit && (
-        <label className="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground hover:border-foreground/40 transition-colors">
+        <label className={cn(actionPillClass, 'mt-3 cursor-pointer')}>
           <Plus className="h-3.5 w-3.5" />
           Ajouter des photos
           <input

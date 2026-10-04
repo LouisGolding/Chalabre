@@ -5,6 +5,40 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Style commun a toutes les pastilles de selection "texte simple" du site
+// (categorie/urgence/periode/tri dans Entretien, age/cote de la maison
+// dans le widget "Prochain sejour") : repris a l'identique du selecteur
+// de vue du Planning ("Semaine / Quinzaine / Mois / Annee", voir
+// PlanningView.tsx) a la demande de Nicolas le 04/10/2026 ("exactement
+// comme ... meme typo, meme espacement, majuscules, dimension, [l'etat]
+// selectionne ou non"). Pas d'encadre/fond, juste un texte en gras plein
+// si selectionne, gris clair sinon.
+export function viewTogglePillClass(selected: boolean): string {
+  return cn(
+    'text-xs uppercase tracking-[0.08em] transition-colors hover:text-foreground md:text-sm',
+    selected ? 'font-semibold text-foreground' : 'font-normal text-foreground/60'
+  )
+}
+
+// Style commun a toutes les pastilles D'ACTION du site (un bouton qui
+// declenche une action -- pas un selecteur d'etat, voir
+// viewTogglePillClass ci-dessus pour ceux-la). Harmonisation demandee par
+// Nicolas le 04/10/2026 sur 6 pastilles reparties dans 3 onglets :
+// "+ Ajouter" (Entretien, TasksBoard.tsx), "+ Ajouter des photos" et
+// "Publier" (Realisations, RealisationsBoard.tsx), "Supprimer ce sejour"
+// et "Modifier"/"Valider" (Planning, NextStayCard.tsx). Spec exacte :
+// "petit encadre rectangulaire sans arrondi de la meme couleur que la
+// typo. En majuscules 14px, espacement 0,08, gras 600. Meme couleur que
+// les titres des widgets [...]. Lorsqu'on les survole a la souris, le
+// fond change et devient la couleur de fond de l'onglet 'beige canson'"
+// -- le survol reutilise donc directement la texture `pill-canson-hover`
+// deja construite pour les pastilles du widget "Prochain sejour" (voir
+// globals.css). A appliquer sur un <button> natif (pas le composant
+// <Button>, dont le rounded-lg/bg-primary par defaut entrerait en
+// conflit avec cette spec).
+export const actionPillClass =
+  'pill-canson-hover inline-flex w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-foreground px-3 py-1.5 text-sm font-semibold uppercase tracking-[0.08em] text-foreground transition-colors disabled:pointer-events-none disabled:opacity-50'
+
 // Season logic: Summer = April 1 - October 30, Winter = October 31 - March 31
 export function getSeason(date: Date): 'summer' | 'winter' {
   const month = date.getMonth() + 1 // 1-12

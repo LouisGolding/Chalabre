@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { differenceInYears, parseISO } from 'date-fns'
-import { calculateTotalTS, cn, firstNameOnly, formatCurrency, normalizeName, stayPhase } from '@/lib/utils'
+import {
+  actionPillClass,
+  calculateTotalTS,
+  cn,
+  firstNameOnly,
+  formatCurrency,
+  normalizeName,
+  stayPhase,
+  viewTogglePillClass,
+} from '@/lib/utils'
 import { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
@@ -86,15 +95,14 @@ function soldeLabel(pending: number) {
   return pending > 0 ? `-${compactAmount(pending)}` : compactAmount(0)
 }
 
-// Pastilles liees au solde TS ("TS: X€" fermee, "Total taxe de sejour: X€"
-// ouverte) et pastilles d'action du widget deplie ("Supprimer ce sejour",
-// "Modifier"/"Valider") : encadre transparent, typo dans la couleur du
-// widget, majuscules trackees. Jusqu'au 04/10/2026, le survol/clic
-// reprenait le mecanisme de TaxeSejourPill.tsx sur l'accueil (le cadre se
-// remplit de blanc, le texte se decoupe pour laisser deviner la photo de
-// fond fixe de l'accueil) -- mais sur Planning, le fond reel n'est jamais
-// cette photo (c'est le beige canson du widget), donc le survol affichait
-// un carre blanc plaque, incoherent avec le reste de la page. Deux
+// Pastilles de solde ("TS: X€" fermee, "Total taxe de sejour: X€"
+// ouverte) : encadre transparent, typo dans la couleur du widget,
+// majuscules trackees. Jusqu'au 04/10/2026, le survol/clic reprenait le
+// mecanisme de TaxeSejourPill.tsx sur l'accueil (le cadre se remplit de
+// blanc, le texte se decoupe pour laisser deviner la photo de fond fixe
+// de l'accueil) -- mais sur Planning, le fond reel n'est jamais cette
+// photo (c'est le beige canson du widget), donc le survol affichait un
+// carre blanc plaque, incoherent avec le reste de la page. Deux
 // corrections successives de Nicolas le 04/10/2026 : d'abord cadre
 // entierement transparent (aucun changement visible, juge insuffisant),
 // puis aplat beige uni (`hover:bg-background`, le changement de couleur
@@ -106,16 +114,16 @@ function soldeLabel(pending: number) {
 // solde restent toujours en gras, et gardent le rouge d'alerte sur le
 // montant quand il est negatif (montant du) -- demande par Nicolas le
 // 29/09/2026.
-const stayPillOuterClass =
-  'pill-canson-hover group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 bg-transparent px-3 py-1.5 text-xs uppercase tracking-[0.1em] transition-colors disabled:pointer-events-none disabled:opacity-50 md:text-sm'
-
-// Pastilles de solde ("TS :" / "Total taxe de sejour :") : meme pastille
-// que les boutons d'action (Supprimer/Valider) mais tracking resserre a
-// 0,08em (au lieu de 0,1em) et libelle en semi-gras (au lieu d'extra-gras)
-// -- harmonisation typo demandee par Nicolas le 30/09/2026, voir
-// "Typographie La Batisse.pdf". Les boutons d'action (stayPillOuterClass
-// employe directement plus bas) ne sont pas concernes par cette demande.
-const balancePillOuterClass = stayPillOuterClass.replace('tracking-[0.1em]', 'tracking-[0.08em]')
+//
+// Jusqu'au 04/10/2026 cette pastille etait aussi utilisee (via
+// stayPillOuterClass, derivee par un simple changement de tracking) pour
+// les boutons d'action "Supprimer ce sejour"/"Modifier"/"Valider"
+// juste en dessous -- separe depuis que ces boutons suivent le nouveau
+// style commun "pastille d'action" (actionPillClass, voir utils.ts),
+// harmonise ce jour-la avec 4 autres pastilles du site (Entretien,
+// Realisations). Les deux styles n'ont plus rien en commun.
+const balancePillOuterClass =
+  'pill-canson-hover group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 px-3 py-1.5 text-xs uppercase tracking-[0.08em] transition-colors disabled:pointer-events-none disabled:opacity-50 md:text-sm'
 
 // Demande par Nicolas le 04/10/2026 : plus de decoupage photo au survol
 // (voir stayPillOuterClass ci-dessus) -- le texte garde simplement sa
@@ -181,6 +189,13 @@ function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids
 // "canson" opaque (classe .card-canson, globals.css) pour la
 // bannière générique "Ajouter un séjour" -- même couleur que la
 // grille d'onglets (TileNav.tsx), demandé par Nicolas le 30/09/2026.
+// Le titre lui-même reste toujours en text-foreground plein, meme sur un
+// fond colore (plus de variante "claire" en text-foreground/60) -- demande
+// par Nicolas le 04/10/2026 : traiter ce titre exactement comme celui de
+// "Partager ce qui a ete fait" (RealisationsBoard.tsx), qui n'a jamais eu
+// cette distinction. Le reste du contenu deplie (pastilles de solde,
+// champs, boutons) garde sa propre logique "light" via StayEntry
+// -- inchangee, portee volontairement limitee au titre.
 function StayBanner({
   title,
   pill,
@@ -201,11 +216,6 @@ function StayBanner({
   // "canson" opaque par defaut (.card-canson).
   bgColor?: string
 }) {
-  // Widget colore (bgColor present) : texte en transparence pour laisser
-  // apparaitre la couleur de fond (demande par Nicolas le 29/09/2026) --
-  // ne s'applique pas a la banniere generique "Ajouter un sejour", qui
-  // garde sa typo pleine (noire).
-  const light = !!bgColor
   return (
     <div
       className={cn('rounded-xl border border-border', !bgColor && 'card-canson')}
@@ -216,10 +226,7 @@ function StayBanner({
           type="button"
           onClick={onToggle}
           aria-expanded={isOpen}
-          className={cn(
-            'flex min-w-0 items-center gap-2 text-left text-sm md:text-base font-medium uppercase tracking-wide hover:opacity-80',
-            light ? 'text-foreground/60' : 'text-foreground'
-          )}
+          className="flex min-w-0 items-center gap-2 text-left text-sm md:text-base font-medium uppercase tracking-wide text-foreground hover:opacity-80"
         >
           <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', isOpen && 'rotate-180')} />
           <span className="truncate">{title}</span>
@@ -705,31 +712,19 @@ function StayEntry({
         </span>
       </div>
 
-      <div
-        className={cn(
-          'flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs uppercase tracking-[0.08em] md:text-sm',
-          light ? 'text-foreground/60' : 'text-foreground'
-        )}
-      >
-        <span className="whitespace-nowrap">Note :</span>
-        <input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Ex: Gare de Pamiers 14h45"
-          className={cn(
-            // Semi-gras (600) plutot qu'extra-gras (800) -- demande par
-            // Nicolas le 02/10/2026, uniquement sur ce champ (pas sur les
-            // dates juste au-dessus, qui restent en font-extrabold).
-            'min-w-[9rem] flex-1 border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] outline-none focus:border-foreground placeholder:font-normal placeholder:normal-case placeholder:tracking-normal md:text-sm',
-            // Gris clair du placeholder aligne sur les libelles non
-            // selectionnes (0-16 ans / Canat / Petite maison, opacity-60
-            // sur text-foreground) plutot que le token muted-foreground
-            // (trop brun/fonce) -- demande par Nicolas le 29/09/2026.
-            light ? 'text-foreground/60 placeholder:text-foreground/40' : 'text-foreground placeholder:text-foreground/60'
-          )}
-        />
-      </div>
+      {/* Champ "Note" : plus de libelle ni de soulignement -- demande par
+          Nicolas le 04/10/2026, traiter cet encadre exactement comme le
+          champ "Titre" de "Partager ce qui a ete fait" (RealisationsBoard.tsx) :
+          un encadre arrondi avec un texte d'exemple en gris clair en
+          placeholder (ici "Heure et gare ou aeroport d'arrivee"), plus de
+          label "Note :" ni de soulignement bas-de-casse/majuscules. */}
+      <input
+        type="text"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="Heure et gare ou aéroport d'arrivée"
+        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+      />
 
       {/* gap-x-2 (8px) + tracking reduit a 0.02em (au lieu de gap-x-3/16px et
           0.08em) : sur un ecran mobile reel (375px, iPhone standard) le
@@ -738,45 +733,29 @@ function StayEntry({
           seule ligne -- demande par Nicolas le 29/09/2026 ("reduit les
           espaces entre les lettres si necessaire"). Marge verifiee
           d'environ 27px a 375px de large. */}
-      <div
-        className={cn(
-          'flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs uppercase tracking-[0.02em] md:gap-x-4 md:text-sm md:tracking-[0.08em]',
-          light ? 'text-foreground/60' : 'text-foreground'
-        )}
-      >
-        <button
-          type="button"
-          className={cn('transition-opacity hover:opacity-80', ageBracket === 'child' ? 'font-extrabold' : 'font-normal opacity-60')}
-          onClick={() => setAgeBracket('child')}
-        >
+      {/* 0-16 ans / 17 ans et + / Canat / Lalande / Petite maison : meme
+          traitement exact que le selecteur de vue du Planning ("Semaine /
+          Quinzaine / Mois / Annee", voir PlanningView.tsx et
+          viewTogglePillClass dans utils.ts) -- demande par Nicolas le
+          04/10/2026. Remplace l'ancien traitement opacity/extrabold (et
+          son tracking reduit a 0.02em sur mobile, pense le 29/09/2026 pour
+          faire tenir les 5 libelles sur une seule ligne a 375px) -- a
+          surveiller sur mobile reel si ca redevient trop juste en largeur
+          avec le tracking uniforme a 0.08em. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <button type="button" className={viewTogglePillClass(ageBracket === 'child')} onClick={() => setAgeBracket('child')}>
           0-16 ans
         </button>
-        <button
-          type="button"
-          className={cn('transition-opacity hover:opacity-80', ageBracket === 'adult' ? 'font-extrabold' : 'font-normal opacity-60')}
-          onClick={() => setAgeBracket('adult')}
-        >
+        <button type="button" className={viewTogglePillClass(ageBracket === 'adult')} onClick={() => setAgeBracket('adult')}>
           17 ans et +
         </button>
-        <button
-          type="button"
-          className={cn('transition-opacity hover:opacity-80', houseSide === 'canat' ? 'font-extrabold' : 'font-normal opacity-60')}
-          onClick={() => setHouseSide('canat')}
-        >
+        <button type="button" className={viewTogglePillClass(houseSide === 'canat')} onClick={() => setHouseSide('canat')}>
           Canat
         </button>
-        <button
-          type="button"
-          className={cn('transition-opacity hover:opacity-80', houseSide === 'lalande' ? 'font-extrabold' : 'font-normal opacity-60')}
-          onClick={() => setHouseSide('lalande')}
-        >
+        <button type="button" className={viewTogglePillClass(houseSide === 'lalande')} onClick={() => setHouseSide('lalande')}>
           Lalande
         </button>
-        <button
-          type="button"
-          className={cn('transition-opacity hover:opacity-80', houseSide === 'petite_maison' ? 'font-extrabold' : 'font-normal opacity-60')}
-          onClick={() => setHouseSide('petite_maison')}
-        >
+        <button type="button" className={viewTogglePillClass(houseSide === 'petite_maison')} onClick={() => setHouseSide('petite_maison')}>
           Petite maison
         </button>
       </div>
@@ -797,21 +776,23 @@ function StayEntry({
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
+      {/* "Supprimer ce sejour" / "Modifier"-"Valider" : pastilles
+          d'action harmonisees le 04/10/2026 (voir actionPillClass dans
+          utils.ts) -- typo toujours dans la couleur des titres de
+          widget, donc plus de variante "light" ici (a la difference des
+          pastilles de solde juste au-dessus, qui restent dimmees sur
+          fond colore). */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         {showDelete ? (
-          <button type="button" className={stayPillOuterClass} onClick={handleRemove} disabled={removing || saving}>
-            <Minus className={cn('h-3.5 w-3.5', light ? 'text-foreground/60' : 'text-foreground')} />
-            <span className={stayPillTextClass(light)}>
-              Supprimer ce séjour
-            </span>
+          <button type="button" className={actionPillClass} onClick={handleRemove} disabled={removing || saving}>
+            <Minus className="h-3.5 w-3.5" />
+            Supprimer ce séjour
           </button>
         ) : (
           <span />
         )}
-        <button type="button" className={stayPillOuterClass} disabled={!canSubmit || saving} onClick={handleValidate}>
-          <span className={stayPillTextClass(light)}>
-            {saving ? 'Enregistrement...' : hasSavedBooking && !dirty ? 'Modifier' : 'Valider'}
-          </span>
+        <button type="button" className={actionPillClass} disabled={!canSubmit || saving} onClick={handleValidate}>
+          {saving ? 'Enregistrement...' : hasSavedBooking && !dirty ? 'Modifier' : 'Valider'}
         </button>
       </div>
     </StayBanner>
