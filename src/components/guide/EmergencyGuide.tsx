@@ -8,7 +8,7 @@ import { GuideCard } from '@/components/guide/GuideCard'
 import { Zap, Droplet, Flame, Thermometer, ArrowLeft, Phone, Mail, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { EmergencyCategory, DiagnosticZone } from '@/lib/emergency-guide'
 import { Contact } from '@/types'
-import { cn } from '@/lib/utils'
+import { viewTogglePillClass } from '@/lib/utils'
 import { PlanThumbnail, FullscreenPlanViewer } from '@/components/guide/PlanViewer'
 
 const CATEGORY_ICONS: Record<string, React.ElementType> = {
@@ -245,21 +245,20 @@ function LocatorCard({ category }: { category: Extract<EmergencyCategory, { kind
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
+      {/* Pastilles RDC / 1er etage / etc traitees comme "Semaine / Quinzaine
+          / Mois / Annee" du Planning (viewTogglePillClass) -- demande par
+          Nicolas le 05/10/2026, a la place de l'ancien style bouton
+          encadre/rempli. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {category.levels.map((l) => (
-          <Button
+          <button
             key={l.id}
             type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              'bg-card/60 backdrop-blur-sm',
-              l.id === levelId && 'bg-foreground text-background hover:bg-foreground hover:text-background'
-            )}
+            className={viewTogglePillClass(l.id === levelId)}
             onClick={() => setLevelId(l.id)}
           >
             {l.label}
-          </Button>
+          </button>
         ))}
       </div>
 
