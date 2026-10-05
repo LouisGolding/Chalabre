@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
@@ -49,7 +50,7 @@ export default async function DocumentsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground text-center md:text-left">Documents</h1>
+      <PageTitle>Documents</PageTitle>
 
       {isAdmin && <DocumentUploadForm />}
 

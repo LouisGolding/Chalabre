@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ContactsBoard } from '@/components/contacts/ContactsBoard'
@@ -14,7 +15,7 @@ export default async function ContactsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 text-center md:text-left">Contacts</h1>
+      <PageTitle>Contacts</PageTitle>
       <ContactsBoard contacts={contacts ?? []} isAdmin={isAdmin} />
     </div>
   )

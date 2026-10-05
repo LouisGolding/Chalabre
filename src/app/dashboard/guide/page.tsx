@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
@@ -178,7 +179,7 @@ export default async function GuidePage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 text-center md:text-left">Guide de la maison</h1>
+      <PageTitle>Guide de la maison</PageTitle>
 
       {/* Adresse de la maison — reprise ici depuis l'ancien onglet "Adresse"
           (retiré le 19/09/2026, jugé redondant par Nicolas une fois cette

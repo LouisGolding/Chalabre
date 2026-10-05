@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -55,7 +56,7 @@ export default async function AdminPaiementsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground text-center md:text-left">Suivi des paiements</h1>
+      <PageTitle>Suivi des paiements</PageTitle>
 
       {/* KPIs -- titres traites comme ceux des widgets du Guide de la
           maison (text-sm md:text-base uppercase tracking-wide, voir

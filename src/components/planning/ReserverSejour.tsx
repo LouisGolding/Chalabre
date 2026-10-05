@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { PageTitle } from '@/components/layout/PageTitle'
 import { NextStayCard, SavedStayInfo } from '@/components/dashboard/NextStayCard'
 import type { TsBalanceResult } from '@/lib/ts-balance'
 import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
@@ -112,7 +113,7 @@ export function ReserverSejour({
 
   return (
     <>
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 text-center md:text-left">Planning</h1>
+      <PageTitle>Planning</PageTitle>
 
       <NextStayCard
         profile={profile}

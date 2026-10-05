@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { MembersTable, MemberRow } from '@/components/admin/MembersTable'
@@ -55,9 +56,7 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 text-center md:text-left">
-        Membres
-      </h1>
+      <PageTitle>Membres</PageTitle>
 
       <div className="space-y-6">
         {groups.map(({ key, label }) => (

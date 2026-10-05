@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { RealisationsBoard, type RealisationEntry } from '@/components/realisations/RealisationsBoard'
@@ -54,8 +55,8 @@ export default async function RealisationsPage() {
   }))
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 mb-6 text-center md:text-left">Réalisations</h1>
+    <div className="max-w-2xl mx-auto space-y-6">
+      <PageTitle>Réalisations</PageTitle>
       <RealisationsBoard initialEntries={initialEntries} currentUserId={user.id} isAdmin={isAdmin} />
     </div>
   )

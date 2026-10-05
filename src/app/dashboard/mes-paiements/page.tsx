@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { formatCurrency, formatDate } from '@/lib/utils'
@@ -44,7 +45,7 @@ export default async function MesPaiementsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground text-center md:text-left">Mes paiements</h1>
+        <PageTitle>Mes paiements</PageTitle>
         {totalDue > 0 && (
           <p className="text-red-600 font-medium mt-1">
             Solde dû : {formatCurrency(totalDue)}

@@ -1,3 +1,4 @@
+import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { TasksBoard, TaskItem } from '@/components/dashboard/TasksBoard'
@@ -47,7 +48,7 @@ export default async function TachesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground mt-4 text-center md:text-left">Entretien</h1>
+      <PageTitle>Entretien</PageTitle>
 
       <TasksBoard initialTasks={items} canEdit={profile?.role === 'admin'} />
     </div>
