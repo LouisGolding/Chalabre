@@ -350,9 +350,10 @@ function HeaterCard({ category }: { category: Extract<EmergencyCategory, { kind:
         </div>
       </div>
 
-      {options.length === 0 && (
-        <p className="text-sm text-muted-foreground">Informations à venir pour cette configuration.</p>
-      )}
+      {/* Combinaison sans options (Lalande + 1er etage, Canat + 2e etage,
+          ni l'une ni l'autre mentionnee par Nicolas) : n'affiche rien --
+          demande par Nicolas le 05/10/2026, retire le message "Informations
+          a venir pour cette configuration." qui s'affichait avant. */}
 
       {options.length === 1 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
