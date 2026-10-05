@@ -93,10 +93,13 @@ const CATEGORY_LABEL: Record<Category, string> = {
 
 const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2 }
 
+// Plus de fond/encadre sur la pastille d'urgence -- demande par Nicolas
+// le 05/10/2026 : seule la typo reste coloree (rouge/jaune/vert), comme
+// les autres libelles de la ligne (categorie, periode).
 const PRIORITY_STYLE: Record<Priority, string> = {
-  low: 'bg-muted text-muted-foreground',
-  medium: 'bg-amber-100 text-amber-700',
-  high: 'bg-red-100 text-red-700',
+  low: 'text-green-600',
+  medium: 'text-amber-600',
+  high: 'text-red-600',
 }
 
 const PRIORITY_LABEL: Record<Priority, string> = {
@@ -623,7 +626,7 @@ function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdi
           {PERIOD_LABELS[task.period as keyof typeof PERIOD_LABELS] ?? task.period}
         </span>
       )}
-      <span className={`text-xs uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
+      <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
         {PRIORITY_LABEL[task.priority]}
       </span>
       {canEdit && (
