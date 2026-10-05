@@ -57,66 +57,77 @@ export default async function AdminPaiementsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl md:text-3xl font-normal uppercase tracking-[0.08em] text-foreground text-center md:text-left">Suivi des paiements</h1>
 
-      {/* KPIs */}
+      {/* KPIs -- titres traites comme ceux des widgets du Guide de la
+          maison (text-sm md:text-base uppercase tracking-wide, voir
+          GuideCard.tsx) -- demande par Nicolas le 05/10/2026. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Total encaissé</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm md:text-base uppercase tracking-wide">Total encaissé</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">En attente</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm md:text-base uppercase tracking-wide">En attente</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold text-orange-500">{formatCurrency(totalPending)}</div></CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Transactions Stripe</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm md:text-base uppercase tracking-wide">Transactions Stripe</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold text-stone-700">{events?.filter(e => e.status === 'success').length ?? 0}</div></CardContent>
         </Card>
       </div>
 
-      {/* Soldes par utilisateur */}
+      {/* Soldes par utilisateur -- demande par Nicolas le 05/10/2026 :
+          titre traite comme les widgets du Guide de la maison ; colonnes
+          "Famille" renommee "Statut" (meme donnee affichee, b.family_group,
+          seul le libelle change), "TS dû" renommee "TS totales dues",
+          "Total payé" (ex. TS+TM) renommee "TS totales payées" et
+          recalculee en TS seul (b.ts_paid_total, le TM n'est plus suivi
+          sur cette page, voir plus bas) ; nouvelle colonne "Reste à
+          payer" = TS totales dues - TS totales payées ; colonnes "TM dû"
+          et "Total dû" (qui melangeaient TS et TM) retirees. */}
       <Card>
-        <CardHeader><CardTitle>Soldes par membre</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm md:text-base uppercase tracking-wide">Soldes par membre</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-stone-400 text-left">
                   <th className="pb-2 font-medium">Membre</th>
-                  <th className="pb-2 font-medium">Famille</th>
-                  <th className="pb-2 font-medium text-right">TS dû</th>
-                  <th className="pb-2 font-medium text-right">TM dû</th>
-                  <th className="pb-2 font-medium text-right">Total dû</th>
-                  <th className="pb-2 font-medium text-right">Total payé</th>
+                  <th className="pb-2 font-medium">Statut</th>
+                  <th className="pb-2 font-medium text-right">TS totales dues</th>
+                  <th className="pb-2 font-medium text-right">TS totales payées</th>
+                  <th className="pb-2 font-medium text-right">Reste à payer</th>
                 </tr>
               </thead>
               <tbody>
-                {balances?.map((b: any) => (
-                  <tr key={b.user_id} className="border-b last:border-0 hover:bg-stone-50">
-                    <td className="py-2 font-medium">{b.user_name}</td>
-                    <td className="py-2 capitalize text-stone-400">{b.family_group}</td>
-                    <td className={`py-2 text-right ${b.ts_pending > 0 ? 'text-red-600' : 'text-stone-400'}`}>
-                      {formatCurrency(b.ts_pending)}
-                    </td>
-                    <td className={`py-2 text-right ${b.tm_pending > 0 ? 'text-orange-500' : 'text-stone-400'}`}>
-                      {formatCurrency(b.tm_pending)}
-                    </td>
-                    <td className={`py-2 text-right font-semibold ${(b.ts_pending + b.tm_pending) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatCurrency(b.ts_pending + b.tm_pending)}
-                    </td>
-                    <td className="py-2 text-right text-green-600">
-                      {formatCurrency(b.ts_paid_total + b.tm_paid_total)}
-                    </td>
-                  </tr>
-                ))}
+                {balances?.map((b: any) => {
+                  const remaining = b.ts_pending - b.ts_paid_total
+                  return (
+                    <tr key={b.user_id} className="border-b last:border-0 hover:bg-stone-50">
+                      <td className="py-2 font-medium">{b.user_name}</td>
+                      <td className="py-2 capitalize text-stone-400">{b.family_group}</td>
+                      <td className={`py-2 text-right ${b.ts_pending > 0 ? 'text-red-600' : 'text-stone-400'}`}>
+                        {formatCurrency(b.ts_pending)}
+                      </td>
+                      <td className="py-2 text-right text-green-600">
+                        {formatCurrency(b.ts_paid_total)}
+                      </td>
+                      <td className={`py-2 text-right font-semibold ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {formatCurrency(remaining)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
 
-      {/* TS détail */}
+      {/* TS détail -- titre renomme "Listes des sejours" (ex. "Taxes de
+          sejour (TS)") et traite comme les widgets du Guide de la maison,
+          demande par Nicolas le 05/10/2026. */}
       <Card>
-        <CardHeader><CardTitle>Taxes de séjour (TS)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-sm md:text-base uppercase tracking-wide">Listes des séjours</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -137,45 +148,6 @@ export default async function AdminPaiementsPage() {
                     <td className="py-2 text-stone-500 text-xs">
                       {p.bookings?.check_in ? `${formatDate(p.bookings.check_in)} → ${formatDate(p.bookings.check_out)}` : '—'}
                     </td>
-                    <td className="py-2 text-right font-semibold">{formatCurrency(p.amount)}</td>
-                    <td className="py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusLabel[p.status]?.color}`}>
-                        {statusLabel[p.status]?.label}
-                      </span>
-                    </td>
-                    <td className="py-2 text-xs text-stone-400">{p.paid_at ? formatDate(p.paid_at) : '—'}</td>
-                    <td className="py-2 text-xs text-stone-300 font-mono truncate max-w-[120px]">
-                      {p.stripe_payment_intent_id ?? '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* TM détail */}
-      <Card>
-        <CardHeader><CardTitle>Taxes mensuelles (TM)</CardTitle></CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-stone-400 text-left">
-                  <th className="pb-2 font-medium">Membre</th>
-                  <th className="pb-2 font-medium">Mois</th>
-                  <th className="pb-2 font-medium text-right">Montant</th>
-                  <th className="pb-2 font-medium">Statut</th>
-                  <th className="pb-2 font-medium">Payé le</th>
-                  <th className="pb-2 font-medium text-xs text-stone-300">Stripe ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tmPayments?.map((p: any) => (
-                  <tr key={p.id} className="border-b last:border-0 hover:bg-stone-50">
-                    <td className="py-2 font-medium">{p.profiles?.first_name} {p.profiles?.last_name}</td>
-                    <td className="py-2 text-stone-500">{p.month}</td>
                     <td className="py-2 text-right font-semibold">{formatCurrency(p.amount)}</td>
                     <td className="py-2">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusLabel[p.status]?.color}`}>
