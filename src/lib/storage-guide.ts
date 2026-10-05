@@ -44,7 +44,7 @@ export interface StorageFloor {
 
 export const STORAGE_FLOORS: StorageFloor[] = [
   { id: 'rdc', label: 'Rez-de-chaussée', planImage: '/images/plans/rangement-rdc.jpg' },
-  { id: '1er', label: 'Premier étage' /* plan a venir : /images/plans/rangement-1er.jpg */ },
+  { id: '1er', label: 'Premier étage', planImage: '/images/plans/rangement-1er.jpg' },
   { id: '2e', label: 'Deuxième étage', planImage: '/images/plans/rangement-2e.jpg' },
   { id: '3e', label: 'Troisième étage', planImage: '/images/plans/rangement-3e.jpg' },
 ]
