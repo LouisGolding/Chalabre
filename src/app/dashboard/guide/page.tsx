@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { Badge } from '@/components/ui/badge'
 import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
 import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
 import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
@@ -19,6 +18,11 @@ import type { StorageSlotRow } from '@/lib/storage-guide'
 // à true à ce moment-là.
 const SHOW_ARRIVEE_SECTION = true
 const SHOW_GAS_BOTTLES = false
+// Widget "Draps et linge" temporairement masque a la demande de Nicolas
+// le 05/10/2026 -- meme convention que SHOW_GAS_BOTTLES ci-dessus : le
+// contenu reste dans guideContent, pret a etre reaffiche en repassant
+// cette constante a true.
+const SHOW_DRAPS_LINGE = false
 
 const guideContent: { category: string; items: { title: string; content: ReactNode }[] }[] = [
   {
@@ -187,9 +191,7 @@ export default async function GuidePage() {
 
       {SHOW_ARRIVEE_SECTION && (
         <div>
-          <h2 className="text-lg font-semibold text-foreground mb-3">
-            <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Arrivée</Badge>
-          </h2>
+          <h2 className="text-sm md:text-base font-extrabold text-foreground mb-3">Arrivée</h2>
           <div className="space-y-3">
             {arriveeItems.map(item => (
               <GuideCard key={item.title} title={item.title} content={item.content} />
@@ -199,9 +201,7 @@ export default async function GuidePage() {
       )}
 
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Départ</Badge>
-        </h2>
+        <h2 className="text-sm md:text-base font-extrabold text-foreground mb-3">Départ</h2>
         <div className="space-y-3">
           {departItems.map(item => (
             <GuideCard key={item.title} title={item.title} content={item.content} />
@@ -210,20 +210,18 @@ export default async function GuidePage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Urgences</Badge>
-        </h2>
+        <h2 className="text-sm md:text-base font-extrabold text-foreground mb-3">Urgences</h2>
         <EmergencyGuide categories={EMERGENCY_CATEGORIES} contacts={contacts ?? []} />
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-foreground mb-3">
-          <Badge variant="outline" className="text-sm md:text-base font-semibold uppercase tracking-wide px-3 py-1">Organisation</Badge>
-        </h2>
+        <h2 className="text-sm md:text-base font-extrabold text-foreground mb-3">Organisation</h2>
         <div className="space-y-3">
-          {organisationBeforePlacards.map(item => (
-            <GuideCard key={item.title} title={item.title} content={item.content} />
-          ))}
+          {organisationBeforePlacards
+            .filter(item => SHOW_DRAPS_LINGE || item.title !== 'Draps et linge')
+            .map(item => (
+              <GuideCard key={item.title} title={item.title} content={item.content} />
+            ))}
           <GuideCard title="Organisation des placards" content={<StorageOrganization slots={storageSlots} />} />
           {isAdmin && (
             <GuideCard title="Rangement indications" content={<StorageSlotsAdmin initialSlots={storageSlots} />} />
