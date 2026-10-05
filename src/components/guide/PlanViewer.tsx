@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { X } from 'lucide-react'
+import { cn, viewTogglePillClass } from '@/lib/utils'
 
 // Visualiseur de plan reutilisable : vignette cliquable au format reel
 // du plan, plein ecran avec pincement pour zoomer (mobile) et defilement
@@ -16,11 +17,23 @@ import { X } from 'lucide-react'
 //
 // `aspectRatio` est un parametre (pas une constante en dur comme avant
 // cette extraction) : les 4 plans "Extincteurs" partagent tous le format
-// 6000x2138px, mais les futurs plans "Rangement indications" n'ont pas
-// encore ete fournis par Nicolas et n'ont donc pas de format confirme --
-// un ratio par defaut raisonnable (3:2, format paysage courant) est
-// utilise en attendant, a ajuster si besoin une fois les vrais plans
-// recus (voir storage-guide.ts).
+// 6000x2138px, mais les plans "Rangement indications" recus le
+// 05/10/2026 ont un format legerement different d'un etage a l'autre --
+// un ratio moyen (voir StorageOrganization.tsx) est utilise pour les 4,
+// sans consequence visuelle grace a `object-contain`.
+//
+// `showTitle` (PlanThumbnail uniquement) : les PDF "Rangement
+// indications" recus le 05/10/2026 avaient un titre d'etage dessine
+// dans l'image elle-meme ("DEUXIEME ETAGE", etc.), mais pas harmonise
+// (tailles/graisses differentes) -- vectorise/detoure, pas du texte,
+// impossible a corriger proprement dans le PDF. A la demande de Nicolas,
+// ce titre a ete efface des images et est reecrit ici par l'appli, sous
+// la vignette, avec la meme esthetique que la pastille "Canat" du widget
+// "Organisation des placards" (`viewTogglePillClass`). Non applique a
+// `FullscreenPlanViewer` : la demande portait explicitement sur "chaque
+// image" (= la vignette), et le plein ecran n'affiche aucun titre non
+// plus pour Urgences, qui n'utilise pas ce prop (reste optionnel,
+// comportement d'Urgences inchange).
 
 export interface PlanLevel {
   id: string
@@ -38,12 +51,17 @@ export function PlanThumbnail({
   altPrefix,
   onToggle,
   onSwipe,
+  showTitle,
 }: {
   level: PlanLevel
   aspectRatio: number
   altPrefix: string
   onToggle: () => void
   onSwipe?: (direction: 1 | -1) => void
+  // Voir le commentaire au-dessus de PlanLevel : affiche level.label sous
+  // la vignette, style pastille "Canat" (viewTogglePillClass). Optionnel,
+  // non utilise par Urgences.
+  showTitle?: boolean
 }) {
   const touchStartXRef = useRef<number | null>(null)
 
@@ -60,35 +78,45 @@ export function PlanThumbnail({
     else if (deltaX < -SWIPE_THRESHOLD_PX) onSwipe(1)
   }
 
+  const title = showTitle ? (
+    <p className={cn(viewTogglePillClass(true), 'text-center')}>{level.label}</p>
+  ) : null
+
   if (!level.planImage) {
     return (
-      <div
-        className="flex items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground"
-        style={{ aspectRatio }}
-      >
-        Plan à venir
+      <div className="space-y-1.5">
+        <div
+          className="flex items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground"
+          style={{ aspectRatio }}
+        >
+          Plan à venir
+        </div>
+        {title}
       </div>
     )
   }
 
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      aria-label="Agrandir le plan"
-      className="relative block w-full overflow-hidden rounded-lg border border-border bg-muted"
-      style={{ aspectRatio }}
-    >
-      <Image
-        src={level.planImage}
-        alt={`${altPrefix} — ${level.label}`}
-        fill
-        className="object-contain"
-        sizes="(max-width: 768px) 100vw, 700px"
-      />
-    </button>
+    <div className="space-y-1.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        aria-label="Agrandir le plan"
+        className="relative block w-full overflow-hidden rounded-lg border border-border bg-muted"
+        style={{ aspectRatio }}
+      >
+        <Image
+          src={level.planImage}
+          alt={`${altPrefix} — ${level.label}`}
+          fill
+          className="object-contain"
+          sizes="(max-width: 768px) 100vw, 700px"
+        />
+      </button>
+      {title}
+    </div>
   )
 }
 

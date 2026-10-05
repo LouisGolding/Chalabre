@@ -11,6 +11,15 @@ import {
   type StorageSlotRow,
 } from '@/lib/storage-guide'
 
+// Format reel des 3 plans recus de Nicolas le 05/10/2026 (RDC, 2e, 3e
+// etage) : ~6200x2400px chacun, ratio tres proche d'un plan a l'autre
+// (entre 2.56 et 2.62) sans etre strictement identique (contrairement
+// aux 4 plans "Extincteurs", tous au meme format exact) -- une moyenne
+// arrondie suffit, `object-contain` evite toute deformation visible quel
+// que soit l'ecart. A ajuster si le futur plan du 1er etage a un format
+// tres different.
+const PLAN_ASPECT_RATIO = 2.6
+
 // Widget "Organisation des placards" (Guide de la maison -> Organisation)
 // -- demande par Nicolas le 04/10/2026, en plusieurs messages :
 // - 2 pastilles CANAT/LALANDE (meme traitement que le selecteur de vue du
@@ -77,9 +86,10 @@ export function StorageOrganization({ slots }: { slots: StorageSlotRow[] }) {
             {floor && (
               <PlanThumbnail
                 level={floor}
-                aspectRatio={3 / 2}
+                aspectRatio={PLAN_ASPECT_RATIO}
                 altPrefix="Rangement"
                 onToggle={() => setFullscreenFloorId(floor.id)}
+                showTitle
               />
             )}
           </div>
@@ -89,7 +99,7 @@ export function StorageOrganization({ slots }: { slots: StorageSlotRow[] }) {
       {fullscreenFloor && (
         <FullscreenPlanViewer
           level={fullscreenFloor}
-          aspectRatio={3 / 2}
+          aspectRatio={PLAN_ASPECT_RATIO}
           altPrefix="Rangement"
           onClose={() => setFullscreenFloorId(null)}
         />

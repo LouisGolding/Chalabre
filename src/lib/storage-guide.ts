@@ -14,11 +14,25 @@
 //
 // Les plans d'etage (memes fonctionnalites que ceux du widget "Urgences"
 // -- vignette au format reel, plein ecran, pincement pour zoomer, voir
-// PlanViewer.tsx) ne sont pas encore fournis par Nicolas : `planImage`
-// reste vide, l'appli affiche "Plan a venir" en attendant (meme
-// convention que emergency-guide.ts). Deposer les 4 images dans
-// /public/images/plans/ et renseigner `planImage` ci-dessous suffira a
-// les activer, sans toucher au reste du code.
+// PlanViewer.tsx) ont ete fournis par Nicolas le 05/10/2026 pour le RDC,
+// le 2e et le 3e etage (3 PDF AutoCAD/Illustrator) -- le 1er etage doit
+// encore suivre, `planImage` reste donc vide pour `1er` en attendant,
+// l'appli affiche "Plan a venir" (meme convention que
+// emergency-guide.ts).
+//
+// Chaque PDF recu avait un titre ("DEUXIEME ETAGE", etc.) directement
+// dessine dans le plan, mais pas de maniere harmonisee (tailles/graisses
+// differentes d'un etage a l'autre -- le titre etait vectorise/detoure,
+// pas du texte modifiable, donc impossible a corriger proprement dans le
+// PDF lui-meme). A la demande de Nicolas le 05/10/2026, le titre a ete
+// efface des images (voir le script utilise, non versionne, dans
+// l'historique de conversation) et est desormais reecrit par l'appli
+// elle-meme, sous chaque vignette, avec la meme esthetique que la
+// pastille "Canat" du widget "Organisation des placards" (voir
+// `viewTogglePillClass`, PlanThumbnail dans PlanViewer.tsx). Le champ
+// `label` ci-dessous sert donc a la fois de texte affiche (ex. "Emplacement
+// 2.07 -- Deuxieme etage") et de titre sous le plan -- plus besoin de
+// garder le wording synchronise a deux endroits.
 
 export type StorageFloorId = 'rdc' | '1er' | '2e' | '3e'
 
@@ -29,10 +43,10 @@ export interface StorageFloor {
 }
 
 export const STORAGE_FLOORS: StorageFloor[] = [
-  { id: 'rdc', label: 'RDC' /* plan suggere : /images/plans/rangement-rdc.jpg */ },
-  { id: '1er', label: '1er etage' /* plan suggere : /images/plans/rangement-1er.jpg */ },
-  { id: '2e', label: '2eme etage' /* plan suggere : /images/plans/rangement-2e.jpg */ },
-  { id: '3e', label: '3eme etage' /* plan suggere : /images/plans/rangement-3e.jpg */ },
+  { id: 'rdc', label: 'Rez-de-chaussée', planImage: '/images/plans/rangement-rdc.jpg' },
+  { id: '1er', label: 'Premier étage' /* plan a venir : /images/plans/rangement-1er.jpg */ },
+  { id: '2e', label: 'Deuxième étage', planImage: '/images/plans/rangement-2e.jpg' },
+  { id: '3e', label: 'Troisième étage', planImage: '/images/plans/rangement-3e.jpg' },
 ]
 
 export const SLOTS_PER_FLOOR = 12
