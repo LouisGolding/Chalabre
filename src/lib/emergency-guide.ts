@@ -135,9 +135,9 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
     label: "Plus d'eau chaude",
     floors: [
       { id: 'rdc', label: 'RDC' },
-      { id: '1er', label: '1er étage' },
-      { id: '2e', label: '2ème étage' },
-      { id: '3e', label: '3ème étage' },
+      { id: '1er', label: '1er' },
+      { id: '2e', label: '2ème' },
+      { id: '3e', label: '3ème' },
     ],
     configs: [
       // ⚠️ Les 8 combinaisons possibles (2 côtés × 4 étages) ne sont pas
@@ -273,9 +273,9 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
     // emplacement d'un extincteur) -- déposés dans /public/images/plans/.
     levels: [
       { id: 'rdc', label: 'RDC', planImage: '/images/plans/extincteurs-rdc.jpg' },
-      { id: '1er', label: '1er étage', planImage: '/images/plans/extincteurs-1er.jpg' },
-      { id: '2e', label: '2ème étage', planImage: '/images/plans/extincteurs-2e.jpg' },
-      { id: '3e', label: '3ème étage', planImage: '/images/plans/extincteurs-3e.jpg' },
+      { id: '1er', label: '1er', planImage: '/images/plans/extincteurs-1er.jpg' },
+      { id: '2e', label: '2ème', planImage: '/images/plans/extincteurs-2e.jpg' },
+      { id: '3e', label: '3ème', planImage: '/images/plans/extincteurs-3e.jpg' },
     ],
   },
 ]
