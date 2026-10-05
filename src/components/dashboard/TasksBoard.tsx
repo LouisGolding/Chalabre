@@ -332,34 +332,44 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
           04/10/2026, voir plus bas), et la liste "Periodique" (ex.
           "Jardin") quitte ce widget pour rejoindre "Taches", tout en bas
           (apres "A faire"). */}
-      <Card>
-        <CardHeader
-          className="cursor-pointer select-none"
-          onClick={() => setFormOpen((v) => !v)}
-          role="button"
-          tabIndex={0}
-          aria-expanded={formOpen}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              setFormOpen((v) => !v)
-            }
-          }}
-        >
-          <CardTitle className="flex items-center justify-between gap-2 text-sm md:text-base uppercase tracking-wide">
-            Entretien et réparations
-            <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', formOpen && 'rotate-180')} />
-          </CardTitle>
+      {/* Card alignee sur le gabarit "replie" des widgets du Guide de la
+          maison (GuideCard.tsx : Card py-0, entete h-10, contenu masque
+          plutot que simplement rempli quand replie) -- demande par
+          Nicolas le 05/10/2026 : meme hauteur a l'etat replie que
+          "Avant votre arrivee"/"Maison encore occupee"/etc. Avant ce
+          changement, Archives restait visible meme replie (CardContent
+          toujours rendu) : c'est desormais tout le contenu qui
+          apparait/disparait ensemble avec formOpen, comme sur un
+          GuideCard. */}
+      <Card className="py-0">
+        <CardHeader>
+          <button
+            type="button"
+            onClick={() => setFormOpen((v) => !v)}
+            aria-expanded={formOpen}
+            className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
+          >
+            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Entretien et réparations</CardTitle>
+            <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', formOpen && 'rotate-180')} />
+          </button>
         </CardHeader>
-        <CardContent className="space-y-5">
-          {canEdit && formOpen && (
-            <div className="space-y-3 pb-4 border-b border-border" onClick={(e) => e.stopPropagation()}>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Nouvelle tâche…"
-                onKeyDown={(e) => e.key === 'Enter' && addTask()}
-              />
+        {formOpen && (
+          <CardContent className="space-y-5 pb-4">
+            {canEdit && (
+              <div className="space-y-3 pb-4 border-b border-border">
+                {/* Encadre traite exactement comme le champ "Titre" de
+                    "Partager ce qui a ete fait" (RealisationsBoard.tsx) --
+                    demande par Nicolas le 05/10/2026 : remplace le
+                    composant <Input> (shadcn, rounded-md par defaut) par
+                    le meme <input> natif + classes que ce champ. */}
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Nouvelle tâche…"
+                  onKeyDown={(e) => e.key === 'Enter' && addTask()}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+                />
 
               <div>
                 <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Catégorie</p>
@@ -438,34 +448,35 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
             </div>
           )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
-          {archives.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-border">
-              <button
-                type="button"
-                onClick={() => setArchivesOpen((v) => !v)}
-                className="flex items-center gap-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground"
-              >
-                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', archivesOpen && 'rotate-180')} />
-                Archives
-              </button>
-              {archivesOpen && (
-                <TaskList
-                  title={null}
-                  tasks={archives}
-                  canEdit={canEdit}
-                  onToggle={toggle}
-                  onDelete={deleteTask}
-                  commentDraftId={commentDraftId}
-                  commentDraftText={commentDraftText}
-                  onCommentDraftChange={setCommentDraftText}
-                  onCommentSave={saveComment}
-                />
-              )}
-            </div>
-          )}
-        </CardContent>
+            {archives.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setArchivesOpen((v) => !v)}
+                  className="flex items-center gap-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground"
+                >
+                  <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', archivesOpen && 'rotate-180')} />
+                  Archives
+                </button>
+                {archivesOpen && (
+                  <TaskList
+                    title={null}
+                    tasks={archives}
+                    canEdit={canEdit}
+                    onToggle={toggle}
+                    onDelete={deleteTask}
+                    commentDraftId={commentDraftId}
+                    commentDraftText={commentDraftText}
+                    onCommentDraftChange={setCommentDraftText}
+                    onCommentSave={saveComment}
+                  />
+                )}
+              </div>
+            )}
+          </CardContent>
+        )}
       </Card>
 
       {/* Widget separe pour "A faire ce mois-ci" / "A faire" / "Periodique"
