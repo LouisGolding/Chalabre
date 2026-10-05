@@ -477,7 +477,7 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
       {(thisMonth.length > 0 || general.length > 0 || jardin.length > 0 || tasks.length === 0) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Tâches</CardTitle>
+            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Liste des tâches</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -572,7 +572,7 @@ function TaskList({
     <div className="space-y-2">
       {title && (
         <div className="flex items-center justify-between gap-3">
-          <p className="text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
+          <p className="text-[12px] md:text-[14px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
           {sortMode && onSortModeChange && (
             <div className="flex items-center gap-x-4">
               <button type="button" onClick={() => onSortModeChange('urgence')} className={viewTogglePillClass(sortMode === 'urgence')}>
@@ -625,7 +625,13 @@ function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdi
         disabled={!canEdit}
         className="self-center h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
       />
-      <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{CATEGORY_LABEL[task.category]}</span>
+      {/* Largeur fixe (au lieu d'un simple shrink-0 qui s'ajuste au texte)
+          -- demande par Nicolas le 05/10/2026 : "Electricite"/"Manutention"
+          (les libelles de categorie les plus longs) calent cette colonne,
+          si bien que le texte de description de chaque tache commence
+          desormais systematiquement a la meme position horizontale, quelle
+          que soit la categorie affichee sur la ligne. */}
+      <span className="w-28 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{CATEGORY_LABEL[task.category]}</span>
       {/* Plus de troncage (truncate) -- demande par Nicolas le
           04/10/2026 : un titre trop long passe a la ligne au lieu
           d'etre coupe, le reste de la ligne reste inchange. */}
