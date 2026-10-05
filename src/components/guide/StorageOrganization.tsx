@@ -32,12 +32,20 @@ const PLAN_ASPECT_RATIO = 2.6
 // - en tapant un mot (ex. "serviettes"), l'appli reconnait directement
 //   dans quel emplacement numerote ce mot a ete ecrit par un admin (voir
 //   widget "Rangement indications", StorageSlotsAdmin.tsx) et affiche,
-//   sous l'encadre, le numero correspondant (ex. "2.07"), le contenu
-//   renseigne, et le plan de l'etage concerne -- confirme par Nicolas :
-//   "le numero et le plan devront s'afficher sous l'encadre editable du
-//   widget organisation des placards". Recherche en direct (a chaque
-//   frappe), aucun appel reseau : toutes les donnees sont deja chargees
-//   cote serveur (voir guide/page.tsx) et passees en props.
+//   sous l'encadre, le numero correspondant (ex. "2.07") et le plan de
+//   l'etage concerne -- confirme par Nicolas : "le numero et le plan
+//   devront s'afficher sous l'encadre editable du widget organisation
+//   des placards". Recherche en direct (a chaque frappe), aucun appel
+//   reseau : toutes les donnees sont deja chargees cote serveur (voir
+//   guide/page.tsx) et passees en props.
+//   05/10/2026, suite a une simulation visuelle demandee par Nicolas :
+//   "Emplacement" renomme "Placard" ; le contenu trouve (ex. "Draps
+//   blancs (lit double)") n'est plus reaffiche sous le titre du resultat
+//   (deja visible dans l'encadre de recherche tape par l'utilisateur) ;
+//   le titre d'etage n'est plus reecrit une seconde fois sous le plan
+//   (deja present juste au-dessus, dans "Placard X -- <etage>") -- voir
+//   PlanViewer.tsx, le prop `showTitle` ajoute pour cette demande a ete
+//   retire aussitot, inutilise.
 // - les memes fonctionnalites de plan que le widget "Urgences" (vignette
 //   au format reel, plein ecran, pincement pour zoomer) sont reutilisees
 //   a l'identique via PlanViewer.tsx -- demande explicite de Nicolas.
@@ -80,16 +88,14 @@ export function StorageOrganization({ slots }: { slots: StorageSlotRow[] }) {
         return (
           <div key={`${match.floor}-${match.slotNumber}`} className="space-y-2 rounded-lg border border-border p-3">
             <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
-              Emplacement {match.slotLabel} — {storageFloorLabel(match.floor)}
+              Placard {match.slotLabel} — {storageFloorLabel(match.floor)}
             </p>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{match.content}</p>
             {floor && (
               <PlanThumbnail
                 level={floor}
                 aspectRatio={PLAN_ASPECT_RATIO}
                 altPrefix="Rangement"
                 onToggle={() => setFullscreenFloorId(floor.id)}
-                showTitle
               />
             )}
           </div>

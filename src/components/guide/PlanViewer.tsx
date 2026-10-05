@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { X } from 'lucide-react'
-import { cn, viewTogglePillClass } from '@/lib/utils'
 
 // Visualiseur de plan reutilisable : vignette cliquable au format reel
 // du plan, plein ecran avec pincement pour zoomer (mobile) et defilement
@@ -22,18 +21,15 @@ import { cn, viewTogglePillClass } from '@/lib/utils'
 // un ratio moyen (voir StorageOrganization.tsx) est utilise pour les 4,
 // sans consequence visuelle grace a `object-contain`.
 //
-// `showTitle` (PlanThumbnail uniquement) : les PDF "Rangement
-// indications" recus le 05/10/2026 avaient un titre d'etage dessine
-// dans l'image elle-meme ("DEUXIEME ETAGE", etc.), mais pas harmonise
-// (tailles/graisses differentes) -- vectorise/detoure, pas du texte,
-// impossible a corriger proprement dans le PDF. A la demande de Nicolas,
-// ce titre a ete efface des images et est reecrit ici par l'appli, sous
-// la vignette, avec la meme esthetique que la pastille "Canat" du widget
-// "Organisation des placards" (`viewTogglePillClass`). Non applique a
-// `FullscreenPlanViewer` : la demande portait explicitement sur "chaque
-// image" (= la vignette), et le plein ecran n'affiche aucun titre non
-// plus pour Urgences, qui n'utilise pas ce prop (reste optionnel,
-// comportement d'Urgences inchange).
+// Les PDF "Rangement indications" recus le 05/10/2026 avaient un titre
+// d'etage dessine dans l'image elle-meme ("DEUXIEME ETAGE", etc.), mais
+// pas harmonise (tailles/graisses differentes) -- vectorise/detoure, pas
+// du texte, impossible a corriger proprement dans le PDF. Le titre a
+// donc ete efface des images (voir storage-guide.ts). Un prop `showTitle`
+// avait ete ajoute ici pour le reecrire sous la vignette, mais retire
+// aussitot : Nicolas a juge cela redondant avec le nom d'etage deja
+// affiche juste au-dessus par StorageOrganization.tsx ("Placard X --
+// <etage>").
 
 export interface PlanLevel {
   id: string
@@ -51,17 +47,12 @@ export function PlanThumbnail({
   altPrefix,
   onToggle,
   onSwipe,
-  showTitle,
 }: {
   level: PlanLevel
   aspectRatio: number
   altPrefix: string
   onToggle: () => void
   onSwipe?: (direction: 1 | -1) => void
-  // Voir le commentaire au-dessus de PlanLevel : affiche level.label sous
-  // la vignette, style pastille "Canat" (viewTogglePillClass). Optionnel,
-  // non utilise par Urgences.
-  showTitle?: boolean
 }) {
   const touchStartXRef = useRef<number | null>(null)
 
@@ -78,45 +69,35 @@ export function PlanThumbnail({
     else if (deltaX < -SWIPE_THRESHOLD_PX) onSwipe(1)
   }
 
-  const title = showTitle ? (
-    <p className={cn(viewTogglePillClass(true), 'text-center')}>{level.label}</p>
-  ) : null
-
   if (!level.planImage) {
     return (
-      <div className="space-y-1.5">
-        <div
-          className="flex items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground"
-          style={{ aspectRatio }}
-        >
-          Plan à venir
-        </div>
-        {title}
+      <div
+        className="flex items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground"
+        style={{ aspectRatio }}
+      >
+        Plan à venir
       </div>
     )
   }
 
   return (
-    <div className="space-y-1.5">
-      <button
-        type="button"
-        onClick={onToggle}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        aria-label="Agrandir le plan"
-        className="relative block w-full overflow-hidden rounded-lg border border-border bg-muted"
-        style={{ aspectRatio }}
-      >
-        <Image
-          src={level.planImage}
-          alt={`${altPrefix} — ${level.label}`}
-          fill
-          className="object-contain"
-          sizes="(max-width: 768px) 100vw, 700px"
-        />
-      </button>
-      {title}
-    </div>
+    <button
+      type="button"
+      onClick={onToggle}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      aria-label="Agrandir le plan"
+      className="relative block w-full overflow-hidden rounded-lg border border-border bg-muted"
+      style={{ aspectRatio }}
+    >
+      <Image
+        src={level.planImage}
+        alt={`${altPrefix} — ${level.label}`}
+        fill
+        className="object-contain"
+        sizes="(max-width: 768px) 100vw, 700px"
+      />
+    </button>
   )
 }
 
