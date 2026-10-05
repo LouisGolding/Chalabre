@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ChevronDown, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Trash2 } from 'lucide-react'
 import { actionPillClass, cn, viewTogglePillClass } from '@/lib/utils'
 import { MONTH_OPTIONS, SEASON_OPTIONS, PERIOD_LABELS, TaskPeriod, isPeriodCurrent } from '@/lib/task-periods'
 
@@ -355,8 +355,10 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
         </CardHeader>
         {formOpen && (
           <CardContent className="space-y-5 pb-4">
+            {/* Plus de ligne grise ici -- demande par Nicolas le
+                05/10/2026 : retiree du bas du widget. */}
             {canEdit && (
-              <div className="space-y-3 pb-4 border-b border-border">
+              <div className="space-y-3 pb-4">
                 {/* Encadre traite exactement comme le champ "Titre" de
                     "Partager ce qui a ete fait" (RealisationsBoard.tsx) --
                     demande par Nicolas le 05/10/2026 : remplace le
@@ -441,9 +443,11 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 </div>
               )}
 
+              {/* Traite et nomme comme le bouton "Publier" de "Partager ce
+                  qui a ete fait" (RealisationsBoard.tsx) -- demande par
+                  Nicolas le 05/10/2026 : plus d'icone, meme libelle/etat. */}
               <button type="button" onClick={addTask} disabled={saving || !title.trim()} className={actionPillClass}>
-                <Plus className="h-3.5 w-3.5" />
-                Ajouter
+                {saving ? 'Publication...' : 'Publier'}
               </button>
             </div>
           )}
