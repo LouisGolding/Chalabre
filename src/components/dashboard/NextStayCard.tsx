@@ -717,13 +717,20 @@ function StayEntry({
           champ "Titre" de "Partager ce qui a ete fait" (RealisationsBoard.tsx) :
           un encadre arrondi avec un texte d'exemple en gris clair en
           placeholder (ici "Heure et gare ou aeroport d'arrivee"), plus de
-          label "Note :" ni de soulignement bas-de-casse/majuscules. */}
+          label "Note :" ni de soulignement bas-de-casse/majuscules.
+          05/10/2026 : bg-background (fond uni) remplace par bg-transparent
+          a la demande de Nicolas, pour que cet encadre laisse voir le
+          fond du widget qui le contient (couleur + texture papier posee
+          par StayBanner via coloredTextureStyle, ou fond "canson" uni
+          pour la banniere generique "Ajouter un sejour") plutot qu'un
+          fond gris plat qui jurait avec les bannieres colorees
+          (Otto/invites). */}
       <input
         type="text"
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Heure et gare ou aéroport d'arrivée"
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
       />
 
       {/* gap-x-2 (8px) + tracking reduit a 0.02em (au lieu de gap-x-3/16px et

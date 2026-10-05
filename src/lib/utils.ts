@@ -36,8 +36,12 @@ export function viewTogglePillClass(selected: boolean): string {
 // globals.css). A appliquer sur un <button> natif (pas le composant
 // <Button>, dont le rounded-lg/bg-primary par defaut entrerait en
 // conflit avec cette spec).
+// Ajustement du 05/10/2026 (demande par Nicolas) : taille de police
+// ramenee de 14px a 10px (text-[10px]), graisse de 600 a 500
+// (font-medium), padding vertical de 6px a 2px (py-0.5) -- la largeur
+// des encadres reste auto (w-fit).
 export const actionPillClass =
-  'pill-canson-hover inline-flex w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-foreground px-3 py-1.5 text-sm font-semibold uppercase tracking-[0.08em] text-foreground transition-colors disabled:pointer-events-none disabled:opacity-50'
+  'pill-canson-hover inline-flex w-fit items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-foreground px-3 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-foreground transition-colors disabled:pointer-events-none disabled:opacity-50'
 
 // Season logic: Summer = April 1 - October 30, Winter = October 31 - March 31
 export function getSeason(date: Date): 'summer' | 'winter' {
