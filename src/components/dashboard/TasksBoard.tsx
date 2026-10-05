@@ -488,7 +488,22 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
       {(thisMonth.length > 0 || general.length > 0 || jardin.length > 0 || tasks.length === 0) && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Liste des tâches</CardTitle>
+            {/* Pastilles de tri Urgence/Categorie deplacees ici le
+                05/10/2026 (demande par Nicolas) : elles n'apparaissaient
+                plus qu'une fois, alignees sur la ligne du titre du widget
+                "Liste des taches" (et non plus sur chacune des 3
+                sous-listes), justifiees a droite. */}
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-sm md:text-base uppercase tracking-wide">Liste des tâches</CardTitle>
+              <div className="flex items-center gap-x-4">
+                <button type="button" onClick={() => setSortMode('urgence')} className={viewTogglePillClass(sortMode === 'urgence')}>
+                  Urgence
+                </button>
+                <button type="button" onClick={() => setSortMode('categorie')} className={viewTogglePillClass(sortMode === 'categorie')}>
+                  Catégorie
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-5">
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -508,8 +523,6 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 commentDraftText={commentDraftText}
                 onCommentDraftChange={setCommentDraftText}
                 onCommentSave={saveComment}
-                sortMode={sortMode}
-                onSortModeChange={setSortMode}
               />
             )}
 
@@ -524,8 +537,6 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 commentDraftText={commentDraftText}
                 onCommentDraftChange={setCommentDraftText}
                 onCommentSave={saveComment}
-                sortMode={sortMode}
-                onSortModeChange={setSortMode}
               />
             )}
 
@@ -540,8 +551,6 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 commentDraftText={commentDraftText}
                 onCommentDraftChange={setCommentDraftText}
                 onCommentSave={saveComment}
-                sortMode={sortMode}
-                onSortModeChange={setSortMode}
               />
             )}
           </CardContent>
@@ -561,8 +570,6 @@ function TaskList({
   commentDraftText,
   onCommentDraftChange,
   onCommentSave,
-  sortMode,
-  onSortModeChange,
 }: {
   title: string | null
   tasks: TaskItem[]
@@ -573,28 +580,14 @@ function TaskList({
   commentDraftText: string
   onCommentDraftChange: (text: string) => void
   onCommentSave: (id: string) => void
-  // Pastilles de tri (Urgence/Categorie) affichees sur la ligne de titre,
-  // alignees a droite -- demande par Nicolas le 04/10/2026. Omises pour
-  // Archives (title est deja null dans ce cas).
-  sortMode?: SortMode
-  onSortModeChange?: (mode: SortMode) => void
 }) {
   return (
     <div className="space-y-2">
+      {/* Les pastilles de tri Urgence/Categorie ne sont plus affichees ici
+          -- deplacees une seule fois sur le titre du widget "Liste des
+          taches" le 05/10/2026 (demande par Nicolas). */}
       {title && (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[12px] md:text-[14px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
-          {sortMode && onSortModeChange && (
-            <div className="flex items-center gap-x-4">
-              <button type="button" onClick={() => onSortModeChange('urgence')} className={viewTogglePillClass(sortMode === 'urgence')}>
-                Urgence
-              </button>
-              <button type="button" onClick={() => onSortModeChange('categorie')} className={viewTogglePillClass(sortMode === 'categorie')}>
-                Catégorie
-              </button>
-            </div>
-          )}
-        </div>
+        <p className="text-[12px] md:text-[14px] font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
       )}
       {/* Ligne 1px grise claire sous le titre de la liste -- demande par
           Nicolas le 05/10/2026. Absente pour Archives (title deja null). */}
