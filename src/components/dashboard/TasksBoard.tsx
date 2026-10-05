@@ -383,27 +383,35 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 </div>
               </div>
 
-              {/* Periode : auparavant un <select> natif, converti en
-                  pastilles le 04/10/2026 (demande par Nicolas) pour
-                  suivre exactement le meme traitement que les autres
-                  groupes de pastilles de ce formulaire. */}
+              {/* Periode : convertie en pastilles le 04/10/2026, puis
+                  revenue a un menu deroulant le 05/10/2026 (demande par
+                  Nicolas : "garde l'option de pastille deroulante comme
+                  avant") -- mais avec la typo/esthetique des pastilles
+                  mise en place entre-temps (majuscules, tracking 0,08em,
+                  gras quand une periode est choisie) a la place de
+                  l'ancien style text-xs non majuscule. */}
               <div>
                 <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Période</p>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                  <button type="button" onClick={() => setPeriod('')} className={viewTogglePillClass(period === '')}>
-                    Pas de période précise
-                  </button>
-                  {MONTH_OPTIONS.map((m) => (
-                    <button key={m.value} type="button" onClick={() => setPeriod(m.value)} className={viewTogglePillClass(period === m.value)}>
-                      {m.label}
-                    </button>
-                  ))}
-                  {SEASON_OPTIONS.map((s) => (
-                    <button key={s.value} type="button" onClick={() => setPeriod(s.value)} className={viewTogglePillClass(period === s.value)}>
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
+                <select
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value as TaskPeriod | '')}
+                  className={cn(
+                    'h-8 rounded-full border border-input bg-background px-3 text-xs uppercase tracking-[0.08em] md:text-sm',
+                    period === '' ? 'font-normal text-foreground/60' : 'font-semibold text-foreground'
+                  )}
+                >
+                  <option value="">Pas de période précise</option>
+                  <optgroup label="Mois">
+                    {MONTH_OPTIONS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Saisons">
+                    {SEASON_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>{s.label}</option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
 
               {/* Uniquement pour la catégorie "Jardin", demandé par Nicolas
