@@ -24,6 +24,12 @@ const SHOW_GAS_BOTTLES = false
 // contenu reste dans guideContent, pret a etre reaffiche en repassant
 // cette constante a true.
 const SHOW_DRAPS_LINGE = false
+// Widget "Fuite d'eau" (Urgences) temporairement masque a la demande de
+// Nicolas le 05/10/2026 -- meme convention : la categorie reste dans
+// EMERGENCY_CATEGORIES (emergency-guide.ts), simplement filtree avant
+// d'etre passee a <EmergencyGuide>, prete a etre reaffichee en repassant
+// cette constante a true.
+const SHOW_FUITE_EAU = false
 
 const guideContent: { category: string; items: { title: string; content: ReactNode }[] }[] = [
   {
@@ -212,7 +218,10 @@ export default async function GuidePage() {
 
       <div>
         <h2 className="text-sm md:text-base font-extrabold text-foreground mb-3">Urgences</h2>
-        <EmergencyGuide categories={EMERGENCY_CATEGORIES} contacts={contacts ?? []} />
+        <EmergencyGuide
+          categories={EMERGENCY_CATEGORIES.filter((c) => SHOW_FUITE_EAU || c.id !== 'eau')}
+          contacts={contacts ?? []}
+        />
       </div>
 
       <div>

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { GuideCard } from '@/components/guide/GuideCard'
 import { Zap, Droplet, Flame, ArrowLeft, Phone, Mail, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { EmergencyCategory, DiagnosticZone, HeaterSide, HeaterFloorId } from '@/lib/emergency-guide'
+import { EmergencyCategory, DiagnosticZone, HeaterSide, HeaterFloorId, BreakerSide } from '@/lib/emergency-guide'
 import { Contact } from '@/types'
 import { viewTogglePillClass } from '@/lib/utils'
 import { PlanThumbnail, FullscreenPlanViewer } from '@/components/guide/PlanViewer'
@@ -15,6 +15,9 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   electrique: Zap,
   eau: Droplet,
   extincteurs: Flame,
+  // Meme pictogramme que "Fuite d'eau" -- demande par Nicolas le
+  // 05/10/2026.
+  'eau-chaude': Droplet,
 }
 
 function PlanImage({ src, alt }: { src?: string; alt: string }) {
@@ -305,6 +308,11 @@ function LocatorCard({ category }: { category: Extract<EmergencyCategory, { kind
 const HEATER_PHOTO_ASPECT_RATIO = 4 / 3
 
 function HeaterCard({ category }: { category: Extract<EmergencyCategory, { kind: 'heater' }> }) {
+  // Les pastilles cote/etage/option restent masquees derriere un bouton
+  // "Signaler un probleme" (meme bouton que DiagnosticCard) : il faut
+  // cliquer dessus pour les faire apparaitre -- demande de Nicolas le
+  // 05/10/2026.
+  const [revealed, setRevealed] = useState(false)
   const [side, setSide] = useState<HeaterSide>('canat')
   const [floorId, setFloorId] = useState<HeaterFloorId>(category.floors[0]?.id ?? 'rdc')
   const [optionId, setOptionId] = useState<string | null>(null)
@@ -328,6 +336,14 @@ function HeaterCard({ category }: { category: Extract<EmergencyCategory, { kind:
   // explicite de Nicolas : "automatiquement en noir, puisque c'est le
   // seul choix").
   const selectedOption = options.length === 1 ? options[0] : (options.find((o) => o.id === optionId) ?? null)
+
+  if (!revealed) {
+    return (
+      <Button type="button" variant="outline" size="sm" className="bg-card/60 backdrop-blur-sm" onClick={() => setRevealed(true)}>
+        Signaler un problème
+      </Button>
+    )
+  }
 
   return (
     <div className="space-y-3">
@@ -393,21 +409,139 @@ function HeaterCard({ category }: { category: Extract<EmergencyCategory, { kind:
   )
 }
 
+// --- Catégorie "breaker" (panne électrique) -----------------------------
+//
+// Refondue le 05/10/2026, demandée par Nicolas : même mécanisme que
+// "heater" ci-dessus (pastilles côté + étage -> option(s) -> plan,
+// masquées derrière "Signaler un problème"), avec deux différences :
+// - un 3e côté "Commun" (parties communes) en plus de Canat/Lalande ;
+// - les photos de plan sont affichées en carré, haute résolution, SANS
+//   zoom/plein écran -- donc SquarePlanImage ci-dessous plutôt que
+//   PlanThumbnail/FullscreenPlanViewer.
+// Voir aussi le commentaire en tête de emergency-guide.ts et la note sur
+// la correspondance photo <-> plan pas encore confirmée par Nicolas.
+
+// Vignette carree, haute resolution, non cliquable (pas de zoom/plein
+// ecran) -- a la difference de PlanThumbnail (PlanViewer.tsx) utilisee
+// par "heater"/"locator". Demande explicite de Nicolas le 05/10/2026.
+function SquarePlanImage({ src, alt }: { src?: string; alt: string }) {
+  if (!src) {
+    return (
+      <div
+        className="flex items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground"
+        style={{ aspectRatio: 1 }}
+      >
+        Plan à venir
+      </div>
+    )
+  }
+  return (
+    <div className="relative w-full overflow-hidden rounded-lg border border-border bg-muted" style={{ aspectRatio: 1 }}>
+      <Image src={src} alt={alt} fill className="object-contain" sizes="(max-width: 768px) 100vw, 700px" />
+    </div>
+  )
+}
+
+function ElectricCard({ category }: { category: Extract<EmergencyCategory, { kind: 'breaker' }> }) {
+  // Memes pastilles masquees derriere "Signaler un probleme" que
+  // HeaterCard -- demande de Nicolas le 05/10/2026.
+  const [revealed, setRevealed] = useState(false)
+  const [side, setSide] = useState<BreakerSide>('canat')
+  const [floorId, setFloorId] = useState<HeaterFloorId>(category.floors[0]?.id ?? 'rdc')
+  const [optionId, setOptionId] = useState<string | null>(null)
+
+  // Meme motif que HeaterCard : reinitialise l'option choisie des qu'on
+  // change de cote ou d'etage, ajuste pendant le rendu (evite l'erreur
+  // eslint react-hooks/set-state-in-effect).
+  const configKey = `${side}-${floorId}`
+  const [lastConfigKey, setLastConfigKey] = useState(configKey)
+  if (configKey !== lastConfigKey) {
+    setLastConfigKey(configKey)
+    setOptionId(null)
+  }
+
+  const config = category.configs.find((c) => c.side === side && c.floor === floorId) ?? null
+  const options = config?.options ?? []
+  // Un seul "lieu" sans nom donne par Nicolas (id 'direct') -> pas de
+  // pastille, le plan s'affiche directement. Plusieurs options -> il
+  // faut en choisir une (pas de pre-selection automatique ici, a la
+  // difference de HeaterCard, car aucune des combinaisons a options
+  // multiples n'en a qu'une seule par construction).
+  const selectedOption =
+    options.length === 1 && options[0].id === 'direct'
+      ? options[0]
+      : options.find((o) => o.id === optionId) ?? null
+
+  if (!revealed) {
+    return (
+      <Button type="button" variant="outline" size="sm" className="bg-card/60 backdrop-blur-sm" onClick={() => setRevealed(true)}>
+        Signaler un problème
+      </Button>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Cote de la maison (gauche) + etage (droite), meme ligne -- memes
+          pastilles que HeaterCard/"Organisation des placards"/Planning. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-x-4">
+          {(['canat', 'lalande', 'commun'] as const).map((s) => (
+            <button key={s} type="button" className={viewTogglePillClass(side === s)} onClick={() => setSide(s)}>
+              {s === 'canat' ? 'Canat' : s === 'lalande' ? 'Lalande' : 'Commun'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-x-4">
+          {category.floors.map((f) => (
+            <button key={f.id} type="button" className={viewTogglePillClass(floorId === f.id)} onClick={() => setFloorId(f.id)}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Combinaison sans options (pas mentionnee par Nicolas) : n'affiche
+          rien, meme comportement que HeaterCard. */}
+
+      {options.length > 0 && !(options.length === 1 && options[0].id === 'direct') && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {options.map((o) => (
+            <button key={o.id} type="button" className={viewTogglePillClass(selectedOption?.id === o.id)} onClick={() => setOptionId(o.id)}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selectedOption && (
+        <SquarePlanImage src={selectedOption.planImage} alt={`Panne électrique — ${selectedOption.label}`} />
+      )}
+    </div>
+  )
+}
+
 export function EmergencyGuide({ categories, contacts }: { categories: EmergencyCategory[]; contacts: Contact[] }) {
   return (
     <div className="space-y-3">
-      {categories.map((category) =>
-        category.kind === 'diagnostic' ? (
-          <DiagnosticCard key={category.id} category={category} contacts={contacts} />
-        ) : category.kind === 'locator' ? (
-          // Repliable comme les autres widgets du Guide de la maison (voir
-          // GuideCard.tsx) -- demandé par Nicolas le 02/10/2026, "même
-          // mécanisme que les autres widgets de la page".
-          <GuideCard key={category.id} title={category.label} content={<LocatorCard category={category} />} />
-        ) : (
-          <GuideCard key={category.id} title={category.label} content={<HeaterCard category={category} />} />
-        )
-      )}
+      {categories.map((category) => {
+        if (category.kind === 'diagnostic') {
+          return <DiagnosticCard key={category.id} category={category} contacts={contacts} />
+        }
+        // Repliable comme les autres widgets du Guide de la maison (voir
+        // GuideCard.tsx) -- demandé par Nicolas le 02/10/2026, "même
+        // mécanisme que les autres widgets de la page". Pictogramme
+        // devant le titre -- demandé par Nicolas le 05/10/2026, même
+        // traitement que DiagnosticCard.
+        const Icon = CATEGORY_ICONS[category.id]
+        if (category.kind === 'locator') {
+          return <GuideCard key={category.id} title={category.label} icon={Icon} content={<LocatorCard category={category} />} />
+        }
+        if (category.kind === 'heater') {
+          return <GuideCard key={category.id} title={category.label} icon={Icon} content={<HeaterCard category={category} />} />
+        }
+        return <GuideCard key={category.id} title={category.label} icon={Icon} content={<ElectricCard category={category} />} />
+      })}
     </div>
   )
 }

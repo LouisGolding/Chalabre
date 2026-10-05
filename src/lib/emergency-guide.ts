@@ -1,10 +1,10 @@
 // Configuration du mini algorithme de dépannage affiché dans "Guide de la
-// maison" → "Urgences". Trois mécanismes :
+// maison" → "Urgences". Quatre mécanismes :
 //
-// - "diagnostic" (panne électrique, fuite d'eau) : on choisit une zone,
-//   l'appli indique quoi vérifier (+ un plan si disponible), puis on
-//   confirme si le problème est réglé ou si ça persiste (auquel cas la
-//   liste des artisans concernés s'affiche).
+// - "diagnostic" (fuite d'eau) : on choisit une zone, l'appli indique quoi
+//   vérifier (+ un plan si disponible), puis on confirme si le problème
+//   est réglé ou si ça persiste (auquel cas la liste des artisans
+//   concernés s'affiche).
 // - "locator" (extincteurs) : on choisit un niveau, l'appli affiche
 //   simplement le plan avec l'emplacement (pas de diagnostic, pas de
 //   suivi de panne).
@@ -15,13 +15,24 @@
 //   son emplacement -- pas de suivi de panne ici non plus, c'est un pur
 //   outil de repérage comme "locator", simplement avec deux niveaux de
 //   sélection (côté + étage) au lieu d'un seul.
+// - "breaker" (panne électrique, refondu le 05/10/2026) : même principe
+//   que "heater", mais avec TROIS côtés possibles (Canat/Lalande/Commun)
+//   et des photos de plan carrées, en haute résolution, SANS zoom/plein
+//   écran (contrairement à "heater"/"locator" qui utilisent
+//   PlanThumbnail/FullscreenPlanViewer) -- demande explicite de Nicolas
+//   le 05/10/2026. Voir SquarePlanImage dans EmergencyGuide.tsx.
 //
-// `planImage` n'est PAS encore renseigné : Aurélie doit fournir les plans.
-// Tant qu'il est absent, l'appli affiche un encadré "plan à venir" à la
-// place. Chaque zone/niveau indique en commentaire le nom de fichier
-// suggéré : il suffira de déposer l'image dans /public/images/plans/ et
-// de renseigner `planImage: '/images/plans/<fichier>'` pour l'activer,
-// sans toucher au reste du code.
+// Pour "heater" et "breaker", les pastilles de sélection (côté/étage/
+// option) restent masquées derrière un bouton "Signaler un problème" :
+// il faut cliquer dessus pour les faire apparaître -- demande de Nicolas
+// le 05/10/2026, pour harmoniser avec le comportement de "diagnostic".
+//
+// `planImage` n'est PAS encore renseigné partout : tant qu'il est absent,
+// l'appli affiche un encadré "plan à venir" à la place. Chaque zone/
+// niveau/option indique en commentaire le nom de fichier suggéré : il
+// suffira de déposer l'image dans /public/images/plans/ et de renseigner
+// `planImage: '/images/plans/<fichier>'` pour l'activer, sans toucher au
+// reste du code.
 
 export type DiagnosticZone = {
   id: string
@@ -33,7 +44,7 @@ export type DiagnosticZone = {
 
 export type DiagnosticCategory = {
   kind: 'diagnostic'
-  id: 'electrique' | 'eau'
+  id: 'eau'
   label: string
   // Mots-clés (minuscules) recherchés dans le rôle des contacts pour la
   // liste d'artisans affichée si le problème persiste.
@@ -86,7 +97,38 @@ export type HeaterCategory = {
   configs: HeaterConfig[]
 }
 
-export type EmergencyCategory = DiagnosticCategory | LocatorCategory | HeaterCategory
+// "breaker" (panne électrique) : même mécanisme que "heater" (côté +
+// étage -> option(s) -> plan), mais avec un 3e côté "Commun" (parties
+// communes), et des photos affichées en carré haute résolution SANS
+// zoom/plein écran (SquarePlanImage dans EmergencyGuide.tsx, pas
+// PlanThumbnail/FullscreenPlanViewer). Demande de Nicolas le 05/10/2026.
+export type BreakerSide = 'canat' | 'lalande' | 'commun'
+
+export type BreakerOption = {
+  id: string
+  label: string
+  planImage?: string
+}
+
+export type BreakerConfig = {
+  side: BreakerSide
+  floor: HeaterFloorId
+  // Tableau vide = combinaison non mentionnée par Nicolas. Un seul
+  // élément dont l'id est 'direct' = combinaison où le plan s'affiche
+  // directement, sans pastille d'option (voir ElectricCard) -- Nicolas
+  // n'a pas donné de nom pour ce "lieu", seulement le plan à afficher.
+  options: BreakerOption[]
+}
+
+export type BreakerCategory = {
+  kind: 'breaker'
+  id: 'electrique'
+  label: string
+  floors: { id: HeaterFloorId; label: string }[]
+  configs: BreakerConfig[]
+}
+
+export type EmergencyCategory = DiagnosticCategory | LocatorCategory | HeaterCategory | BreakerCategory
 
 export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
   {
@@ -232,36 +274,136 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
     ],
   },
   {
-    kind: 'diagnostic',
+    // Refondue le 05/10/2026 a la demande de Nicolas, sur le meme modele
+    // que "Plus d'eau chaude" ci-dessus : plus de zones provisoires ni de
+    // suivi de panne (reglee/persistante, contacts) -- un pur outil de
+    // reperage cote de la maison (Canat/Lalande/Commun, un 3e cote en
+    // plus de "heater") + etage -> option(s) -> plan. Les photos sont
+    // affichees en carre, haute resolution, SANS zoom/plein ecran (a la
+    // difference de "heater"/"locator") -- voir SquarePlanImage dans
+    // EmergencyGuide.tsx.
+    //
+    // ⚠️ Les 10 photos envoyees par Nicolas le 05/10/2026 (vues d'etage
+    // avec pastille orange = tableau electrique) ne portent pas de nom de
+    // piece/zone -- impossible de determiner avec certitude laquelle
+    // correspond a quel plan nomme ci-dessous (ex. "ELEC RDC CANAT
+    // CUISINE" vs "ELEC RDC CANAT GARAGE"). `planImage` reste donc vide
+    // partout pour cette categorie : a renseigner avec Nicolas une fois
+    // la correspondance photo <-> plan confirmee.
+    kind: 'breaker',
     id: 'electrique',
     label: 'Panne électrique',
-    contactRoleKeywords: ['lectric'],
-    zones: [
+    floors: [
+      { id: 'rdc', label: 'RDC' },
+      { id: '1er', label: '1er' },
+      { id: '2e', label: '2ème' },
+      { id: '3e', label: '3ème' },
+    ],
+    configs: [
       {
-        id: 'escalier-central-canat',
-        label: 'Escalier central et 1er étage CANAT / salles de réception',
-        checkLabel: 'Vérifier les fusibles du tableau électrique — Escalier central / CANAT',
-        // plan suggéré : /images/plans/elec-escalier-central-canat.png
+        side: 'canat',
+        floor: 'rdc',
+        options: [
+          { id: 'cuisine-salon-sam-billard', label: 'Cuisine - Salon - S.A.M - Billard' },
+          // plan : ELEC RDC CANAT CUISINE
+          { id: 'entree-atelier-garage', label: 'Entrée - Atelier - Garage' },
+          // plan : ELEC RDC CANAT GARAGE
+        ],
       },
       {
-        id: 'escalier-lalande-3e',
-        label: 'Escalier LALANDE / 3ème étage LALANDE',
-        checkLabel: 'Vérifier les fusibles du tableau électrique — Escalier LALANDE / 3e étage',
-        // plan suggéré : /images/plans/elec-escalier-lalande-3e.png
+        side: 'canat',
+        floor: '1er',
+        options: [
+          { id: 'aile-centrale', label: 'Aile centrale' },
+          // plan : ELEC PREMIER CANAT COULOIR
+          { id: 'aile-est', label: 'Aile Est' },
+          // plan : ELEC PREMIER CANAT GARAGE
+        ],
       },
       {
-        id: '2e-etage-ouest',
-        label: '2ème étage OUEST',
-        checkLabel: 'Vérifier les fusibles du tableau électrique — 2e étage OUEST',
-        // plan suggéré : /images/plans/elec-2e-ouest.png
+        side: 'canat',
+        floor: '2e',
+        options: [],
+        // Combinaison pas mentionnée par Nicolas.
       },
       {
-        id: '2e-etage-est',
-        label: '2ème étage EST',
-        checkLabel: 'Vérifier les fusibles du tableau électrique — 2e étage EST',
-        // plan suggéré : /images/plans/elec-2e-est.png
+        side: 'canat',
+        floor: '3e',
+        options: [
+          // Un seul "lieu", sans nom donné par Nicolas -> pas de pastille
+          // affichée, le plan apparaît directement (voir ElectricCard,
+          // option id 'direct').
+          { id: 'direct', label: '3ème étage CANAT' },
+          // plan : ELEC 3EME CANAT
+        ],
       },
-      // Autres zones à ajouter avec Aurélie (liste donnée comme "etc.").
+      {
+        side: 'lalande',
+        floor: 'rdc',
+        options: [
+          { id: 'atelier-couloir', label: 'Atelier Couloir' },
+          // plan : ELEC ATELIER COULOIR
+          { id: 'cuisine-buanderie-sam-bureau', label: 'Cuisine - Buanderie - S.A.M - Bureau' },
+          // plan : ELEC LALANDE CUISINE
+          { id: 'escalier-123', label: 'Escalier 1.2.3' },
+          // plan : ELEC ANTICHAMBRE
+        ],
+      },
+      {
+        side: 'lalande',
+        floor: '1er',
+        options: [],
+        // Combinaison pas mentionnée par Nicolas.
+      },
+      {
+        side: 'lalande',
+        floor: '2e',
+        options: [
+          { id: 'escalier-123', label: 'Escalier 1.2.3' },
+          // plan : ELEC ANTICHAMBRE (même plan que Lalande+RDC/Escalier 1.2.3)
+          { id: 'aile-ouest-escalier-central', label: 'Aile Ouest - Escalier central' },
+          // plan : ELEC AILE OUEST 2EME
+          { id: 'aile-est', label: 'Aile Est' },
+          // plan : ELEC AILE EST 2EME
+        ],
+      },
+      {
+        side: 'lalande',
+        floor: '3e',
+        options: [
+          { id: 'escalier-central', label: 'Escalier central' },
+          // plan : ELEC AILE OUEST 2EME (même plan que Lalande+2e/Aile Ouest-Escalier central)
+          { id: 'aile-est', label: 'Aile Est' },
+          // plan : ELEC AILE EST 3EME
+        ],
+      },
+      {
+        side: 'commun',
+        floor: 'rdc',
+        options: [],
+        // Combinaison pas mentionnée par Nicolas.
+      },
+      {
+        side: 'commun',
+        floor: '1er',
+        options: [
+          // Un seul "lieu", sans nom donné -> pas de pastille, plan direct.
+          { id: 'direct', label: 'Antichambre (parties communes)' },
+          // plan : ELEC ANTICHAMBRE (même plan que Lalande+RDC/Escalier 1.2.3)
+        ],
+      },
+      {
+        side: 'commun',
+        floor: '2e',
+        options: [],
+        // Combinaison pas mentionnée par Nicolas.
+      },
+      {
+        side: 'commun',
+        floor: '3e',
+        options: [],
+        // Combinaison pas mentionnée par Nicolas.
+      },
     ],
   },
   {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState, type ElementType, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,11 @@ interface GuideCardProps {
   // le 29/09/2026.
   content: ReactNode
   defaultOpen?: boolean
+  // Pictogramme optionnel affiche devant le titre -- demande par Nicolas
+  // le 05/10/2026 pour "Extincteurs" et "Plus d'eau chaude" (meme
+  // traitement que l'icone de DiagnosticCard dans EmergencyGuide.tsx).
+  // Absent pour tous les autres widgets du Guide de la maison.
+  icon?: ElementType
 }
 
 // Widget repliable du "Guide de la maison" : le titre reste toujours
@@ -22,7 +27,7 @@ interface GuideCardProps {
 // 28/09/2026. Titre remonté à 16px/20px (md) + tracking 0,08em +
 // MAJUSCULES le 30/09/2026 (harmonisation typo, voir
 // "Typographie La Batisse.pdf").
-export function GuideCard({ title, content, defaultOpen = false }: GuideCardProps) {
+export function GuideCard({ title, content, defaultOpen = false, icon: Icon }: GuideCardProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
   return (
@@ -40,7 +45,10 @@ export function GuideCard({ title, content, defaultOpen = false }: GuideCardProp
           aria-expanded={isOpen}
           className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
         >
-          <CardTitle className="text-sm md:text-base uppercase tracking-wide">{title}</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-sm md:text-base uppercase tracking-wide">
+            {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            {title}
+          </CardTitle>
           <ChevronDown
             className={cn(
               'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
