@@ -323,58 +323,12 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Widget separe pour "A faire ce mois-ci" / "A faire" -- demande
-          par Nicolas le 04/10/2026. N'apparait pas si ces deux listes
-          sont vides alors qu'il existe deja des taches jardin (pas
-          besoin d'un widget vide) ; apparait avec le message "Aucune
-          tache" quand il n'y a vraiment aucune tache nulle part. */}
-      {(thisMonth.length > 0 || general.length > 0 || tasks.length === 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Tâches</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {error && <p className="text-sm text-destructive">{error}</p>}
-
-            {tasks.length === 0 && (
-              <p className="text-muted-foreground text-sm">Aucune tâche pour le moment.</p>
-            )}
-
-            {thisMonth.length > 0 && (
-              <TaskList
-                title="À faire ce mois-ci"
-                tasks={thisMonth}
-                canEdit={canEdit}
-                onToggle={toggle}
-                onDelete={deleteTask}
-                commentDraftId={commentDraftId}
-                commentDraftText={commentDraftText}
-                onCommentDraftChange={setCommentDraftText}
-                onCommentSave={saveComment}
-                sortMode={sortMode}
-                onSortModeChange={setSortMode}
-              />
-            )}
-
-            {general.length > 0 && (
-              <TaskList
-                title="À faire"
-                tasks={general}
-                canEdit={canEdit}
-                onToggle={toggle}
-                onDelete={deleteTask}
-                commentDraftId={commentDraftId}
-                commentDraftText={commentDraftText}
-                onCommentDraftChange={setCommentDraftText}
-                onCommentSave={saveComment}
-                sortMode={sortMode}
-                onSortModeChange={setSortMode}
-              />
-            )}
-          </CardContent>
-        </Card>
-      )}
-
+      {/* Ordre des 2 widgets et position de "Periodique" inverses le
+          05/10/2026 a la demande de Nicolas : "Entretien et reparations"
+          passe en premier (etait en second depuis la refonte du
+          04/10/2026, voir plus bas), et la liste "Periodique" (ex.
+          "Jardin") quitte ce widget pour rejoindre "Taches", tout en bas
+          (apres "A faire"). */}
       <Card>
         <CardHeader
           className="cursor-pointer select-none"
@@ -475,22 +429,6 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          {jardin.length > 0 && (
-            <TaskList
-              title="Périodique"
-              tasks={jardin}
-              canEdit={canEdit}
-              onToggle={toggle}
-              onDelete={deleteTask}
-              commentDraftId={commentDraftId}
-              commentDraftText={commentDraftText}
-              onCommentDraftChange={setCommentDraftText}
-              onCommentSave={saveComment}
-              sortMode={sortMode}
-              onSortModeChange={setSortMode}
-            />
-          )}
-
           {archives.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-border">
               <button
@@ -518,6 +456,75 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Widget separe pour "A faire ce mois-ci" / "A faire" / "Periodique"
+          -- demande par Nicolas le 04/10/2026, "Periodique" ajoutee en bas
+          le 05/10/2026. N'apparait pas si ces trois listes sont vides
+          alors qu'il existe deja des taches ailleurs (pas besoin d'un
+          widget vide) ; apparait avec le message "Aucune tache" quand il
+          n'y a vraiment aucune tache nulle part. */}
+      {(thisMonth.length > 0 || general.length > 0 || jardin.length > 0 || tasks.length === 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Tâches</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {error && <p className="text-sm text-destructive">{error}</p>}
+
+            {tasks.length === 0 && (
+              <p className="text-muted-foreground text-sm">Aucune tâche pour le moment.</p>
+            )}
+
+            {thisMonth.length > 0 && (
+              <TaskList
+                title="À faire ce mois-ci"
+                tasks={thisMonth}
+                canEdit={canEdit}
+                onToggle={toggle}
+                onDelete={deleteTask}
+                commentDraftId={commentDraftId}
+                commentDraftText={commentDraftText}
+                onCommentDraftChange={setCommentDraftText}
+                onCommentSave={saveComment}
+                sortMode={sortMode}
+                onSortModeChange={setSortMode}
+              />
+            )}
+
+            {general.length > 0 && (
+              <TaskList
+                title="À faire"
+                tasks={general}
+                canEdit={canEdit}
+                onToggle={toggle}
+                onDelete={deleteTask}
+                commentDraftId={commentDraftId}
+                commentDraftText={commentDraftText}
+                onCommentDraftChange={setCommentDraftText}
+                onCommentSave={saveComment}
+                sortMode={sortMode}
+                onSortModeChange={setSortMode}
+              />
+            )}
+
+            {jardin.length > 0 && (
+              <TaskList
+                title="Périodique"
+                tasks={jardin}
+                canEdit={canEdit}
+                onToggle={toggle}
+                onDelete={deleteTask}
+                commentDraftId={commentDraftId}
+                commentDraftText={commentDraftText}
+                onCommentDraftChange={setCommentDraftText}
+                onCommentSave={saveComment}
+                sortMode={sortMode}
+                onSortModeChange={setSortMode}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
