@@ -577,6 +577,9 @@ function TaskList({
           )}
         </div>
       )}
+      {/* Ligne 1px grise claire sous le titre de la liste -- demande par
+          Nicolas le 05/10/2026. Absente pour Archives (title deja null). */}
+      {title && <div className="border-b border-border" />}
       {tasks.map((task) => (
         <div key={task.id}>
           <TaskRow task={task} canEdit={canEdit} onToggle={() => onToggle(task)} onDelete={() => onDelete(task.id)} />
@@ -606,13 +609,13 @@ function TaskList({
 // catégorie, tâche, période, urgence, puis la poubelle.
 function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdit: boolean; onToggle: () => void; onDelete: () => void }) {
   return (
-    <div className="flex items-start gap-3 py-2 border-b border-border last:border-0">
+    <div className="flex items-baseline gap-3 py-2 border-b border-border last:border-0">
       <input
         type="checkbox"
         checked={task.completed}
         onChange={canEdit ? onToggle : undefined}
         disabled={!canEdit}
-        className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
+        className="self-center h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
       />
       <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{CATEGORY_LABEL[task.category]}</span>
       {/* Plus de troncage (truncate) -- demande par Nicolas le
@@ -634,7 +637,7 @@ function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdi
           type="button"
           onClick={onDelete}
           aria-label="Supprimer cette tâche"
-          className="shrink-0 text-muted-foreground hover:text-destructive"
+          className="self-center shrink-0 text-muted-foreground hover:text-destructive"
         >
           <Trash2 className="h-4 w-4" />
         </button>
