@@ -11,6 +11,15 @@ const ADMIN_ITEMS = [
   { href: '/dashboard/documents', label: 'Documents' },
 ]
 
+// Onglet "Suivi paiements" temporairement masque a la demande de Nicolas
+// le 07/10/2026 -- meme convention que SHOW_FUITE_EAU/SHOW_DRAPS_LINGE
+// dans guide/page.tsx : l'entree reste dans ADMIN_ITEMS ci-dessus,
+// simplement filtree avant affichage (voir `items` dans BottomNav
+// ci-dessous), prete a etre reaffichee en repassant cette constante a
+// true. La page et la route /dashboard/admin/paiements elles-memes ne
+// sont pas touchees, seul le lien dans ce bandeau disparait.
+const SHOW_SUIVI_PAIEMENTS = false
+
 // Bandeau fixe en BAS de l'écran. Aurélie a demandé le 17/09/2026 que les
 // onglets réservés aux admins n'apparaissent jamais dans le bandeau du
 // haut (commun à tout le monde), mais dans ce second bandeau, en bas, pour
@@ -68,7 +77,9 @@ const ADMIN_ITEMS = [
 // onglets (pas seulement l'accueil).
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
-  const items = role === 'admin' ? ADMIN_ITEMS : []
+  const items = (role === 'admin' ? ADMIN_ITEMS : []).filter(
+    (item) => SHOW_SUIVI_PAIEMENTS || item.href !== '/dashboard/admin/paiements'
+  )
   const hasPhotoBackground = pathname === '/dashboard'
   // Split fixe (pas de calcul générique sur items.length) : voir le
   // commentaire du 06/10/2026 ci-dessus sur ADMIN_ITEMS.
