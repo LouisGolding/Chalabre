@@ -154,14 +154,20 @@ export default function LoginPage() {
           <CallbackError />
         </Suspense>
 
-        {/* Carte crème : champs email / mot de passe. Hauteur totale
+        {/* Bureau (md+) : largeur des 2 pastilles (carte + bouton) alignée
+            au pixel sur la largeur réelle du mot "La Bâtisse" du logo
+            (370px mesurés à text-6xl, voir h1 plus haut) plutôt que
+            max-w-sm (384px, approximatif) -- demandé par Nicolas le
+            07/10/2026. Si la taille/le tracking du wordmark change, cette
+            valeur est à remesurer.
+            Carte crème : champs email / mot de passe. Hauteur totale
             réduite d'un quart le 07/10/2026 à la demande de Nicolas (104px
             -> 78px mesurés en mobile, 375px de large) : même levier que la
             retouche du 27/09/2026 ci-dessus ("py-2 au lieu de py-3"), en
             resserrant encore le padding du cadre (py-2 -> py-[3px]) et de
             chaque champ (py-2 -> py-1), sans toucher à la taille du texte
             (text-lg conservé). */}
-        <div className="mx-9 rounded-2xl bg-card px-6 py-[3px] shadow-lg md:mx-auto md:max-w-sm">
+        <div className="mx-9 rounded-2xl bg-card px-6 py-[3px] shadow-lg md:mx-auto md:w-[370px]">
           <input
             type="email"
             value={email}
@@ -203,7 +209,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-1.5 text-center font-serif text-base uppercase tracking-[0.08em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:max-w-sm"
+          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-1.5 text-center font-serif text-base uppercase tracking-[0.08em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:w-[370px]"
         >
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
