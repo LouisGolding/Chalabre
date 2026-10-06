@@ -625,45 +625,87 @@ function TaskList({
 // catégorie, tâche, période, urgence, puis la poubelle.
 function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdit: boolean; onToggle: () => void; onDelete: () => void }) {
   return (
-    <div className="flex items-baseline gap-3 py-2 border-b border-border last:border-0">
-      <input
-        type="checkbox"
-        checked={task.completed}
-        onChange={canEdit ? onToggle : undefined}
-        disabled={!canEdit}
-        className="self-center h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
-      />
-      {/* Largeur fixe (au lieu d'un simple shrink-0 qui s'ajuste au texte)
-          -- demande par Nicolas le 05/10/2026 : "Electricite"/"Manutention"
-          (les libelles de categorie les plus longs) calent cette colonne,
-          si bien que le texte de description de chaque tache commence
-          desormais systematiquement a la meme position horizontale, quelle
-          que soit la categorie affichee sur la ligne. */}
-      <span className="w-28 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{CATEGORY_LABEL[task.category]}</span>
-      {/* Plus de troncage (truncate) -- demande par Nicolas le
-          04/10/2026 : un titre trop long passe a la ligne au lieu
-          d'etre coupe, le reste de la ligne reste inchange. */}
-      <p className={`flex-1 min-w-0 text-sm font-medium ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-        {task.title}
-      </p>
-      {task.period && (
-        <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
-          {PERIOD_LABELS[task.period as keyof typeof PERIOD_LABELS] ?? task.period}
+    <div className="py-2 border-b border-border last:border-0">
+      {/* Version bureau (md et plus) : une seule ligne, inchangee. */}
+      <div className="hidden md:flex items-baseline gap-3">
+        <input
+          type="checkbox"
+          checked={task.completed}
+          onChange={canEdit ? onToggle : undefined}
+          disabled={!canEdit}
+          className="self-center h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
+        />
+        {/* Largeur fixe (au lieu d'un simple shrink-0 qui s'ajuste au texte)
+            -- demande par Nicolas le 05/10/2026 : "Electricite"/"Manutention"
+            (les libelles de categorie les plus longs) calent cette colonne,
+            si bien que le texte de description de chaque tache commence
+            desormais systematiquement a la meme position horizontale, quelle
+            que soit la categorie affichee sur la ligne. */}
+        <span className="w-28 shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{CATEGORY_LABEL[task.category]}</span>
+        {/* Plus de troncage (truncate) -- demande par Nicolas le
+            04/10/2026 : un titre trop long passe a la ligne au lieu
+            d'etre coupe, le reste de la ligne reste inchange. */}
+        <p className={`flex-1 min-w-0 text-sm font-medium ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+          {task.title}
+        </p>
+        {task.period && (
+          <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
+            {PERIOD_LABELS[task.period as keyof typeof PERIOD_LABELS] ?? task.period}
+          </span>
+        )}
+        <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
+          {PRIORITY_LABEL[task.priority]}
         </span>
-      )}
-      <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
-        {PRIORITY_LABEL[task.priority]}
-      </span>
-      {canEdit && (
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label="Supprimer cette tâche"
-          className="self-center shrink-0 text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      )}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="Supprimer cette tâche"
+            className="self-center shrink-0 text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Version mobile (en dessous de md) : demande par Nicolas le
+          07/10/2026, l'ancien affichage sur une seule ligne rendait le
+          texte de la tache illisible (trop comprime entre categorie,
+          periode et urgence). Desormais sur 2 lignes : ligne 1 =
+          categorie (gauche) / periode (centre) / urgence (droite),
+          ligne 2 = le texte complet de la tache, qui retourne a la
+          ligne si besoin (plus de compression du texte). */}
+      <div className="flex md:hidden flex-col gap-1">
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={task.completed}
+            onChange={canEdit ? onToggle : undefined}
+            disabled={!canEdit}
+            className="h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
+          />
+          <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{CATEGORY_LABEL[task.category]}</span>
+          <span className="flex-1 text-center text-xs uppercase tracking-wide text-muted-foreground">
+            {task.period ? (PERIOD_LABELS[task.period as keyof typeof PERIOD_LABELS] ?? task.period) : ''}
+          </span>
+          <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
+            {PRIORITY_LABEL[task.priority]}
+          </span>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="Supprimer cette tâche"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <p className={`pl-7 text-sm font-medium break-words ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+          {task.title}
+        </p>
+      </div>
     </div>
   )
 }
