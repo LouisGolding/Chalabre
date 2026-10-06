@@ -8,6 +8,7 @@ import type { UserRole } from '@/types'
 const ADMIN_ITEMS = [
   { href: '/dashboard/admin', label: 'Membres' },
   { href: '/dashboard/admin/paiements', label: 'Suivi paiements' },
+  { href: '/dashboard/documents', label: 'Documents' },
 ]
 
 // Bandeau fixe en BAS de l'écran. Aurélie a demandé le 17/09/2026 que les
@@ -34,6 +35,19 @@ const ADMIN_ITEMS = [
 // item, déconnexion, 2e item", pour rester correct si la liste
 // ADMIN_ITEMS change de taille un jour.
 //
+// "Documents" ré-ajouté le 06/10/2026 à la demande de Nicolas, réservé
+// aux comptes admin, positionné juste après "Suivi paiements" (la page
+// et la route existaient déjà, seul le lien de navigation avait disparu
+// lors de la réorganisation de TileNav du 27/09/2026). Avec 3 libellés,
+// le découpage générique Math.ceil(length/2) ci-dessus aurait mis "Se
+// déconnecter" après Membres ET Suivi paiements au lieu de les séparer
+// comme avant — donc le split avant/après n'est plus calculé
+// automatiquement depuis ADMIN_ITEMS.length : il est fixé en dur
+// (itemsBefore = [Membres], itemsAfter = [Suivi paiements, Documents])
+// pour garder "Se déconnecter" au même endroit qu'avant (entre Membres
+// et Suivi paiements) tout en plaçant Documents à la toute fin. À
+// revoir si ADMIN_ITEMS change encore de taille ou d'ordre.
+//
 // Fond noir (bg-foreground) retiré le 27/09/2026 à la demande de Nicolas :
 // transparent, laisse voir la photo plein écran de la page d'accueil
 // (voir dashboard/page.tsx) au lieu d'un bandeau noir. Texte en
@@ -56,9 +70,10 @@ export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   const items = role === 'admin' ? ADMIN_ITEMS : []
   const hasPhotoBackground = pathname === '/dashboard'
-  const middle = Math.ceil(items.length / 2)
-  const itemsBefore = items.slice(0, middle)
-  const itemsAfter = items.slice(middle)
+  // Split fixe (pas de calcul générique sur items.length) : voir le
+  // commentaire du 06/10/2026 ci-dessus sur ADMIN_ITEMS.
+  const itemsBefore = items.slice(0, 1)
+  const itemsAfter = items.slice(1)
 
   const linkClass = (active: boolean) =>
     cn(
