@@ -283,13 +283,12 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
     // difference de "heater"/"locator") -- voir SquarePlanImage dans
     // EmergencyGuide.tsx.
     //
-    // ⚠️ Les 10 photos envoyees par Nicolas le 05/10/2026 (vues d'etage
-    // avec pastille orange = tableau electrique) ne portent pas de nom de
-    // piece/zone -- impossible de determiner avec certitude laquelle
-    // correspond a quel plan nomme ci-dessous (ex. "ELEC RDC CANAT
-    // CUISINE" vs "ELEC RDC CANAT GARAGE"). `planImage` reste donc vide
-    // partout pour cette categorie : a renseigner avec Nicolas une fois
-    // la correspondance photo <-> plan confirmee.
+    // ✅ Correspondance photo <-> plan confirmee par Nicolas le
+    // 06/10/2026, photo par photo (noms de fichiers envoyes en piece
+    // jointe, ex. "ELEC RDC CANAT CUISINE"). `planImage` est renseigne
+    // ci-dessous pour toutes les combinaisons couvertes par les 10
+    // photos recues ; les combinaisons encore marquees "pas mentionnee
+    // par Nicolas" restent sans photo pour le moment.
     kind: 'breaker',
     id: 'electrique',
     label: 'Panne électrique',
@@ -304,20 +303,34 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
         side: 'canat',
         floor: 'rdc',
         options: [
-          { id: 'cuisine-salon-sam-billard', label: 'Cuisine - Salon - S.A.M - Billard' },
-          // plan : ELEC RDC CANAT CUISINE
-          { id: 'entree-atelier-garage', label: 'Entrée - Atelier - Garage' },
-          // plan : ELEC RDC CANAT GARAGE
+          {
+            id: 'cuisine-salon-sam-billard',
+            label: 'Cuisine - Salon - S.A.M - Billard',
+            planImage: '/images/plans/elec-rdc-canat-cuisine.jpg',
+          },
+          {
+            id: 'entree-atelier-garage',
+            label: 'Entrée - Atelier - Garage',
+            planImage: '/images/plans/elec-rdc-canat-garage.jpg',
+          },
         ],
       },
       {
         side: 'canat',
         floor: '1er',
         options: [
-          { id: 'aile-centrale', label: 'Aile centrale' },
-          // plan : ELEC PREMIER CANAT COULOIR
-          { id: 'aile-est', label: 'Aile Est' },
-          // plan : ELEC PREMIER CANAT GARAGE
+          {
+            id: 'aile-centrale',
+            label: 'Aile centrale',
+            planImage: '/images/plans/elec-1er-canat-couloir.jpg',
+          },
+          {
+            id: 'aile-est',
+            label: 'Aile Est',
+            // Nicolas confirme (06/10/2026) : meme plan que RDC Canat /
+            // Entree - Atelier - Garage.
+            planImage: '/images/plans/elec-rdc-canat-garage.jpg',
+          },
         ],
       },
       {
@@ -333,20 +346,32 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
           // Un seul "lieu", sans nom donné par Nicolas -> pas de pastille
           // affichée, le plan apparaît directement (voir ElectricCard,
           // option id 'direct').
-          { id: 'direct', label: '3ème étage CANAT' },
-          // plan : ELEC 3EME CANAT
+          {
+            id: 'direct',
+            label: '3ème étage CANAT',
+            planImage: '/images/plans/elec-3eme-canat.jpg',
+          },
         ],
       },
       {
         side: 'lalande',
         floor: 'rdc',
         options: [
-          { id: 'atelier-couloir', label: 'Atelier Couloir' },
-          // plan : ELEC ATELIER COULOIR
-          { id: 'cuisine-buanderie-sam-bureau', label: 'Cuisine - Buanderie - S.A.M - Bureau' },
-          // plan : ELEC LALANDE CUISINE
-          { id: 'escalier-123', label: 'Escalier 1.2.3' },
-          // plan : ELEC ANTICHAMBRE
+          {
+            id: 'atelier-couloir',
+            label: 'Atelier Couloir',
+            planImage: '/images/plans/elec-atelier-couloir.jpg',
+          },
+          {
+            id: 'cuisine-buanderie-sam-bureau',
+            label: 'Cuisine - Buanderie - S.A.M - Bureau',
+            planImage: '/images/plans/elec-lalande-cuisine.jpg',
+          },
+          {
+            id: 'escalier-123',
+            label: 'Escalier 1.2.3',
+            planImage: '/images/plans/elec-antichambre.jpg',
+          },
         ],
       },
       {
@@ -359,22 +384,39 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
         side: 'lalande',
         floor: '2e',
         options: [
-          { id: 'escalier-123', label: 'Escalier 1.2.3' },
-          // plan : ELEC ANTICHAMBRE (même plan que Lalande+RDC/Escalier 1.2.3)
-          { id: 'aile-ouest-escalier-central', label: 'Aile Ouest - Escalier central' },
-          // plan : ELEC AILE OUEST 2EME
-          { id: 'aile-est', label: 'Aile Est' },
-          // plan : ELEC AILE EST 2EME
+          {
+            id: 'escalier-123',
+            label: 'Escalier 1.2.3',
+            // Même plan que Lalande+RDC / Escalier 1.2.3.
+            planImage: '/images/plans/elec-antichambre.jpg',
+          },
+          {
+            id: 'aile-ouest-escalier-central',
+            label: 'Aile Ouest - Escalier central',
+            planImage: '/images/plans/elec-aile-ouest-2eme.jpg',
+          },
+          {
+            id: 'aile-est',
+            label: 'Aile Est',
+            planImage: '/images/plans/elec-aile-est-2eme.jpg',
+          },
         ],
       },
       {
         side: 'lalande',
         floor: '3e',
         options: [
-          { id: 'escalier-central', label: 'Escalier central' },
-          // plan : ELEC AILE OUEST 2EME (même plan que Lalande+2e/Aile Ouest-Escalier central)
-          { id: 'aile-est', label: 'Aile Est' },
-          // plan : ELEC AILE EST 3EME
+          {
+            id: 'escalier-central',
+            label: 'Escalier central',
+            // Même plan que Lalande+2e / Aile Ouest - Escalier central.
+            planImage: '/images/plans/elec-aile-ouest-2eme.jpg',
+          },
+          {
+            id: 'aile-est',
+            label: 'Aile Est',
+            planImage: '/images/plans/elec-aile-est-3eme.jpg',
+          },
         ],
       },
       {
@@ -388,8 +430,12 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
         floor: '1er',
         options: [
           // Un seul "lieu", sans nom donné -> pas de pastille, plan direct.
-          { id: 'direct', label: 'Antichambre (parties communes)' },
-          // plan : ELEC ANTICHAMBRE (même plan que Lalande+RDC/Escalier 1.2.3)
+          {
+            id: 'direct',
+            label: 'Antichambre (parties communes)',
+            // Même plan que Lalande+RDC / Escalier 1.2.3.
+            planImage: '/images/plans/elec-antichambre.jpg',
+          },
         ],
       },
       {
