@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { formatDate } from '@/lib/utils'
+import { actionPillClass, formatDate } from '@/lib/utils'
 
 export interface MemberRow {
   id: string
@@ -18,6 +18,13 @@ export interface MemberRow {
 // simplification que dans la version précédente de ce tableau. Exposé en
 // dehors du composant pour être réutilisé aussi bien à l'affichage qu'au
 // tri par colonne "Autorisations" (voir sortValue ci-dessous).
+//
+// Pastille elle-même : traitée esthétiquement comme les autres pastilles
+// d'action du site (actionPillClass, voir utils.ts — "+ Ajouter",
+// "Publier", etc.) depuis le 06/10/2026, à la demande de Nicolas —
+// remplace l'ancien style ad hoc (rounded-lg, fond plein pour "Admin").
+// Le libellé ("Admin"/"Membre") suffit à indiquer l'état actuel, plus
+// besoin d'un fond plein distinct pour ça.
 function roleLabel(role: MemberRow['role']): string {
   return role === 'admin' ? 'Admin' : 'Membre'
 }
@@ -140,11 +147,7 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
                   type="button"
                   onClick={() => toggleAdmin(row)}
                   disabled={pending === row.id}
-                  className={`inline-flex h-7 items-center justify-center rounded-lg px-2.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-                    row.role === 'admin'
-                      ? 'bg-foreground text-background'
-                      : 'border border-border bg-card text-foreground hover:bg-muted'
-                  }`}
+                  className={actionPillClass}
                 >
                   {roleLabel(row.role)}
                 </button>
