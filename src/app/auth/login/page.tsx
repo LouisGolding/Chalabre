@@ -154,8 +154,14 @@ export default function LoginPage() {
           <CallbackError />
         </Suspense>
 
-        {/* Carte crème : champs email / mot de passe. */}
-        <div className="mx-9 rounded-2xl bg-card px-6 py-2 shadow-lg md:mx-auto md:max-w-sm">
+        {/* Carte crème : champs email / mot de passe. Hauteur totale
+            réduite d'un quart le 07/10/2026 à la demande de Nicolas (104px
+            -> 78px mesurés en mobile, 375px de large) : même levier que la
+            retouche du 27/09/2026 ci-dessus ("py-2 au lieu de py-3"), en
+            resserrant encore le padding du cadre (py-2 -> py-[3px]) et de
+            chaque champ (py-2 -> py-1), sans toucher à la taille du texte
+            (text-lg conservé). */}
+        <div className="mx-9 rounded-2xl bg-card px-6 py-[3px] shadow-lg md:mx-auto md:max-w-sm">
           <input
             type="email"
             value={email}
@@ -163,7 +169,7 @@ export default function LoginPage() {
             placeholder="Votre@mail"
             autoComplete="email"
             required
-            className="block w-full border-0 bg-transparent py-2 font-serif text-lg text-card-foreground outline-none placeholder:text-gray-400"
+            className="block w-full border-0 bg-transparent py-1 font-serif text-lg text-card-foreground outline-none placeholder:text-gray-400"
           />
           <div className="relative">
             <input
@@ -173,7 +179,7 @@ export default function LoginPage() {
               placeholder="Mot de passe"
               autoComplete="current-password"
               required
-              className="block w-full border-0 bg-transparent py-2 pr-8 font-serif text-lg text-card-foreground outline-none placeholder:text-gray-400"
+              className="block w-full border-0 bg-transparent py-1 pr-8 font-serif text-lg text-card-foreground outline-none placeholder:text-gray-400"
             />
             <button
               type="button"
