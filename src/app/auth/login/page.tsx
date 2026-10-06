@@ -195,11 +195,15 @@ export default function LoginPage() {
 
         {/* Pastille "SE CONNECTER" — légèrement plus large que la carte
             au-dessus (comme sur le montage), même teinte que les
-            pastilles noires du reste du site. */}
+            pastilles noires du reste du site. Hauteur réduite d'un quart
+            le 07/10/2026 à la demande de Nicolas (48px -> 36px mesurés en
+            mobile : py-3 -> py-1.5, text-base conservé), tracking resserré
+            de 0,15em à 0,08em au même moment (aligné sur actionPillClass,
+            voir lib/utils.ts). */}
         <button
           type="submit"
           disabled={loading}
-          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-3 text-center font-serif text-base uppercase tracking-[0.15em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:max-w-sm"
+          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-1.5 text-center font-serif text-base uppercase tracking-[0.08em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:max-w-sm"
         >
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
