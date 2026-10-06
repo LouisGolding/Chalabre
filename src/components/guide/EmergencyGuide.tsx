@@ -20,6 +20,14 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   'eau-chaude': Droplet,
 }
 
+// Le suivi d'incident (enregistrement en base via /api/incidents, utilise
+// par DiagnosticCard pour "Fuite d'eau") est masque a la demande de
+// Nicolas le 06/10/2026 -- coherent avec l'abandon du meme principe sur
+// "Plus d'eau chaude" et "Panne electrique" (voir points 38). Le code et
+// la route /api/incidents restent en place, juste desactives : repasser
+// ce drapeau a `true` suffira a reactiver l'enregistrement.
+const TRACK_INCIDENTS = false
+
 function PlanImage({ src, alt }: { src?: string; alt: string }) {
   if (!src) {
     return (
@@ -65,6 +73,7 @@ function DiagnosticCard({
   const handlePickZone = async (z: DiagnosticZone) => {
     setZone(z)
     setStep('solution')
+    if (!TRACK_INCIDENTS) return
     setSubmitting(true)
     try {
       const res = await fetch('/api/incidents', {
@@ -82,7 +91,7 @@ function DiagnosticCard({
   }
 
   const handleOutcome = async (status: 'resolved' | 'persistent') => {
-    if (incidentId) {
+    if (TRACK_INCIDENTS && incidentId) {
       fetch('/api/incidents', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
