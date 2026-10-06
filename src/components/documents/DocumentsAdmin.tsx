@@ -2,14 +2,22 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Upload, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { DOCUMENT_CATEGORIES } from '@/lib/document-categories'
+import { actionPillClass, cn } from '@/lib/utils'
 
+// Esthétique alignée le 06/10/2026 à la demande de Nicolas sur le widget
+// "Partager ce qui a été fait" (Réalisations, voir RealisationsBoard.tsx) :
+// titre en majuscules/tracking-wide, bouton de sélection de fichier et
+// bouton d'envoi en pastille d'action (actionPillClass, voir utils.ts)
+// au lieu du style ad hoc précédent (file input natif stylé, bouton
+// rempli rounded-lg).
 export function DocumentUploadForm() {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<string>(DOCUMENT_CATEGORIES[0].id)
+  const [fileName, setFileName] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +39,7 @@ export function DocumentUploadForm() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l’envoi')
       setTitle('')
+      setFileName(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       router.refresh()
     } catch (err) {
@@ -45,7 +54,7 @@ export function DocumentUploadForm() {
       onSubmit={handleSubmit}
       className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10"
     >
-      <p className="text-sm font-medium text-foreground">Ajouter un document</p>
+      <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">Ajouter un document</p>
       <div className="grid gap-2 sm:grid-cols-2">
         <input
           type="text"
@@ -64,20 +73,22 @@ export function DocumentUploadForm() {
           ))}
         </select>
       </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="block w-full text-sm text-muted-foreground file:mr-3 file:h-8 file:rounded-lg file:border-0 file:bg-foreground file:px-3 file:text-xs file:font-medium file:text-background file:cursor-pointer"
-      />
+      <div className="flex items-center justify-between gap-3">
+        <label className={cn(actionPillClass, 'cursor-pointer')}>
+          <Plus className="h-3.5 w-3.5" />
+          {fileName ?? 'Choisir un fichier'}
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+          />
+        </label>
+        <button type="submit" disabled={submitting} className={actionPillClass}>
+          {submitting ? 'Envoi...' : 'Uploader'}
+        </button>
+      </div>
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-foreground px-3 text-xs font-medium text-background transition-opacity disabled:opacity-50"
-      >
-        <Upload className="h-3.5 w-3.5" />
-        {submitting ? 'Envoi...' : 'Uploader'}
-      </button>
     </form>
   )
 }
