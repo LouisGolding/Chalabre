@@ -4,6 +4,7 @@ import { useState, type ElementType, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { useGuideAccordion } from '@/components/guide/GuideAccordionContext'
 
 interface GuideCardProps {
   title: string
@@ -27,8 +28,29 @@ interface GuideCardProps {
 // 28/09/2026. Titre remonté à 16px/20px (md) + tracking 0,08em +
 // MAJUSCULES le 30/09/2026 (harmonisation typo, voir
 // "Typographie La Batisse.pdf").
+//
+// Un seul widget ouvert à la fois sur toute la page -- demandé par
+// Nicolas le 06/10/2026 ("je trouve ça plus propre d'avoir toujours
+// qu'un seul widget ouvert"), alors qu'on pouvait jusqu'ici tous les
+// ouvrir en même temps (chaque GuideCard gérait son `isOpen` de façon
+// totalement indépendante). Voir GuideAccordionContext.tsx : quand ce
+// contexte est présent au-dessus (posé une fois dans guide/page.tsx,
+// autour de toute la page), l'état ouvert/fermé est partagé entre tous
+// les widgets (identifiés par leur `title`, déjà unique sur cette page)
+// au lieu d'être local à chacun. Repli sur l'ancien comportement
+// (état local indépendant) si ce contexte est absent, pour que ce
+// composant reste utilisable ailleurs sans dépendance forcée.
 export function GuideCard({ title, content, defaultOpen = false, icon: Icon }: GuideCardProps) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
+  const accordion = useGuideAccordion()
+  const [localOpen, setLocalOpen] = useState(defaultOpen)
+  const isOpen = accordion ? accordion.openId === title : localOpen
+  const toggleOpen = () => {
+    if (accordion) {
+      accordion.setOpenId(isOpen ? null : title)
+    } else {
+      setLocalOpen((v) => !v)
+    }
+  }
 
   return (
     <Card className="py-0">
@@ -41,7 +63,7 @@ export function GuideCard({ title, content, defaultOpen = false, icon: Icon }: G
       <CardHeader>
         <button
           type="button"
-          onClick={() => setIsOpen((v) => !v)}
+          onClick={toggleOpen}
           aria-expanded={isOpen}
           className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
         >

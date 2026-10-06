@@ -6,6 +6,7 @@ import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
 import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
 import { GasBottlesCard } from '@/components/guide/GasBottlesCard'
 import { GuideCard } from '@/components/guide/GuideCard'
+import { GuideAccordionProvider } from '@/components/guide/GuideAccordionContext'
 import { FireplacesTable } from '@/components/guide/FireplacesTable'
 import { StorageOrganization } from '@/components/guide/StorageOrganization'
 import { StorageSlotsAdmin } from '@/components/guide/StorageSlotsAdmin'
@@ -184,6 +185,10 @@ export default async function GuidePage() {
   const organisationAfterPlacards = organisationBeforeGas.slice(drapsIndex + 1)
 
   return (
+    // Un seul widget repliable ouvert à la fois sur toute cette page --
+    // demandé par Nicolas le 06/10/2026, voir GuideAccordionContext.tsx
+    // et le commentaire en tête de GuideCard.tsx pour le détail.
+    <GuideAccordionProvider>
     <div className="space-y-6 max-w-3xl">
       <PageTitle>Guide de la maison</PageTitle>
 
@@ -259,5 +264,6 @@ export default async function GuidePage() {
         </div>
       </div>
     </div>
+    </GuideAccordionProvider>
   )
 }
