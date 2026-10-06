@@ -574,11 +574,20 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     if (def.showDayCounts) {
       dayCounts = new Array(dayCount).fill(0)
       for (const row of def.rows) {
+        // Jours couverts par AU MOINS UN segment de cette ligne (un seul
+        // comptage par jour et par personne) -- corrige un bug signale
+        // par Nicolas le 07/10/2026 : quand la meme personne a 2 sejours
+        // qui se telescopent (periodes qui se chevauchent) sur la plage
+        // affichee, l'ancien code comptait +1 par segment sur les jours
+        // communs, affichant par ex. "2 personnes presentes" alors qu'un
+        // seul sejour avait reellement ete saisi pour cette personne.
+        const coveredDays = new Set<number>()
         for (const seg of row.segments) {
           const from = Math.max(0, seg.start)
           const to = Math.min(dayCount - 1, seg.end)
-          for (let d = from; d <= to; d++) dayCounts[d]++
+          for (let d = from; d <= to; d++) coveredDays.add(d)
         }
+        for (const d of coveredDays) dayCounts[d]++
       }
     }
     return { key: def.key, title: def.title, rows: def.rows, sectionHeaderRow, rowStarts, emptyRow, dayCounts, interactive: def.interactive }
