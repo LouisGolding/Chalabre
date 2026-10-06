@@ -183,13 +183,16 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
     ],
     configs: [
       // ⚠️ Les 8 combinaisons possibles (2 côtés × 4 étages) ne sont pas
-      // toutes renseignées. Celles ci-dessous avec `options: []` sont en
-      // attente d'informations de Nicolas :
-      // - CANAT + 1er étage et CANAT + RDC : options déjà données par
-      //   Nicolas le 05/10/2026, mais sans les photos ni le détail de
-      //   quelle option correspond à quelle photo -- il a dit vouloir
-      //   fournir ça plus tard, et a explicitement demandé qu'on le lui
-      //   rappelle (voir points-a-regler-avec-louis.md).
+      // toutes renseignées. Mise à jour du 06/10/2026 : 3 photos
+      // confirmées par Nicolas et intégrées (Canat+3e, Lalande+RDC,
+      // Lalande+2e partiellement) -- voir plus bas. Restent en attente :
+      // - CANAT + RDC ("Cuisine") et CANAT + 1er (5 options) : options
+      //   déjà données par Nicolas le 05/10/2026, mais sans les photos
+      //   ni le détail de quelle option correspond à quelle photo -- il
+      //   a dit vouloir compléter ça plus tard (voir
+      //   points-a-regler-avec-louis.md).
+      // - LALANDE + 2e étage, option "Sdb Chambre Anglaise" : photo
+      //   annoncée sous le nom "ZOOM BALLON CH NORD", pas encore fournie.
       // - LALANDE + 1er étage et CANAT + 2ème étage : combinaisons même
       //   pas mentionnées par Nicolas -- à lui demander.
       {
@@ -221,20 +224,28 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
       {
         side: 'canat',
         floor: '3e',
-        options: [{ id: 'sdb-blanche', label: 'Sdb Blanche' }],
+        options: [
+          {
+            id: 'sdb-blanche',
+            label: 'Sdb Blanche',
+            // Photo confirmée par Nicolas le 06/10/2026 ("ZOOM BALLON SDB 3EME").
+            planImage: '/images/plans/eau-chaude-sdb-3eme.jpg',
+          },
+        ],
         // Un seul choix -> mis en évidence automatiquement.
-        // Photo annoncée par Nicolas sous le nom "ZOOM BALLON SDB 3EME"
-        // (pas encore fournie) : une fois reçue, la déposer dans
-        // /public/images/plans/ et renseigner `planImage` ici.
       },
       {
         side: 'lalande',
         floor: 'rdc',
-        options: [{ id: 'cuisine-buanderie', label: 'Cuisine & Buanderie' }],
+        options: [
+          {
+            id: 'cuisine-buanderie',
+            label: 'Cuisine & Buanderie',
+            // Photo confirmée par Nicolas le 06/10/2026 ("ZOOM BALLON OFFICE").
+            planImage: '/images/plans/eau-chaude-office.jpg',
+          },
+        ],
         // Un seul choix -> mis en évidence automatiquement.
-        // Photo annoncée sous le nom "ZOOM BALLON OFFICE" (pas encore
-        // fournie) : une fois reçue, la déposer dans
-        // /public/images/plans/ et renseigner `planImage` ici.
       },
       {
         side: 'lalande',
@@ -246,30 +257,35 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
         side: 'lalande',
         floor: '2e',
         options: [
-          // Ces 3 options partagent la même photo, annoncée sous le nom
-          // "ZOOM BALLON OFFICE" (pas encore fournie) : une fois reçue,
-          // déposer le fichier et renseigner `planImage` sur les 3.
-          { id: 'sdb-patrick', label: 'Sdb Patrick' },
-          { id: 'sdb-chambre-a-colonnes', label: 'Sdb Chambre à Colonnes' },
-          { id: 'sdb-verte', label: 'Sdb Verte' },
+          // Ces 3 options partagent la même photo, confirmée par Nicolas
+          // le 06/10/2026 ("ZOOM BALLON OFFICE").
+          { id: 'sdb-patrick', label: 'Sdb Patrick', planImage: '/images/plans/eau-chaude-office.jpg' },
+          { id: 'sdb-chambre-a-colonnes', label: 'Sdb Chambre à Colonnes', planImage: '/images/plans/eau-chaude-office.jpg' },
+          { id: 'sdb-verte', label: 'Sdb Verte', planImage: '/images/plans/eau-chaude-office.jpg' },
           // Photo annoncée sous le nom "ZOOM BALLON CH NORD" (pas
           // encore fournie).
           { id: 'sdb-chambre-anglaise', label: 'Sdb Chambre Anglaise' },
-          // Photo annoncée sous le nom "ZOOM BALLON CUISINE 2EME" (pas
-          // encore fournie) -- Nicolas a donné ce même nom de photo pour
-          // "Sdb Mamita" ici ET pour "Sdb Grise" (Lalande + 3e étage,
-          // plus bas) : à confirmer si c'est bien la même photo pour les
-          // deux, ou une coquille de sa part.
-          { id: 'sdb-mamita', label: 'Sdb Mamita' },
+          // Photo confirmée par Nicolas le 06/10/2026 ("ZOOM BALLON
+          // CUISINE 2EME") -- même photo que "Sdb Grise" (Lalande + 3e
+          // étage, plus bas), confirmé explicitement par Nicolas, pas
+          // une coquille.
+          { id: 'sdb-mamita', label: 'Sdb Mamita', planImage: '/images/plans/eau-chaude-cuisine-2eme.jpg' },
         ],
       },
       {
         side: 'lalande',
         floor: '3e',
-        options: [{ id: 'sdb-grise', label: 'Sdb Grise' }],
+        options: [
+          {
+            id: 'sdb-grise',
+            label: 'Sdb Grise',
+            // Photo confirmée par Nicolas le 06/10/2026 ("ZOOM BALLON
+            // CUISINE 2EME") -- même photo que "Sdb Mamita" ci-dessus
+            // (Lalande + 2e étage), confirmé explicitement par Nicolas.
+            planImage: '/images/plans/eau-chaude-cuisine-2eme.jpg',
+          },
+        ],
         // Un seul choix -> mis en évidence automatiquement.
-        // Photo annoncée sous le nom "ZOOM BALLON CUISINE 2EME" (pas
-        // encore fournie) -- voir la remarque ci-dessus sur "Sdb Mamita".
       },
     ],
   },
