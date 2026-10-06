@@ -2,31 +2,43 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { MembersTable, MemberRow } from '@/components/admin/MembersTable'
+import { StaysHistory, StayRow } from '@/components/admin/StaysHistory'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency, formatDate } from '@/lib/utils'
 
-// Libellés de statut pour la colonne "Statut" du tableau "Listes des
-// séjours" tout en bas de cette page -- déplacé ici depuis l'onglet
-// "Suivi paiements" le 07/10/2026 (voir plus bas), inchangé sinon.
-const statusLabel: Record<string, { label: string; color: string }> = {
-  paid:    { label: 'Payé',       color: 'bg-green-100 text-green-700' },
-  pending: { label: 'En attente', color: 'bg-yellow-100 text-yellow-700' },
-  overdue: { label: 'Échoué',     color: 'bg-red-100 text-red-700' },
-}
-
-// Forme des lignes renvoyees par la requete ts_payments avec ses jointures
-// (profiles, bookings) -- pas de typage Supabase genere dans ce projet,
-// donc type explicite ici plutot qu'un `any` (demande du projet : eslint
-// doit rester propre sur `@typescript-eslint/no-explicit-any`).
-type TsPaymentRow = {
-  id: string
-  user_id: string
+// Forme d'un paiement TS imbriqué dans une ligne `bookings` (voir la
+// requête bookingsRaw plus bas) -- pas de typage Supabase genere dans ce
+// projet, donc type explicite plutot qu'un `any`.
+type NestedTsPayment = {
   amount: number
   status: string
   paid_at: string | null
   stripe_payment_intent_id: string | null
+}
+
+type BookingRow = {
+  id: string
+  user_id: string
+  check_in: string
+  check_out: string
   profiles: { first_name: string; last_name: string; family_group: string } | null
-  bookings: { check_in: string; check_out: string } | null
+  ts_payments: NestedTsPayment[]
+}
+
+// Priorité d'affichage du statut agrégé d'un séjour quand il a plusieurs
+// ts_payments (ex. un paiement déjà réglé + un second "en attente" pour
+// le solde restant après modification des dates, voir le commentaire en
+// tête de api/bookings/quick/route.ts) : le cas le moins favorable
+// l'emporte, pour que "Statut" alerte toujours sur ce qu'il reste à
+// régler plutôt que de masquer un solde derrière un premier paiement
+// payé.
+const STATUS_PRIORITY: StayRow['status'][] = ['overdue', 'pending', 'paid']
+
+function aggregateStatus(payments: NestedTsPayment[]): StayRow['status'] {
+  if (payments.length === 0) return 'none'
+  for (const status of STATUS_PRIORITY) {
+    if (payments.some((p) => p.status === status)) return status
+  }
+  return 'paid'
 }
 
 // Onglet "Membres" — réservé aux admins (accès via le bandeau du bas, pas
@@ -48,14 +60,23 @@ type TsPaymentRow = {
 // - Chacun des 3 tableaux (MembersTable) affiche désormais aussi les
 //   totaux de taxe de séjour de l'année en cours par membre (colonnes
 //   "Total TS <année>" / "Payé" / "Reste dû") — anciennement le tableau
-//   séparé "Soldes par membre" de l'onglet "Suivi paiements", maintenant
-//   retiré de cette page-là et fusionné directement dans chaque tableau
-//   Membres. Calculé ici à partir de la même requête ts_payments que la
-//   liste des séjours ci-dessous (voir tsByUser), filtrée sur l'année en
-//   cours via la date de check-in du séjour.
+//   séparé "Soldes par membre" de l'onglet "Suivi paiements".
 // - Le tableau "Listes des séjours" (déplacé lui aussi depuis "Suivi
-//   paiements") est affiché en dernier sur cette page, après les 3
-//   tableaux par catégorie.
+//   paiements") est affiché en dernier sur cette page.
+//
+// Refonte du 07/10/2026 (même jour), demandée par Nicolas : "Listes des
+// séjours" doit être "un historique de chaque séjour enregistré" — pas
+// seulement ceux ayant un ts_payment. La requête part donc maintenant de
+// `bookings` (avec ts_payments imbriqués) plutôt que de `ts_payments`
+// elle-même : un séjour sans aucune taxe de séjour due (aucun ts_payment,
+// ex. montant saisi à 0) apparaît désormais aussi, avec le statut "Aucune
+// TS due" (voir StaysHistory.tsx). Conséquence directe et vérifiée : un
+// séjour supprimé (DELETE /api/bookings/quick) disparaît de cette liste
+// dès le prochain chargement de page, puisqu'il ne vit plus dans
+// `bookings` — sans dépendre d'une suppression en cascade sur une autre
+// table comme avant. L'affichage (groupé par année, bandeau repliable)
+// est délégué à StaysHistory.tsx, un composant client (l'état replié/
+// déplié par année ne peut pas vivre dans cette page serveur).
 export default async function AdminPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -69,14 +90,14 @@ export default async function AdminPage() {
     .select('*')
     .order('last_name')
 
-  // Même requête que l'ancienne "Listes des séjours" de l'onglet "Suivi
-  // paiements" -- sert à la fois à afficher cette liste en bas de page et
-  // à calculer les totaux TS par membre de l'année en cours (tsByUser).
-  const { data: tsPaymentsRaw } = await supabase
-    .from('ts_payments')
-    .select('*, profiles(first_name, last_name, family_group), bookings(check_in, check_out)')
-    .order('created_at', { ascending: false })
-  const tsPayments = (tsPaymentsRaw ?? []) as unknown as TsPaymentRow[]
+  // Un séjour = une ligne (avec ses paiements TS imbriqués, 0 à N) --
+  // sert à la fois à afficher "Listes des séjours" en bas de page et à
+  // calculer les totaux TS par membre de l'année en cours (tsByUser).
+  const { data: bookingsRaw } = await supabase
+    .from('bookings')
+    .select('id, user_id, check_in, check_out, profiles(first_name, last_name, family_group), ts_payments(amount, status, paid_at, stripe_payment_intent_id)')
+    .order('check_in', { ascending: false })
+  const bookings = (bookingsRaw ?? []) as unknown as BookingRow[]
 
   const currentYear = new Date().getFullYear()
 
@@ -85,13 +106,15 @@ export default async function AdminPage() {
   // de page, jamais stocké (même principe que les tâches récurrentes de
   // l'onglet Entretien, point 18 de points-a-regler-avec-louis.md).
   const tsByUser = new Map<string, { total: number; paid: number }>()
-  for (const t of tsPayments) {
-    const checkIn = t.bookings?.check_in
-    if (!checkIn || new Date(checkIn).getFullYear() !== currentYear) continue
-    const agg = tsByUser.get(t.user_id) ?? { total: 0, paid: 0 }
-    agg.total += Number(t.amount)
-    if (t.status === 'paid') agg.paid += Number(t.amount)
-    tsByUser.set(t.user_id, agg)
+  for (const b of bookings) {
+    if (new Date(b.check_in).getFullYear() !== currentYear) continue
+    if (b.ts_payments.length === 0) continue
+    const agg = tsByUser.get(b.user_id) ?? { total: 0, paid: 0 }
+    for (const p of b.ts_payments) {
+      agg.total += Number(p.amount)
+      if (p.status === 'paid') agg.paid += Number(p.amount)
+    }
+    tsByUser.set(b.user_id, agg)
   }
 
   const toRows = (familyGroup: 'canat' | 'lalande' | 'friend'): MemberRow[] =>
@@ -117,6 +140,28 @@ export default async function AdminPage() {
     { key: 'friend', label: 'Invités' },
   ]
 
+  // Une ligne par séjour pour StaysHistory -- voir aggregateStatus
+  // ci-dessus pour le cas (rare) de plusieurs ts_payments sur un même
+  // séjour. "Payé le" / "Stripe ID" affichent le paiement payé le plus
+  // récent s'il y en a un, sinon "—" (voir StaysHistory.tsx).
+  const stayRows: StayRow[] = bookings.map((b) => {
+    const amount = b.ts_payments.reduce((sum, p) => sum + Number(p.amount), 0)
+    const lastPaid = b.ts_payments
+      .filter((p) => p.status === 'paid' && p.paid_at)
+      .sort((a, c) => (a.paid_at! < c.paid_at! ? 1 : -1))[0]
+    return {
+      id: b.id,
+      memberName: b.profiles ? `${b.profiles.first_name} ${b.profiles.last_name}` : '—',
+      checkIn: b.check_in,
+      checkOut: b.check_out,
+      amount,
+      status: aggregateStatus(b.ts_payments),
+      paidAt: lastPaid?.paid_at ?? null,
+      stripeId: lastPaid?.stripe_payment_intent_id ?? null,
+      year: new Date(b.check_in).getFullYear(),
+    }
+  })
+
   return (
     <div className="space-y-8">
       <PageTitle>Membres</PageTitle>
@@ -132,46 +177,12 @@ export default async function AdminPage() {
         ))}
       </div>
 
-      {/* Listes des séjours -- deplace ici depuis l'onglet "Suivi
-          paiements" le 07/10/2026, affiche en dernier sur cette page,
-          demande par Nicolas. Contenu et presentation inchanges. */}
+      {/* Listes des séjours -- affichée en dernier sur cette page, voir
+          le commentaire du 07/10/2026 en tête de fichier. */}
       <Card>
         <CardHeader><CardTitle className="text-sm md:text-base uppercase tracking-wide">Listes des séjours</CardTitle></CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-stone-400 text-left">
-                  <th className="pb-2 font-medium">Membre</th>
-                  <th className="pb-2 font-medium">Séjour</th>
-                  <th className="pb-2 font-medium text-right">Montant</th>
-                  <th className="pb-2 font-medium">Statut</th>
-                  <th className="pb-2 font-medium">Payé le</th>
-                  <th className="pb-2 font-medium text-xs text-stone-300">Stripe ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tsPayments.map((p) => (
-                  <tr key={p.id} className="border-b last:border-0 hover:bg-stone-50">
-                    <td className="py-2 font-medium">{p.profiles?.first_name} {p.profiles?.last_name}</td>
-                    <td className="py-2 text-stone-500 text-xs">
-                      {p.bookings?.check_in ? `${formatDate(p.bookings.check_in)} → ${formatDate(p.bookings.check_out)}` : '—'}
-                    </td>
-                    <td className="py-2 text-right font-semibold">{formatCurrency(p.amount)}</td>
-                    <td className="py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusLabel[p.status]?.color}`}>
-                        {statusLabel[p.status]?.label}
-                      </span>
-                    </td>
-                    <td className="py-2 text-xs text-stone-400">{p.paid_at ? formatDate(p.paid_at) : '—'}</td>
-                    <td className="py-2 text-xs text-stone-300 font-mono truncate max-w-[120px]">
-                      {p.stripe_payment_intent_id ?? '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <StaysHistory rows={stayRows} />
         </CardContent>
       </Card>
     </div>
