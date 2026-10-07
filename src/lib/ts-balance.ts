@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { normalizeName, tsPeriodFromCheckOut, MONTHS_3, type TsPeriod } from '@/lib/utils'
+import { tsPeriodFromCheckOut, MONTHS_3, type TsPeriod } from '@/lib/utils'
+import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 export interface TsBalanceItem {
   id: string
@@ -36,8 +37,11 @@ type RawBooking = { id: string; guest_name: string | null; check_out: string; ts
 //
 // Un accompagnant saisi par quelqu'un d'autre (guest_name en texte libre)
 // mais qui correspond en réalité à un compte existant (même nom complet,
-// insensible à la casse — même convention que le reste du site, voir
-// normalizeName) voit ce séjour compté dans SON PROPRE "own" ici, en plus
+// tolérant aux accents/fautes de frappe — harmonisé le 07/10/2026 sur la
+// même logique que ensureGuestColor, voir findClosestNameMatch/fuzzy-name.ts ;
+// avant cette date, la correspondance ici était stricte alors qu'elle était
+// déjà tolérante côté couleurs/famille, une incohérence signalée à Louis)
+// voit ce séjour compté dans SON PROPRE "own" ici, en plus
 // de chez la personne qui l'a saisi : les deux comptes partagent les mêmes
 // lignes ts_payments en base, donc le solde des deux se met à jour
 // ensemble dès que l'un règle (au prochain chargement de page — voir
@@ -58,14 +62,14 @@ export async function computeTsBalance(
     .eq('id', userId)
     .single()
 
-  const myName = profile ? normalizeName(`${profile.first_name} ${profile.last_name}`) : null
+  const myFullName = profile ? `${profile.first_name} ${profile.last_name}` : null
 
   const { data: myBookings } = await supabase
     .from('bookings')
     .select('id, guest_name, check_out, ts_payments(id, amount, status)')
     .eq('user_id', userId)
 
-  const { data: otherBookings } = myName
+  const { data: otherBookings } = myFullName
     ? await supabase
         .from('bookings')
         .select('id, guest_name, user_id, check_out, ts_payments(id, amount, status)')
@@ -109,10 +113,10 @@ export async function computeTsBalance(
     for (const payment of payments) bucket.pending += addUnpaid(bucket.items, payment, booking.check_out)
   }
 
-  if (myName) {
+  if (myFullName) {
     for (const booking of (otherBookings ?? []) as RawBooking[]) {
       const guestName = booking.guest_name?.trim()
-      if (!guestName || normalizeName(guestName) !== myName) continue
+      if (!guestName || findClosestNameMatch(guestName, [myFullName]) === -1) continue
       const payments = booking.ts_payments ?? []
       for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out)
     }

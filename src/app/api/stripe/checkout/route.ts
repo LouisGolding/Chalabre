@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
-import { buildTsStatementDescriptor, firstNameOnly, normalizeName, tsPeriodFromCheckOut } from '@/lib/utils'
+import { buildTsStatementDescriptor, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
+import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 // Crée une session Stripe Checkout pour régler un paiement (taxe de séjour ou
 // cotisation mensuelle).
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
 
   const { data: caller } = await supabase.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
   const isAdmin = caller?.role === 'admin'
-  const myFullName = caller ? normalizeName(`${caller.first_name} ${caller.last_name}`) : null
+  const myFullName = caller ? `${caller.first_name} ${caller.last_name}` : null
 
   const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL
 
@@ -139,7 +140,9 @@ export async function POST(request: Request) {
 
   // Autorisation : le compte qui a saisi le séjour (booking.user_id), la
   // personne elle-même quand le nom de l'accompagnant correspond à son
-  // propre compte (même règle que le reste du site, voir normalizeName),
+  // propre compte (tolérant aux accents/fautes de frappe depuis le
+  // 07/10/2026 — findClosestNameMatch, même mécanisme que ensureGuestColor,
+  // harmonisé avec computeTsBalance qui avait la même incohérence),
   // ou un admin — demandé par Aurélie le 22/09/2026 (ex. Emmanuelle règle
   // la taxe d'Oscar qu'elle a saisie, ou Oscar la règle lui-même).
   let resolvedFirstName: string | null = null
@@ -150,7 +153,7 @@ export async function POST(request: Request) {
     }
     const guestName = booking.guest_name?.trim()
     const isRegistrant = booking.user_id === user.id
-    const isBeneficiary = !!guestName && !!myFullName && normalizeName(guestName) === myFullName
+    const isBeneficiary = !!guestName && !!myFullName && findClosestNameMatch(guestName, [myFullName]) !== -1
     if (!isRegistrant && !isBeneficiary && !isAdmin) {
       return NextResponse.json({ error: 'Ce paiement ne vous appartient pas' }, { status: 403 })
     }
