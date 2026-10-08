@@ -179,18 +179,31 @@ export function ActivitesBoard({ initialEvents }: { initialEvents: LocalEvent[] 
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* Liste déjà enregistrée en 3 colonnes (précisé par Nicolas le
+          07/10/2026) : Aujourd'hui à gauche, Demain au centre, Cette
+          semaine à droite -- cette dernière repliée par défaut ("à
+          dérouler"), à la différence des deux premières qui restent
+          toujours visibles. Les 3 colonnes s'empilent verticalement en
+          dessous du point de rupture md (une seule colonne sur mobile),
+          même convention que le reste du site. */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <EventColumn title="Aujourd'hui" events={todayList} onDelete={handleDelete} onSave={handleSave} />
         <EventColumn title="Demain" events={tomorrowList} onDelete={handleDelete} onSave={handleSave} />
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setWeekOpen((o) => !o)}
+            aria-expanded={weekOpen}
+            className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
+          >
+            <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">
+              Cette semaine ({weekList.length})
+            </p>
+            <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', weekOpen && 'rotate-180')} />
+          </button>
+          {weekOpen && <EventList events={weekList} onDelete={handleDelete} onSave={handleSave} emptyLabel="Rien de prévu." />}
+        </div>
       </div>
-
-      <CollapsibleSection
-        title={`Cette semaine (${weekList.length})`}
-        open={weekOpen}
-        onToggle={() => setWeekOpen((o) => !o)}
-      >
-        <EventList events={weekList} onDelete={handleDelete} onSave={handleSave} />
-      </CollapsibleSection>
 
       <CollapsibleSection
         title={`Événements passés (${pastList.length})`}
