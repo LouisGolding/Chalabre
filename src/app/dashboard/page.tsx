@@ -9,6 +9,7 @@ import Link from 'next/link'
 // plus bas) mais reste utilisée ailleurs — composant non supprimé.
 import { TaxeSejourPill } from '@/components/dashboard/TaxeSejourPill'
 import { computeTsBalance } from '@/lib/ts-balance'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 // "25 décembre 2026" -> "25 DÉCEMBRE 2026", comme sur le visuel Photoshop
 // de Nicolas (27/09/2026) pour les dates du prochain séjour.
@@ -43,6 +44,39 @@ export default async function DashboardPage() {
 
   const today = new Date()
   const todayISO = today.toISOString().slice(0, 10)
+
+  // Widget "Aujourd'hui"/"Demain" de l'onglet "Activités" (08/10/2026,
+  // voir migration_local_events.sql) : la RLS de local_events restreint
+  // la lecture aux comptes admin (le reste de l'onglet leur est
+  // intégralement réservé), mais ce widget doit rester visible de tous
+  // les comptes connectés -- client service-role ici, comme pour le
+  // webhook Stripe (src/lib/supabase/admin.ts), plutôt que le client de
+  // session qui serait bloqué par la RLS pour un compte family/friend.
+  // Fenêtre bornée à 30 jours en arrière (plutôt qu'un historique complet)
+  // pour couvrir le cas d'un événement sur plusieurs jours déjà commencé,
+  // sans scanner toute la table -- 30 jours est une marge large, à
+  // ajuster si un événement dure plus longtemps.
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowISO = tomorrow.toISOString().slice(0, 10)
+  const windowStart = new Date(today)
+  windowStart.setDate(windowStart.getDate() - 30)
+  const windowStartISO = windowStart.toISOString().slice(0, 10)
+
+  const supabaseAdmin = createAdminClient()
+  const { data: upcomingEvents } = await supabaseAdmin
+    .from('local_events')
+    .select('title, event_date, event_end_date')
+    .gte('event_date', windowStartISO)
+    .lte('event_date', tomorrowISO)
+
+  const coversDay = (ev: { event_date: string; event_end_date: string | null }, dayISO: string) =>
+    ev.event_date <= dayISO && (ev.event_end_date ?? ev.event_date) >= dayISO
+
+  const todayEvents = (upcomingEvents ?? []).filter((e) => coversDay(e, todayISO))
+  const tomorrowEvents = (upcomingEvents ?? []).filter((e) => coversDay(e, tomorrowISO))
+  const eventsLabel = (list: { title: string }[]) =>
+    list.length === 0 ? '-' : list.length === 1 ? list[0].title : `${list[0].title} +${list.length - 1}`
 
   // Prochain séjour du titulaire du compte (hors accompagnants) — remis
   // sur l'accueil le 27/09/2026 à la demande de Nicolas, sur le modèle
@@ -193,24 +227,38 @@ export default async function DashboardPage() {
           )
         )}
 
-        {/* "Aujourd'hui" / "Demain" — deviendront des liens directs vers
-            l'onglet dont Nicolas a parlé le week-end du 20-21/09/2026, pas
-            encore construit : pour l'instant tiret "-" en attendant une
-            vraie source de données (demandé par Nicolas le 27/09/2026, à
-            la place d'un espace vide — ça l'aide à donner les indications
-            de mise en page). Grille CSS : les deux colonnes restent
-            alignées automatiquement (même hauteur de ligne) quel que soit
-            le contenu de chaque côté, à garder en tête pour plus tard
-            (demandé par Nicolas : "doivent toujours être alignées"). */}
+        {/* "Aujourd'hui" / "Demain" — branché le 08/10/2026 sur
+            l'onglet "Activités" (session de test, voir
+            migration_local_events.sql) : titre du premier événement du
+            jour/du lendemain, "-" si rien. Lien direct vers l'onglet
+            uniquement pour les admins (seuls à pouvoir y accéder — tout
+            autre compte serait aussitôt redirigé vers cette page même,
+            voir src/app/dashboard/activites/page.tsx) ; même texte en
+            simple <p> pour family/friend. Grille CSS : les deux colonnes
+            restent alignées automatiquement (même hauteur de ligne) quel
+            que soit le contenu de chaque côté (demandé par Nicolas :
+            "doivent toujours être alignées"). */}
         <div className="mt-12 grid grid-cols-2 gap-x-4">
-          <div>
-            <p className="text-lg font-normal text-background md:text-xl">Aujourd&rsquo;hui</p>
-            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
-          </div>
-          <div>
-            <p className="text-lg font-normal text-background md:text-xl">Demain</p>
-            <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
-          </div>
+          {[
+            { label: "Aujourd'hui", value: eventsLabel(todayEvents) },
+            { label: 'Demain', value: eventsLabel(tomorrowEvents) },
+          ].map(({ label, value }) =>
+            profile.role === 'admin' ? (
+              <Link key={label} href="/dashboard/activites" className="block w-fit">
+                <p className="text-lg font-normal text-background md:text-xl">{label}</p>
+                <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
+                  {value}
+                </p>
+              </Link>
+            ) : (
+              <div key={label}>
+                <p className="text-lg font-normal text-background md:text-xl">{label}</p>
+                <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
+                  {value}
+                </p>
+              </div>
+            )
+          )}
         </div>
 
         {/* "Tâche ce mois ci" — widget relié à l'onglet Entretien,

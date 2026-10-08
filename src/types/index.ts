@@ -136,6 +136,21 @@ export interface Document {
   created_at: string
 }
 
+export interface LocalEvent {
+  id: string
+  title: string
+  event_date: string
+  event_end_date: string | null
+  event_time: string | null
+  location: string | null
+  category: string // voir src/lib/local-event-categories.ts
+  source_text: string | null
+  created_by: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface HouseLogEntry {
   id: string
   title: string | null

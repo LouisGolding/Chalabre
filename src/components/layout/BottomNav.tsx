@@ -9,6 +9,7 @@ const ADMIN_ITEMS = [
   { href: '/dashboard/admin', label: 'Membres' },
   { href: '/dashboard/admin/paiements', label: 'Suivi paiements' },
   { href: '/dashboard/documents', label: 'Documents' },
+  { href: '/dashboard/activites', label: 'Activités' },
 ]
 
 // Onglet "Suivi paiements" temporairement masque a la demande de Nicolas
@@ -56,6 +57,14 @@ const SHOW_SUIVI_PAIEMENTS = false
 // pour garder "Se déconnecter" au même endroit qu'avant (entre Membres
 // et Suivi paiements) tout en plaçant Documents à la toute fin. À
 // revoir si ADMIN_ITEMS change encore de taille ou d'ordre.
+//
+// "Activités" ajouté le 08/10/2026 (session de test, voir
+// points-a-regler-avec-louis.md) à la toute fin de la liste, pour la
+// même raison que Documents ci-dessus : itemsBefore/itemsAfter restent
+// corrects sans y toucher, puisque itemsAfter = items.slice(1) absorbe
+// automatiquement tout nouvel élément ajouté en fin de tableau — seul un
+// ajout AVANT Documents ou un changement d'ordre obligerait à revoir ce
+// découpage.
 //
 // Fond noir (bg-foreground) retiré le 27/09/2026 à la demande de Nicolas :
 // transparent, laisse voir la photo plein écran de la page d'accueil
