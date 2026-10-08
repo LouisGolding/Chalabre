@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { format, parseISO } from 'date-fns'
+import { fr } from 'date-fns/locale'
 // Card/CardContent/CardHeader/CardTitle, Badge, formatCurrency : ne
 // servent plus qu'aux widgets masqués plus bas (18/09/2026) — depuis
 // @/components/ui/card, @/components/ui/badge, @/lib/utils. À
@@ -62,21 +64,37 @@ export default async function DashboardPage() {
   const windowStart = new Date(today)
   windowStart.setDate(windowStart.getDate() - 30)
   const windowStartISO = windowStart.toISOString().slice(0, 10)
+  // Borne haute de la colonne "À suivre" (test du 08/10/2026, voir
+  // conversation avec Nicolas) : le reste de la semaine en cours, même
+  // définition que la colonne "Cette semaine" de l'onglet Activités
+  // (ActivitesBoard.tsx) -- 7 jours à partir d'aujourd'hui.
+  const weekEnd = new Date(today)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+  const weekEndISO = weekEnd.toISOString().slice(0, 10)
 
   const supabaseAdmin = createAdminClient()
   const { data: upcomingEvents } = await supabaseAdmin
     .from('local_events')
-    .select('title, event_date, event_end_date')
+    .select('title, event_date, event_end_date, location')
     .gte('event_date', windowStartISO)
-    .lte('event_date', tomorrowISO)
+    .lte('event_date', weekEndISO)
 
   const coversDay = (ev: { event_date: string; event_end_date: string | null }, dayISO: string) =>
     ev.event_date <= dayISO && (ev.event_end_date ?? ev.event_date) >= dayISO
 
   const todayEvents = (upcomingEvents ?? []).filter((e) => coversDay(e, todayISO))
   const tomorrowEvents = (upcomingEvents ?? []).filter((e) => coversDay(e, tomorrowISO))
+  // "À suivre" : le reste de la semaine, donc à partir du surlendemain --
+  // pas de doublon avec Aujourd'hui/Demain qui ont déjà leur colonne.
+  const weekEvents = (upcomingEvents ?? [])
+    .filter((e) => e.event_date > tomorrowISO && e.event_date <= weekEndISO)
+    .sort((a, b) => a.event_date.localeCompare(b.event_date))
   const eventsLabel = (list: { title: string }[]) =>
     list.length === 0 ? '-' : list.length === 1 ? list[0].title : `${list[0].title} +${list.length - 1}`
+  // Titre raccourci à 2-3 mots pour la colonne "À suivre" (demandé par
+  // Nicolas le 08/10/2026) -- l'intitulé complet reste visible dans
+  // l'onglet Activités lui-même.
+  const shortTitle = (title: string) => title.split(' ').slice(0, 3).join(' ')
 
   // Prochain séjour du titulaire du compte (hors accompagnants) — remis
   // sur l'accueil le 27/09/2026 à la demande de Nicolas, sur le modèle
@@ -227,18 +245,20 @@ export default async function DashboardPage() {
           )
         )}
 
-        {/* "Aujourd'hui" / "Demain" — branché le 08/10/2026 sur
-            l'onglet "Activités" (session de test, voir
-            migration_local_events.sql) : titre du premier événement du
-            jour/du lendemain, "-" si rien. Lien direct vers l'onglet
+        {/* "Aujourd'hui" / "Demain" / "À suivre" — branché le
+            08/10/2026 sur l'onglet "Activités" (session de test, voir
+            migration_local_events.sql). Test demandé par Nicolas le
+            08/10/2026 : 3e colonne "À suivre" qui donne un aperçu des
+            événements du reste de la semaine, une ligne par événement
+            (date, lieu, titre raccourci à 2-3 mots) plutôt qu'un simple
+            compteur comme les deux premières colonnes -- à ajuster
+            (nombre de lignes affichées, format de date...) une fois que
+            Nicolas voit le rendu réel. Lien direct vers l'onglet
             uniquement pour les admins (seuls à pouvoir y accéder — tout
             autre compte serait aussitôt redirigé vers cette page même,
-            voir src/app/dashboard/activites/page.tsx) ; même texte en
-            simple <p> pour family/friend. Grille CSS : les deux colonnes
-            restent alignées automatiquement (même hauteur de ligne) quel
-            que soit le contenu de chaque côté (demandé par Nicolas :
-            "doivent toujours être alignées"). */}
-        <div className="mt-12 grid grid-cols-2 gap-x-4">
+            voir src/app/dashboard/activites/page.tsx) ; même contenu en
+            simple <div>/<p> pour family/friend. */}
+        <div className="mt-12 grid grid-cols-3 gap-x-4">
           {[
             { label: "Aujourd'hui", value: eventsLabel(todayEvents) },
             { label: 'Demain', value: eventsLabel(tomorrowEvents) },
@@ -259,6 +279,38 @@ export default async function DashboardPage() {
               </div>
             )
           )}
+          {(() => {
+            const shown = weekEvents.slice(0, 4)
+            const content = (
+              <>
+                <p className="text-lg font-normal text-background md:text-xl">À suivre</p>
+                {shown.length === 0 ? (
+                  <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
+                ) : (
+                  <div className="mt-2 space-y-1">
+                    {shown.map((ev, i) => (
+                      <p key={i} className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background md:text-xs">
+                        {format(parseISO(ev.event_date), 'd MMM', { locale: fr })}
+                        {ev.location ? ` · ${ev.location}` : ''} · {shortTitle(ev.title)}
+                      </p>
+                    ))}
+                    {weekEvents.length > shown.length && (
+                      <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background/70 md:text-xs">
+                        +{weekEvents.length - shown.length}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )
+            return profile.role === 'admin' ? (
+              <Link href="/dashboard/activites" className="block w-fit">
+                {content}
+              </Link>
+            ) : (
+              <div>{content}</div>
+            )
+          })()}
         </div>
 
         {/* "Tâche ce mois ci" — widget relié à l'onglet Entretien,
