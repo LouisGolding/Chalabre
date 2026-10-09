@@ -311,6 +311,46 @@ export function nuclearFamilyFor(family: FamilyGroup, firstName: string): string
  * personne est posée en fond (bannières, barres du planning) pour rester
  * cohérent avec le reste du site.
  */
+/**
+ * Luminance relative (formule WCAG) d'une couleur hex -- utilisee pour
+ * decider si le texte pose dessus doit passer en blanc (voir
+ * shouldUseWhiteText ci-dessous).
+ */
+function relativeLuminance(hex: string): number {
+  const c = hex.replace('#', '')
+  const r = parseInt(c.substring(0, 2), 16) / 255
+  const g = parseInt(c.substring(2, 4), 16) / 255
+  const b = parseInt(c.substring(4, 6), 16) / 255
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+// Seuil choisi le 09/10/2026 (demande de Nicolas, apres le test du
+// compte de Guy dont la teinte attribuee -- une des 50 de la palette
+// LALANDE -- s'est averee plutot sombre, voir
+// claude/points-a-regler-avec-louis.md point 39) : plutot qu'une valeur
+// choisie "a l'oeil", ce seuil est calcule a partir de la vraie couleur
+// de texte sombre du site (--foreground, oklch(0.24 0.017 45), soit une
+// luminance relative d'environ 0,024 une fois convertie en sRGB) : c'est
+// le point ou le texte blanc et le texte --foreground offrent exactement
+// le meme ratio de contraste (WCAG) contre le fond. En dessous, le blanc
+// contraste mieux ; au-dessus, --foreground contraste mieux. Verifie
+// visuellement sur les 3 palettes (Argile) : bascule bien les teintes
+// sombres/moyennement sombres (ex. verts/bleus fonces) en texte blanc,
+// laisse les teintes claires/pastel en texte sombre comme avant.
+const WHITE_TEXT_LUMINANCE_THRESHOLD = 0.23
+
+/**
+ * true si la couleur est assez sombre pour que le texte pose dessus (titre
+ * de banniere, pastilles de solde, libelles...) doive passer en blanc
+ * plutot que dans la couleur de texte sombre habituelle du site. Voir le
+ * commentaire de WHITE_TEXT_LUMINANCE_THRESHOLD ci-dessus pour le
+ * raisonnement derriere le seuil retenu.
+ */
+export function shouldUseWhiteText(hex: string): boolean {
+  return relativeLuminance(hex) < WHITE_TEXT_LUMINANCE_THRESHOLD
+}
+
 export function coloredTextureStyle(color: string) {
   return {
     backgroundColor: color,

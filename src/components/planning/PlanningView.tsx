@@ -28,7 +28,7 @@ import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn, calculateTotalTS, firstNameOnly } from '@/lib/utils'
-import { colorForName, coloredTextureStyle } from '@/lib/colors'
+import { colorForName, coloredTextureStyle, shouldUseWhiteText } from '@/lib/colors'
 import { BookingEditModal } from '@/components/planning/BookingEditModal'
 import type { HouseSide } from '@/types'
 
@@ -1202,7 +1202,16 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               normale, par-dessus la bande colorée/texturée. */}
                           {isRevealed && booking?.notes?.trim() && (
                             <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                              <span className="lowercase whitespace-nowrap px-2 text-[10px] font-normal leading-none text-muted-foreground">
+                              <span
+                                className={cn(
+                                  'lowercase whitespace-nowrap px-2 text-[10px] font-normal leading-none',
+                                  // Bascule en blanc sur une couleur de personne
+                                  // sombre (demande par Nicolas le 09/10/2026,
+                                  // voir shouldUseWhiteText dans colors.ts) --
+                                  // sinon illisible par-dessus une bande foncee.
+                                  shouldUseWhiteText(row.color) ? 'text-white' : 'text-muted-foreground'
+                                )}
+                              >
                                 {booking.notes.trim()}
                               </span>
                             </div>

@@ -16,7 +16,7 @@ import { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
 import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
-import { colorForPaletteIndex, coloredTextureStyle, fallbackIndexForName } from '@/lib/colors'
+import { colorForPaletteIndex, coloredTextureStyle, fallbackIndexForName, shouldUseWhiteText } from '@/lib/colors'
 
 type AgeBracket = 'child' | 'adult'
 
@@ -128,57 +128,83 @@ const balancePillOuterClass =
 // Demande par Nicolas le 04/10/2026 : plus de decoupage photo au survol
 // (voir stayPillOuterClass ci-dessus) -- le texte garde simplement sa
 // couleur, lisible directement sur le fond canson du widget.
-function stayPillTextClass(light: boolean, extra?: string) {
-  return cn('transition-colors', light ? 'text-foreground/60' : 'text-foreground', extra)
+function stayPillTextClass(light: boolean, darkBg: boolean, extra?: string) {
+  if (darkBg) return cn('transition-colors', 'text-white', extra)
+  return cn('transition-colors', darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground', extra)
 }
 
 // Montant d'une pastille de solde : rouge plein (pas de decoupage photo,
 // pour rester bien visible) quand une somme est due, sinon meme traitement
 // transparent que le reste de la pastille.
-function StayPillAmount({ pending, light }: { pending: number; light: boolean }) {
+function StayPillAmount({ pending, light, darkBg }: { pending: number; light: boolean; darkBg: boolean }) {
   if (pending > 0) {
+    // Le rouge d'alerte reste tel quel : suffisamment fonce pour rester
+    // lisible aussi bien sur un fond clair que sur un fond de personne
+    // sombre (pas de bascule en blanc sur ce cas precis).
     return <span className="font-extrabold text-red-600">{soldeLabel(pending)}€</span>
   }
   return (
-    <span className={stayPillTextClass(light, 'font-extrabold')}>
+    <span className={stayPillTextClass(light, darkBg, 'font-extrabold')}>
       {soldeLabel(pending)}€
     </span>
   )
 }
 
-function BalancePill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
+function BalancePill({
+  pending,
+  ids,
+  light,
+  darkBg,
+}: {
+  pending: number
+  ids: string[]
+  light: boolean
+  darkBg: boolean
+}) {
   const content = (
     <>
-      <span className={stayPillTextClass(light, 'font-semibold')}>
+      <span className={stayPillTextClass(light, darkBg, 'font-semibold')}>
         TS:
       </span>{' '}
-      <StayPillAmount pending={pending} light={light} />
+      <StayPillAmount pending={pending} light={light} darkBg={darkBg} />
     </>
   )
+  const outerClass = cn(balancePillOuterClass, darkBg && 'border-white/40')
   if (ids.length === 0) {
-    return <span className={balancePillOuterClass}>{content}</span>
+    return <span className={outerClass}>{content}</span>
   }
   return (
-    <TSBalancePayButton ids={ids} className={balancePillOuterClass}>
+    <TSBalancePayButton ids={ids} className={outerClass}>
       {content}
     </TSBalancePayButton>
   )
 }
 
-function TotalTaxeSejourStayPill({ pending, ids, light }: { pending: number; ids: string[]; light: boolean }) {
+function TotalTaxeSejourStayPill({
+  pending,
+  ids,
+  light,
+  darkBg,
+}: {
+  pending: number
+  ids: string[]
+  light: boolean
+  darkBg: boolean
+}) {
   const inner = (
     <>
-      <span className={stayPillTextClass(light, 'font-semibold')}>
+      <span className={stayPillTextClass(light, darkBg, 'font-semibold')}>
         Total taxe de séjour :
       </span>{' '}
-      <StayPillAmount pending={pending} light={light} />
+      <StayPillAmount pending={pending} light={light} darkBg={darkBg} />
     </>
   )
+  const outerClass = cn(balancePillOuterClass, darkBg && 'border-white/40')
   if (ids.length === 0) {
-    return <span className={balancePillOuterClass}>{inner}</span>
+    return <span className={outerClass}>{inner}</span>
   }
   return (
-    <TSBalancePayButton ids={ids} className={balancePillOuterClass}>
+    <TSBalancePayButton ids={ids} className={outerClass}>
       {inner}
     </TSBalancePayButton>
   )
@@ -216,6 +242,13 @@ function StayBanner({
   // "canson" opaque par defaut (.card-canson).
   bgColor?: string
 }) {
+  // Bascule le titre en blanc quand la couleur de fond de la banniere est
+  // sombre (demande par Nicolas le 09/10/2026, apres le test du compte de
+  // Guy -- voir shouldUseWhiteText dans src/lib/colors.ts pour le seuil
+  // retenu et le raisonnement). N'a aucun effet pour la banniere generique
+  // "Ajouter un sejour" (pas de bgColor, fond canson clair).
+  const darkBg = !!bgColor && shouldUseWhiteText(bgColor)
+
   return (
     <div
       className={cn('rounded-xl border border-border', !bgColor && 'card-canson')}
@@ -226,7 +259,10 @@ function StayBanner({
           type="button"
           onClick={onToggle}
           aria-expanded={isOpen}
-          className="flex min-w-0 items-center gap-2 text-left text-sm md:text-base font-medium uppercase tracking-wide text-foreground hover:opacity-80"
+          className={cn(
+            'flex min-w-0 items-center gap-2 text-left text-sm md:text-base font-medium uppercase tracking-wide hover:opacity-80',
+            darkBg ? 'text-white' : 'text-foreground'
+          )}
         >
           <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform', isOpen && 'rotate-180')} />
           <span className="truncate">{title}</span>
@@ -649,11 +685,22 @@ function StayEntry({
   // transparence (demande par Nicolas le 29/09/2026), sauf pour "Ajouter
   // un sejour" qui n'a pas de bgColor et garde sa typo noire pleine.
   const light = !!bgColor
-  const pill = <BalancePill pending={pending} ids={ids} light={light} />
+  // Meme bascule blanc/sombre que StayBanner (voir plus haut et
+  // shouldUseWhiteText dans src/lib/colors.ts) -- calculee ici aussi
+  // puisque StayEntry affiche son propre contenu deplie par-dessus la
+  // meme couleur de fond, pas seulement le titre de la banniere.
+  const darkBg = !!bgColor && shouldUseWhiteText(bgColor)
+  // Pastilles de selection (age / cote de la maison) : meme style que
+  // viewTogglePillClass partout ailleurs sur le site, avec une bascule en
+  // blanc quand le fond de la banniere est sombre (meme raisonnement que
+  // le reste de ce fichier, voir shouldUseWhiteText).
+  const pillClass = (selected: boolean) =>
+    cn(viewTogglePillClass(selected), darkBg && (selected ? 'text-white' : 'text-white/60'), darkBg && 'hover:text-white')
+  const pill = <BalancePill pending={pending} ids={ids} light={light} darkBg={darkBg} />
 
   return (
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
-      <TotalTaxeSejourStayPill pending={pending} ids={ids} light={light} />
+      <TotalTaxeSejourStayPill pending={pending} ids={ids} light={light} darkBg={darkBg} />
 
       {/* Plus de libelle "Nom Prenom" au-dessus : seul l'encadre ou le nom
           est ecrit reste, avec le meme traitement que le champ "Note"
@@ -668,7 +715,7 @@ function StayEntry({
           placeholder="Prénom nom"
           className={cn(
             'w-full border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground placeholder:font-normal placeholder:normal-case placeholder:tracking-normal placeholder:text-muted-foreground md:text-sm',
-            light ? 'text-foreground/60' : 'text-foreground'
+            darkBg ? 'text-white border-white/40 focus:border-white' : light ? 'text-foreground/60' : 'text-foreground'
           )}
         />
       )}
@@ -682,7 +729,7 @@ function StayEntry({
       <div
         className={cn(
           'flex flex-wrap items-center gap-x-4 gap-y-1 text-xs uppercase tracking-[0.08em] md:text-sm',
-          light ? 'text-foreground/60' : 'text-foreground'
+          darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground'
         )}
       >
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -693,7 +740,7 @@ function StayEntry({
             onChange={(e) => setCheckIn(e.target.value)}
             className={cn(
               'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
-              light ? 'text-foreground/60' : 'text-foreground'
+              darkBg ? 'text-white border-white/40 focus:border-white' : light ? 'text-foreground/60' : 'text-foreground'
             )}
           />
         </span>
@@ -706,7 +753,7 @@ function StayEntry({
             onChange={(e) => setCheckOut(e.target.value)}
             className={cn(
               'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
-              light ? 'text-foreground/60' : 'text-foreground'
+              darkBg ? 'text-white border-white/40 focus:border-white' : light ? 'text-foreground/60' : 'text-foreground'
             )}
           />
         </span>
@@ -730,7 +777,10 @@ function StayEntry({
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         placeholder="Heure et gare ou aéroport d'arrivée"
-        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+        className={cn(
+          'w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground',
+          darkBg ? 'text-white border-white/30' : 'text-foreground'
+        )}
       />
 
       {/* gap-x-2 (8px) + tracking reduit a 0.02em (au lieu de gap-x-3/16px et
@@ -750,19 +800,19 @@ function StayEntry({
           surveiller sur mobile reel si ca redevient trop juste en largeur
           avec le tracking uniforme a 0.08em. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <button type="button" className={viewTogglePillClass(ageBracket === 'child')} onClick={() => setAgeBracket('child')}>
+        <button type="button" className={pillClass(ageBracket === 'child')} onClick={() => setAgeBracket('child')}>
           0-16 ans
         </button>
-        <button type="button" className={viewTogglePillClass(ageBracket === 'adult')} onClick={() => setAgeBracket('adult')}>
+        <button type="button" className={pillClass(ageBracket === 'adult')} onClick={() => setAgeBracket('adult')}>
           17 ans et +
         </button>
-        <button type="button" className={viewTogglePillClass(houseSide === 'canat')} onClick={() => setHouseSide('canat')}>
+        <button type="button" className={pillClass(houseSide === 'canat')} onClick={() => setHouseSide('canat')}>
           Canat
         </button>
-        <button type="button" className={viewTogglePillClass(houseSide === 'lalande')} onClick={() => setHouseSide('lalande')}>
+        <button type="button" className={pillClass(houseSide === 'lalande')} onClick={() => setHouseSide('lalande')}>
           Lalande
         </button>
-        <button type="button" className={viewTogglePillClass(houseSide === 'petite_maison')} onClick={() => setHouseSide('petite_maison')}>
+        <button type="button" className={pillClass(houseSide === 'petite_maison')} onClick={() => setHouseSide('petite_maison')}>
           Petite maison
         </button>
       </div>
@@ -771,7 +821,7 @@ function StayEntry({
         <div
           className={cn(
             'flex flex-wrap items-baseline gap-x-1.5 text-xs uppercase tracking-[0.08em] md:text-sm',
-            light ? 'text-foreground/60' : 'text-foreground'
+            darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground'
           )}
         >
           <span>Taxe de séjour :</span>
@@ -788,17 +838,30 @@ function StayEntry({
           utils.ts) -- typo toujours dans la couleur des titres de
           widget, donc plus de variante "light" ici (a la difference des
           pastilles de solde juste au-dessus, qui restent dimmees sur
-          fond colore). */}
+          fond colore). 09/10/2026 : le contour/texte passe quand meme en
+          blanc si le fond de la banniere est sombre (voir darkBg plus
+          haut), sinon illisible sur une couleur de personne foncee comme
+          celle attribuee au compte de Guy. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         {showDelete ? (
-          <button type="button" className={actionPillClass} onClick={handleRemove} disabled={removing || saving}>
+          <button
+            type="button"
+            className={cn(actionPillClass, darkBg && 'border-white text-white')}
+            onClick={handleRemove}
+            disabled={removing || saving}
+          >
             <Minus className="h-3.5 w-3.5" />
             Supprimer ce séjour
           </button>
         ) : (
           <span />
         )}
-        <button type="button" className={actionPillClass} disabled={!canSubmit || saving} onClick={handleValidate}>
+        <button
+          type="button"
+          className={cn(actionPillClass, darkBg && 'border-white text-white')}
+          disabled={!canSubmit || saving}
+          onClick={handleValidate}
+        >
           {saving ? 'Enregistrement...' : hasSavedBooking && !dirty ? 'Modifier' : 'Valider'}
         </button>
       </div>
