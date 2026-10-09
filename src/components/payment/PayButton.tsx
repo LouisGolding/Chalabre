@@ -24,11 +24,23 @@ export function PayButton({ type, paymentId, amount, label, variant = 'default',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, id: paymentId, amount, label }),
       })
-      const { url, error } = await res.json()
-      if (error) throw new Error(error)
-      window.location.href = url
+      // Même correctif que TSBalancePayButton.tsx le 09/10/2026 : une
+      // erreur ici restait auparavant invisible (console.error seul),
+      // ce qui a donné l'impression d'un bouton qui "ne fait rien" sur
+      // mobile. L'erreur s'affiche désormais via alert().
+      let data: { url?: string; error?: string }
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(`Réponse du serveur illisible (code ${res.status}).`)
+      }
+      if (!res.ok || data.error) throw new Error(data.error ?? `Erreur serveur (code ${res.status}).`)
+      if (!data.url) throw new Error('Réponse inattendue du serveur (pas de lien de paiement).')
+      window.location.href = data.url
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue'
       console.error(err)
+      alert(`Le paiement n'a pas pu démarrer : ${message}`)
       setLoading(false)
     }
   }
