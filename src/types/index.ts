@@ -136,6 +136,26 @@ export interface Document {
   created_at: string
 }
 
+// Onglet "Budget" (voir claude/prompt-onglet-budget.md) -- table
+// `budget_transactions` pas encore créée en base (migration écrite mais
+// pas appliquée sans l'accord de Louis, voir points-a-regler-avec-louis.md
+// dans le Projet). Type posé dès la mise en forme de l'onglet (15/10/2026)
+// pour typer les transactions une fois la table créée ; BudgetBoard reçoit
+// un tableau vide en attendant.
+export interface BudgetTransaction {
+  id: string
+  account: 'lalande' | 'canat'
+  transaction_date: string
+  label: string
+  amount: number
+  direction: 'in' | 'out'
+  category: string // voir src/lib/budget-categories.ts
+  reconciled_with: string | null
+  source_statement: string | null
+  created_by: string | null
+  created_at: string
+}
+
 export interface LocalEvent {
   id: string
   title: string

@@ -1,113 +1,41 @@
 import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { formatCurrency } from '@/lib/utils'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { BudgetBoard } from '@/components/budget/BudgetBoard'
 
+// Onglet "Budget" (voir claude/prompt-onglet-budget.md) -- mise en forme
+// posée le 15/10/2026 à la demande de Nicolas, avant la création de la
+// table `budget_transactions` (migration écrite mais pas appliquée) et de
+// la route d'extraction IA (prompt en cours de calibrage dans la
+// conversation, comme pour "Activités"). Réservé aux admins dans son
+// intégralité, comme "Activités" -- décision de Nicolas le 15/10/2026
+// (question ouverte 6 du prompt) plutôt que la restriction
+// Guy/Guillaume/Nicolas envisagée en alternative, à revoir si besoin.
+//
+// Remplace un embryon abandonné de la toute première ébauche du projet
+// (commit 445c291 du 05/04/2026) : jamais relié dans la navigation,
+// esthétique différente du reste du site, basé sur une table
+// `budget_entries` vide et non référencée ailleurs -- confirmé avec
+// Nicolas le 15/10/2026 avant de le remplacer. `tm_payments`/`ts_payments`
+// (cotisations/taxes de séjour, déjà utilisées par Suivi paiements/Mes
+// paiements/le webhook Stripe) restent une piste fiable à réutiliser plus
+// tard pour la partie "entrées" du tableau de bord, sans dépendre de l'IA
+// pour cette partie-là.
+//
+// Pas de requête à `budget_transactions` ici : la table n'existe pas
+// encore en base, BudgetBoard reçoit un tableau vide en attendant.
 export default async function BudgetPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role === 'friend') redirect('/dashboard')
-
-  // Get all TM payments
-  const { data: tmPayments } = await supabase
-    .from('tm_payments')
-    .select('*, profiles(first_name, last_name)')
-    .order('month', { ascending: false })
-
-  // Get all TS payments
-  const { data: tsPayments } = await supabase
-    .from('ts_payments')
-    .select('*, profiles(first_name, last_name)')
-    .order('created_at', { ascending: false })
-
-  // Get budget entries
-  const { data: budgetEntries } = await supabase
-    .from('budget_entries')
-    .select('*')
-    .order('date', { ascending: false })
-
-  const totalTMPaid = tmPayments?.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0) ?? 0
-  const totalTSPaid = tsPayments?.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0) ?? 0
-  const totalIncome = totalTMPaid + totalTSPaid
-  const totalExpenses = budgetEntries?.filter(e => e.entry_type === 'expense').reduce((sum, e) => sum + e.amount, 0) ?? 0
+  if (profile?.role !== 'admin') redirect('/dashboard')
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <PageTitle>Budget</PageTitle>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Solde disponible</CardTitle></CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-bold ${totalIncome - totalExpenses >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(totalIncome - totalExpenses)}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Total encaissé (TM + TS)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-stone-700">{formatCurrency(totalIncome)}</div>
-            <p className="text-xs text-stone-400 mt-1">TM: {formatCurrency(totalTMPaid)} · TS: {formatCurrency(totalTSPaid)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Total dépenses</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-600">{formatCurrency(totalExpenses)}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent TM */}
-      <Card>
-        <CardHeader><CardTitle>Taxes Mensuelles (TM)</CardTitle></CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {tmPayments?.slice(0, 10).map(p => (
-              <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div>
-                  <p className="font-medium text-sm">{p.profiles?.first_name} {p.profiles?.last_name}</p>
-                  <p className="text-xs text-stone-400">{p.month}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{formatCurrency(p.amount)}</span>
-                  <Badge variant={p.status === 'paid' ? 'default' : 'destructive'}>
-                    {p.status === 'paid' ? 'Payé' : 'En attente'}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent TS */}
-      <Card>
-        <CardHeader><CardTitle>Taxes de Séjour (TS)</CardTitle></CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {tsPayments?.slice(0, 10).map(p => (
-              <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div>
-                  <p className="font-medium text-sm">{p.profiles?.first_name} {p.profiles?.last_name}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{formatCurrency(p.amount)}</span>
-                  <Badge variant={p.status === 'paid' ? 'default' : 'destructive'}>
-                    {p.status === 'paid' ? 'Payé' : 'En attente'}
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <BudgetBoard initialTransactions={[]} />
     </div>
   )
 }
