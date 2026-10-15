@@ -12,6 +12,7 @@ import { fr } from 'date-fns/locale'
 import { TaxeSejourPill } from '@/components/dashboard/TaxeSejourPill'
 import { computeTsBalance } from '@/lib/ts-balance'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isPeriodCurrent } from '@/lib/task-periods'
 
 // "25 décembre 2026" -> "25 DÉCEMBRE 2026", comme sur le visuel Photoshop
 // de Nicolas (27/09/2026) pour les dates du prochain séjour.
@@ -95,6 +96,20 @@ export default async function DashboardPage() {
   // Nicolas le 08/10/2026) -- l'intitulé complet reste visible dans
   // l'onglet Activités lui-même.
   const shortTitle = (title: string) => title.split(' ').slice(0, 3).join(' ')
+
+  // "Tâche ce mois-ci" (câblée aux vraies tâches le 15/10/2026, à la
+  // demande de Nicolas -- jusque-là simple placeholder "-"). Même
+  // définition de "ce mois-ci" que l'onglet Entretien (mois ou saison en
+  // cours, voir isPeriodCurrent dans task-periods.ts), limitée aux tâches
+  // pas encore cochées. Policy "tasks_select" ouverte à tout compte
+  // connecté (voir schema.sql) -- pas besoin du client admin ici,
+  // contrairement à local_events.
+  const { data: openTasks } = await supabase
+    .from('tasks')
+    .select('title, period, completed')
+    .eq('completed', false)
+  const tasksThisMonth = (openTasks ?? []).filter((t) => isPeriodCurrent(t.period))
+  const tasksThisMonthLabel = eventsLabel(tasksThisMonth)
 
   // Prochain séjour du titulaire du compte (hors accompagnants) — remis
   // sur l'accueil le 27/09/2026 à la demande de Nicolas, sur le modèle
@@ -251,77 +266,98 @@ export default async function DashboardPage() {
             08/10/2026 : 3e colonne "À suivre" qui donne un aperçu des
             événements du reste de la semaine, une ligne par événement
             (date, lieu, titre raccourci à 2-3 mots) plutôt qu'un simple
-            compteur comme les deux premières colonnes -- à ajuster
-            (nombre de lignes affichées, format de date...) une fois que
-            Nicolas voit le rendu réel. Lien direct vers l'onglet
-            uniquement pour les admins (seuls à pouvoir y accéder — tout
-            autre compte serait aussitôt redirigé vers cette page même,
-            voir src/app/dashboard/activites/page.tsx) ; même contenu en
-            simple <div>/<p> pour family/friend. */}
-        <div className="mt-12 grid grid-cols-3 gap-x-4">
-          {[
-            { label: "Aujourd'hui", value: eventsLabel(todayEvents) },
-            { label: 'Demain', value: eventsLabel(tomorrowEvents) },
-          ].map(({ label, value }) =>
-            profile.role === 'admin' ? (
-              <Link key={label} href="/dashboard/activites" className="block w-fit">
-                <p className="text-lg font-normal text-background md:text-xl">{label}</p>
-                <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
-                  {value}
-                </p>
-              </Link>
-            ) : (
-              <div key={label}>
-                <p className="text-lg font-normal text-background md:text-xl">{label}</p>
-                <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
-                  {value}
-                </p>
-              </div>
-            )
-          )}
-          {(() => {
-            const shown = weekEvents.slice(0, 4)
-            const content = (
-              <>
-                <p className="text-lg font-normal text-background md:text-xl">À suivre</p>
-                {shown.length === 0 ? (
-                  <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
+            compteur comme les deux premières colonnes. Lien direct vers
+            l'onglet uniquement pour les admins (seuls à pouvoir y
+            accéder — tout autre compte serait aussitôt redirigé vers
+            cette page même, voir src/app/dashboard/activites/page.tsx) ;
+            même contenu en simple <div>/<p> pour family/friend.
+            15/10/2026 (demande de Nicolas) : plus de grille à 3 colonnes
+            fixes -- une colonne vide (ex. "Aujourd'hui" sans rien de
+            prévu) n'est plus affichée du tout, et les colonnes restantes
+            se resserrent vers la gauche (flex plutôt que grid-cols-3, qui
+            aurait réservé un tiers de largeur même pour une colonne
+            absente). Toute la ligne disparaît s'il n'y a aucune activité
+            nulle part (aujourd'hui/demain/cette semaine). */}
+        {(todayEvents.length > 0 || tomorrowEvents.length > 0 || weekEvents.length > 0) && (
+          <div className="mt-12 flex flex-wrap gap-x-4">
+            {(
+              [
+                todayEvents.length > 0 && { label: "Aujourd'hui", value: eventsLabel(todayEvents) },
+                tomorrowEvents.length > 0 && { label: 'Demain', value: eventsLabel(tomorrowEvents) },
+              ].filter((c): c is { label: string; value: string } => !!c)
+            ).map(({ label, value }) =>
+              profile.role === 'admin' ? (
+                <Link key={label} href="/dashboard/activites" className="block w-fit">
+                  <p className="text-lg font-normal text-background md:text-xl">{label}</p>
+                  <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
+                    {value}
+                  </p>
+                </Link>
+              ) : (
+                <div key={label}>
+                  <p className="text-lg font-normal text-background md:text-xl">{label}</p>
+                  <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
+                    {value}
+                  </p>
+                </div>
+              )
+            )}
+            {weekEvents.length > 0 &&
+              (() => {
+                const shown = weekEvents.slice(0, 4)
+                const content = (
+                  <>
+                    <p className="text-lg font-normal text-background md:text-xl">À suivre</p>
+                    <div className="mt-2 space-y-1">
+                      {shown.map((ev, i) => (
+                        <p key={i} className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background md:text-xs">
+                          {format(parseISO(ev.event_date), 'd MMM', { locale: fr })}
+                          {ev.location ? ` · ${ev.location}` : ''} · {shortTitle(ev.title)}
+                        </p>
+                      ))}
+                      {weekEvents.length > shown.length && (
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background/70 md:text-xs">
+                          +{weekEvents.length - shown.length}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )
+                return profile.role === 'admin' ? (
+                  <Link href="/dashboard/activites" className="block w-fit">
+                    {content}
+                  </Link>
                 ) : (
-                  <div className="mt-2 space-y-1">
-                    {shown.map((ev, i) => (
-                      <p key={i} className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background md:text-xs">
-                        {format(parseISO(ev.event_date), 'd MMM', { locale: fr })}
-                        {ev.location ? ` · ${ev.location}` : ''} · {shortTitle(ev.title)}
-                      </p>
-                    ))}
-                    {weekEvents.length > shown.length && (
-                      <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background/70 md:text-xs">
-                        +{weekEvents.length - shown.length}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
-            )
-            return profile.role === 'admin' ? (
-              <Link href="/dashboard/activites" className="block w-fit">
-                {content}
-              </Link>
-            ) : (
-              <div>{content}</div>
-            )
-          })()}
-        </div>
+                  <div>{content}</div>
+                )
+              })()}
+          </div>
+        )}
 
-        {/* "Tâche ce mois ci" — widget relié à l'onglet Entretien,
-            fonctionnera comme Aujourd'hui/Demain (la tâche du mois en
-            cours, saisie en base, apparaîtra ici) — fonctionnement réel à
-            développer plus tard, demandé par Nicolas : pour l'instant
-            tiret "-" en attendant. */}
-        <Link href="/dashboard/taches" className="mt-12 block w-fit">
-          <p className="text-lg font-normal text-background md:text-xl">Tâche ce mois ci</p>
-          <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">-</p>
-        </Link>
+        {/* "Tâche ce mois ci" — relié aux vraies tâches d'Entretien le
+            15/10/2026 (tâches non cochées dont la période est le mois ou
+            la saison en cours, voir tasksThisMonth plus haut). Masqué
+            entièrement s'il n'y en a aucune (demande de Nicolas, même
+            principe que la ligne Aujourd'hui/Demain/À suivre ci-dessus).
+            Lien cliquable réservé à admin/family (comme l'onglet Entretien
+            lui-même, voir TileNav.tsx -- masqué pour les amis), simple
+            <div> pour un ami qui verrait quand même ce texte. */}
+        {tasksThisMonth.length > 0 &&
+          (profile.role !== 'friend' ? (
+            <Link href="/dashboard/taches" className="mt-12 block w-fit">
+              <p className="text-lg font-normal text-background md:text-xl">Tâche ce mois ci</p>
+              <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
+                {tasksThisMonthLabel}
+              </p>
+            </Link>
+          ) : (
+            <div className="mt-12 w-fit">
+              <p className="text-lg font-normal text-background md:text-xl">Tâche ce mois ci</p>
+              <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
+                {tasksThisMonthLabel}
+              </p>
+            </div>
+          ))}
 
         {/* "Présents en ce moment" masqué (pas supprimé) le 27/09/2026 à la
             demande de Nicolas : "je verrai plus tard comment et où on
