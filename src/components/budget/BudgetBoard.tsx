@@ -142,11 +142,11 @@ export function BudgetBoard({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <label className={cn(actionPillClass, 'cursor-pointer')}>
             <Plus className="h-3.5 w-3.5" />
-            {fileName ?? 'Choisir un fichier (Excel)'}
+            {fileName ?? 'Choisir un fichier (Excel, PDF, JPEG)'}
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,application/pdf,image/jpeg"
               className="hidden"
               onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
             />
