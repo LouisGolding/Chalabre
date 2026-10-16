@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { actionPillClass, cn, viewTogglePillClass } from '@/lib/utils'
 import { BUDGET_ACCOUNTS, BUDGET_CATEGORY_LABELS, type BudgetAccountId } from '@/lib/budget-categories'
@@ -19,10 +20,16 @@ import type { BudgetTransaction } from '@/types'
 //     écrite mais pas appliquée, voir points-a-regler-avec-louis.md) --
 //     BudgetBoard reçoit donc un tableau vide depuis page.tsx ;
 //   - le prompt d'extraction est en cours de calibrage directement dans
-//     la conversation avec Nicolas (comme cela a été fait pour
-//     "Activités" avant de créer une clé API Anthropic) -- le bouton
-//     "Analyser" ci-dessous n'appelle donc encore aucune route, il
-//     affiche juste un message d'attente ;
+//     la conversation avec Nicolas, à partir du contenu du fichier qu'il
+//     colle dans le chat (comme cela a été fait pour "Activités" avant
+//     de créer une clé API Anthropic) -- le bouton "Analyser" ci-dessous
+//     n'appelle donc encore aucune route, il affiche juste un message
+//     d'attente ;
+//   - zone de dépôt en upload de fichier (pas de texte collé, contrairement
+//     à Activités) : Nicolas a précisé le 16/10/2026 que l'idée est
+//     d'uploader directement le relevé Excel, pas de coller du texte --
+//     même pattern de sélection de fichier que "Documents"
+//     (DocumentUploadForm.tsx, voir src/components/documents/DocumentsAdmin.tsx) ;
 //   - les cartes de tableau de bord (entrées/sorties/solde/en attente)
 //     affichent des valeurs à blanc ("--") en attendant la vraie table.
 // Le sélecteur de compte et la liste des transactions sont en revanche
@@ -31,7 +38,8 @@ import type { BudgetTransaction } from '@/types'
 export function BudgetBoard({ initialTransactions }: { initialTransactions: BudgetTransaction[] }) {
   const [account, setAccount] = useState<BudgetAccountId>('lalande')
   const [transactions] = useState(initialTransactions)
-  const [pasteText, setPasteText] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
   const [notReadyMessage, setNotReadyMessage] = useState<string | null>(null)
 
   const accountLabel = BUDGET_ACCOUNTS.find((a) => a.id === account)?.label ?? account
@@ -45,7 +53,7 @@ export function BudgetBoard({ initialTransactions }: { initialTransactions: Budg
   )
 
   const handleAnalyze = () => {
-    if (!pasteText.trim()) return
+    if (!fileName) return
     setNotReadyMessage(
       "Extraction pas encore branchée -- le prompt est en cours de calibrage avec Nicolas avant de créer la clé API Anthropic."
     )
@@ -76,29 +84,36 @@ export function BudgetBoard({ initialTransactions }: { initialTransactions: Budg
         <SummaryTile label="En attente" value="--" />
       </div>
 
-      {/* Zone de dépôt du relevé */}
+      {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
+          texte collé : même pattern de sélection de fichier que
+          "Documents" (bouton pastille + nom de fichier affiché à la
+          place du texte générique). */}
       <div className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10">
         <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">
-          Coller le texte du relevé bancaire ({accountLabel})
+          Déposer le relevé bancaire ({accountLabel})
         </p>
-        <textarea
-          value={pasteText}
-          onChange={(e) => setPasteText(e.target.value)}
-          placeholder="Colle ici le texte brut du relevé (une ligne par transaction)..."
-          rows={6}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none"
-        />
-        <div className="flex items-center justify-between gap-3">
-          {notReadyMessage && <p className="text-xs text-muted-foreground">{notReadyMessage}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <label className={cn(actionPillClass, 'cursor-pointer')}>
+            <Plus className="h-3.5 w-3.5" />
+            {fileName ?? 'Choisir un fichier (Excel)'}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
+            />
+          </label>
           <button
             type="button"
             onClick={handleAnalyze}
-            disabled={!pasteText.trim()}
-            className={cn(actionPillClass, 'ml-auto')}
+            disabled={!fileName}
+            className={actionPillClass}
           >
             Analyser
           </button>
         </div>
+        {notReadyMessage && <p className="text-xs text-muted-foreground">{notReadyMessage}</p>}
       </div>
 
       {/* Liste des transactions enregistrées pour ce compte */}
