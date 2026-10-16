@@ -16,6 +16,12 @@ interface Tile {
   // par Nicolas). Documents n'a pas de tuile pour l'instant : Nicolas
   // réfléchit encore à où le faire apparaître (27/09/2026).
   hiddenForFriend?: boolean
+  // Réservée aux comptes admin (Budget, depuis le 16/10/2026) : masquée
+  // aussi pour les comptes "family", pas seulement "friend" -- la page
+  // elle-même redirige tout compte non-admin (voir budget/page.tsx), la
+  // tuile ne doit donc pas apparaître pour un compte qui serait de toute
+  // façon renvoyé à l'accueil en cliquant dessus.
+  adminOnly?: boolean
 }
 
 // Grille de navigation de la page d'accueil — refonte du 27/09/2026
@@ -37,7 +43,7 @@ const TILES: Tile[] = [
   { href: '/dashboard/contacts', label: 'Contacts' },
   { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
   { href: '/dashboard/taches', label: 'Entretien', hiddenForFriend: true },
-  { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
+  { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true, adminOnly: true },
 ]
 
 // Épinglée en BAS de l'écran (demandé par Nicolas le 27/09/2026 : "place
@@ -75,7 +81,8 @@ export function TileNav({ role }: { role: UserRole }) {
   // transparents pour laisser voir la photo, comme prévu à l'origine.
   const hasPhotoBackground = pathname === '/dashboard'
   const isFriend = role === 'friend'
-  const tiles = isFriend ? TILES.filter((tile) => !tile.hiddenForFriend) : TILES
+  const isAdmin = role === 'admin'
+  const tiles = TILES.filter((tile) => (!isFriend || !tile.hiddenForFriend) && (!tile.adminOnly || isAdmin))
 
   // TEST du 28/09/2026 (demandé par Nicolas : la grille lui paraît trop
   // imposante) : masquée par défaut, réduite à une petite poignée

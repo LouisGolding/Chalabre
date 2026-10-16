@@ -1,46 +1,65 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Plus } from 'lucide-react'
+import { ChevronDown, Download, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { actionPillClass, cn, viewTogglePillClass } from '@/lib/utils'
+import { actionPillClass, cn, formatDate, viewTogglePillClass } from '@/lib/utils'
 import { BUDGET_ACCOUNTS, BUDGET_CATEGORY_LABELS, type BudgetAccountId } from '@/lib/budget-categories'
-import type { BudgetTransaction } from '@/types'
+import type { BudgetStatement, BudgetTransaction } from '@/types'
 
 // Composant client de l'onglet "Budget" (voir claude/prompt-onglet-budget.md)
 // -- mise en forme posée le 15/10/2026 à la demande de Nicolas, esthétique
 // calquée sur "Activités" (ActivitesBoard.tsx) : encadré de saisie en haut,
 // cartes "card-canson", pastilles de sélection (viewTogglePillClass).
 //
-// Étape de mise en forme uniquement, AVANT la table en base et la route
-// d'extraction IA :
-//   - la table `budget_transactions` n'existe pas encore (migration
-//     écrite mais pas appliquée, voir points-a-regler-avec-louis.md) --
-//     BudgetBoard reçoit donc un tableau vide depuis page.tsx ;
-//   - le prompt d'extraction est en cours de calibrage directement dans
-//     la conversation avec Nicolas, à partir du contenu du fichier qu'il
-//     colle dans le chat (comme cela a été fait pour "Activités" avant
-//     de créer une clé API Anthropic) -- le bouton "Analyser" ci-dessous
-//     n'appelle donc encore aucune route, il affiche juste un message
-//     d'attente ;
-//   - zone de dépôt en upload de fichier (pas de texte collé, contrairement
-//     à Activités) : Nicolas a précisé le 16/10/2026 que l'idée est
-//     d'uploader directement le relevé Excel, pas de coller du texte --
-//     même pattern de sélection de fichier que "Documents"
-//     (DocumentUploadForm.tsx, voir src/components/documents/DocumentsAdmin.tsx) ;
-//   - les cartes de tableau de bord (entrées/sorties/solde/en attente)
-//     affichent des valeurs à blanc ("--") en attendant la vraie table.
-// Le sélecteur de compte et la liste des transactions sont en revanche
-// fonctionnels dès maintenant (état local), prêts à recevoir de vraies
-// données une fois la table créée.
-export function BudgetBoard({ initialTransactions }: { initialTransactions: BudgetTransaction[] }) {
+// Mise à jour du 16/10/2026 (Nicolas) :
+//   - le dépôt de relevé est un vrai upload de fichier (pas de texte
+//     collé, pas d'extraction automatique pour l'instant) -- même
+//     pattern de sélection de fichier que "Documents"
+//     (DocumentUploadForm.tsx), mais la sélection ENREGISTRE réellement
+//     le fichier (POST /api/budget/statements) plutôt que de rester
+//     inerte : Nicolas veut pouvoir consulter/télécharger les relevés
+//     déposés, indépendamment de l'extraction IA des transactions
+//     (toujours en cours de calibrage dans la conversation, voir
+//     points-a-regler-avec-louis.md) ;
+//   - la table `budget_statements` et le bucket Storage associés
+//     viennent de migration_budget_statements.sql, écrite mais PAS
+//     appliquée (en attente de l'accord de Louis) -- tant que ce n'est
+//     pas fait, la route renvoie une erreur claire affichée ici plutôt
+//     que de planter ;
+//   - les relevés déposés sont listés du plus récent au plus ancien,
+//     avec un lien de téléchargement (URL signée générée côté serveur,
+//     voir dashboard/budget/page.tsx, même principe que "Documents") ;
+//     ceux des années précédentes sont repliés par défaut, même principe
+//     que "Événements passés" sur Activités (ActivitesBoard.tsx) ;
+//   - réservé aux admins dans sa totalité (page déjà admin-only, voir
+//     budget/page.tsx) -- plus l'onglet n'apparaît plus que dans la
+//     grille des onglets (TileNav), plus dans le bandeau du bas
+//     (BottomNav), demandé par Nicolas le 16/10/2026.
+//
+// Les cartes de tableau de bord (entrées/sorties/solde/en attente) et le
+// bilan annuel affichent toujours des valeurs à blanc ("--") en attendant
+// la table `budget_transactions` (migration distincte, pas encore
+// écrite -- questions ouvertes du prompt encore en cours avec Nicolas).
+export function BudgetBoard({
+  initialTransactions,
+  initialStatements,
+}: {
+  initialTransactions: BudgetTransaction[]
+  initialStatements: (BudgetStatement & { downloadUrl: string | null })[]
+}) {
+  const router = useRouter()
   const [account, setAccount] = useState<BudgetAccountId>('lalande')
   const [transactions] = useState(initialTransactions)
+  const [statements] = useState(initialStatements)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
-  const [notReadyMessage, setNotReadyMessage] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [pastStatementsOpen, setPastStatementsOpen] = useState(false)
 
   const accountLabel = BUDGET_ACCOUNTS.find((a) => a.id === account)?.label ?? account
 
@@ -52,11 +71,37 @@ export function BudgetBoard({ initialTransactions }: { initialTransactions: Budg
     [transactions, account]
   )
 
-  const handleAnalyze = () => {
-    if (!fileName) return
-    setNotReadyMessage(
-      "Extraction pas encore branchée -- le prompt est en cours de calibrage avec Nicolas avant de créer la clé API Anthropic."
-    )
+  const currentYear = new Date().getFullYear()
+  const { currentStatements, pastStatements } = useMemo(() => {
+    const sorted = statements
+      .filter((s) => s.account === account)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    return {
+      currentStatements: sorted.filter((s) => new Date(s.created_at).getFullYear() === currentYear),
+      pastStatements: sorted.filter((s) => new Date(s.created_at).getFullYear() !== currentYear),
+    }
+  }, [statements, account, currentYear])
+
+  const handleUpload = async () => {
+    const file = fileInputRef.current?.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('account', account)
+      const res = await fetch('/api/budget/statements', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? "Erreur lors de l'envoi")
+      setFileName(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors de l'envoi")
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
@@ -76,7 +121,8 @@ export function BudgetBoard({ initialTransactions }: { initialTransactions: Budg
         ))}
       </div>
 
-      {/* Tableau de bord -- valeurs à blanc, pas encore de table en base */}
+      {/* Tableau de bord -- valeurs à blanc, pas encore de table
+          budget_transactions en base */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <SummaryTile label="Entrées" value="--" />
         <SummaryTile label="Sorties" value="--" />
@@ -86,8 +132,9 @@ export function BudgetBoard({ initialTransactions }: { initialTransactions: Budg
 
       {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
           texte collé : même pattern de sélection de fichier que
-          "Documents" (bouton pastille + nom de fichier affiché à la
-          place du texte générique). */}
+          "Documents", mais fonctionnel dès maintenant (voir
+          /api/budget/statements) pour que les relevés déposés restent
+          consultables, indépendamment de l'extraction IA. */}
       <div className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10">
         <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">
           Déposer le relevé bancaire ({accountLabel})
@@ -106,14 +153,49 @@ export function BudgetBoard({ initialTransactions }: { initialTransactions: Budg
           </label>
           <button
             type="button"
-            onClick={handleAnalyze}
-            disabled={!fileName}
+            onClick={handleUpload}
+            disabled={!fileName || uploading}
             className={actionPillClass}
           >
-            Analyser
+            {uploading ? 'Envoi...' : 'Déposer'}
           </button>
         </div>
-        {notReadyMessage && <p className="text-xs text-muted-foreground">{notReadyMessage}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
+
+        {/* Relevés déjà déposés pour ce compte -- plus récent en premier,
+            ceux des années précédentes repliés (même principe que
+            "Événements passés" sur Activités). */}
+        {currentStatements.length === 0 && pastStatements.length === 0 ? (
+          <p className="text-sm text-muted-foreground/70">Aucun relevé déposé pour ce compte.</p>
+        ) : (
+          <div className="space-y-2 pt-1">
+            {currentStatements.map((s) => (
+              <StatementRow key={s.id} statement={s} />
+            ))}
+            {pastStatements.length > 0 && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => setPastStatementsOpen((o) => !o)}
+                  aria-expanded={pastStatementsOpen}
+                  className="flex w-full items-center justify-between gap-2 text-left hover:opacity-80"
+                >
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Relevés des années précédentes ({pastStatements.length})
+                  </p>
+                  <ChevronDown
+                    className={cn(
+                      'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+                      pastStatementsOpen && 'rotate-180'
+                    )}
+                  />
+                </button>
+                {pastStatementsOpen &&
+                  pastStatements.map((s) => <StatementRow key={s.id} statement={s} />)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Liste des transactions enregistrées pour ce compte */}
@@ -152,6 +234,28 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
     <div className="card-canson rounded-lg p-3 ring-1 ring-foreground/10">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-lg font-medium text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function StatementRow({ statement }: { statement: BudgetStatement & { downloadUrl: string | null } }) {
+  return (
+    <div className="card-canson flex items-center justify-between gap-3 rounded-lg p-3 ring-1 ring-foreground/10">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-foreground">{statement.file_name}</p>
+        <p className="text-xs text-muted-foreground">{formatDate(statement.created_at)}</p>
+      </div>
+      {statement.downloadUrl && (
+        <a
+          href={statement.downloadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+          aria-label="Télécharger ce relevé"
+        >
+          <Download className="h-4 w-4" />
+        </a>
+      )}
     </div>
   )
 }

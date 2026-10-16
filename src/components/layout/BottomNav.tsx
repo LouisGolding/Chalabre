@@ -10,7 +10,6 @@ const ADMIN_ITEMS = [
   { href: '/dashboard/admin/paiements', label: 'Suivi paiements' },
   { href: '/dashboard/documents', label: 'Documents' },
   { href: '/dashboard/activites', label: 'Activités' },
-  { href: '/dashboard/budget', label: 'Budget' },
 ]
 
 // Onglet "Suivi paiements" temporairement masque a la demande de Nicolas

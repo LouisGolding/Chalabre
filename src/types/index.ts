@@ -156,6 +156,19 @@ export interface BudgetTransaction {
   created_at: string
 }
 
+// Relevé bancaire déposé sur l'onglet "Budget" (voir
+// migration_budget_statements.sql, pas encore appliquée). Distinct de
+// BudgetTransaction : ce type suit le FICHIER déposé (pour consultation/
+// téléchargement), pas les lignes qu'une future extraction IA en tirera.
+export interface BudgetStatement {
+  id: string
+  account: 'lalande' | 'canat'
+  file_name: string
+  storage_path: string
+  uploaded_by: string | null
+  created_at: string
+}
+
 export interface LocalEvent {
   id: string
   title: string
