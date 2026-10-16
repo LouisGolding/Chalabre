@@ -122,8 +122,16 @@ export function BudgetBoard({
       </div>
 
       {/* Tableau de bord -- valeurs à blanc, pas encore de table
-          budget_transactions en base */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          budget_transactions en base. "Solde année précédente" ajouté le
+          16/10/2026 à la demande de Nicolas : point de départ du calcul,
+          de sorte que Solde = Solde année précédente + Entrées - Sorties
+          (corrélation vérifiée à la main sur les deux premiers relevés
+          réels avant d'ajouter cette case, voir points-a-regler-avec-
+          louis.md). "Entrées"/"Sorties" sont donc appelés à devenir des
+          cumuls depuis le début de l'année (pas juste le dernier relevé)
+          une fois la vraie donnée branchée. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <SummaryTile label="Solde année précédente" value="--" />
         <SummaryTile label="Entrées" value="--" />
         <SummaryTile label="Sorties" value="--" />
         <SummaryTile label="Solde" value="--" />
