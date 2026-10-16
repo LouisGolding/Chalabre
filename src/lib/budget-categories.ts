@@ -1,10 +1,12 @@
 // Catégories de l'onglet "Budget" (voir claude/prompt-onglet-budget.md).
 // Liste fermée proposée le 06/10/2026, étendue le 15/10/2026 à la demande
 // de Nicolas avec "remboursement" (somme versée à un particulier, en
-// particulier un membre de la famille). Non figée : le test démarre avec
-// cette liste, "autre" absorbe tout le reste, et on ajoutera des
-// catégories au vu des libellés réellement récurrents sur les relevés de
-// Guy/Guillaume (question ouverte 3 du prompt).
+// particulier un membre de la famille), puis le 16/10/2026 avec
+// "abonnements" (téléphone/internet récurrents, ex. Orange fibre),
+// identifiée lors du test sur le premier relevé réel. Non figée : le
+// test démarre avec cette liste, "autre" absorbe tout le reste, et on
+// ajoutera des catégories au vu des libellés réellement récurrents sur
+// les relevés de Guy/Guillaume (question ouverte 3 du prompt).
 export const BUDGET_CATEGORIES = [
   { id: 'taxe_sejour', label: 'Taxe de séjour' },
   { id: 'cotisation', label: 'Cotisation' },
@@ -12,6 +14,7 @@ export const BUDGET_CATEGORIES = [
   { id: 'assurance', label: 'Assurance' },
   { id: 'electricite', label: 'Électricité' },
   { id: 'eau', label: 'Eau' },
+  { id: 'abonnements', label: 'Abonnements' },
   { id: 'entretien', label: 'Entretien' },
   { id: 'travaux', label: 'Travaux' },
   { id: 'remboursement', label: 'Remboursement' },
