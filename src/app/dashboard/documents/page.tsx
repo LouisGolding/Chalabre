@@ -14,8 +14,16 @@ export default async function DocumentsPage() {
   if (!user) redirect('/auth/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role === 'friend') redirect('/dashboard')
-  const isAdmin = profile?.role === 'admin'
+  // Onglet réservé aux admins "pour l'instant" (demande de Nicolas le
+  // 17/10/2026, à l'occasion de l'ajout de la catégorie "Relevés
+  // bancaires") : avant cette date, seul "friend" était bloqué, donc un
+  // compte "family" pouvait accéder à la page en tapant l'URL (le lien
+  // dans BottomNav était déjà admin-only depuis le 06/10/2026, mais pas
+  // la page elle-même — même incohérence que celle corrigée sur Budget
+  // le 16/10/2026). À revoir si Nicolas rouvre un jour cet onglet à
+  // "family" pour les catégories non sensibles.
+  if (profile?.role !== 'admin') redirect('/dashboard')
+  const isAdmin = true
 
   const { data: documents } = await supabase
     .from('documents')
