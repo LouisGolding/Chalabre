@@ -201,19 +201,17 @@ export function BudgetBoard({
   const [pastStatementsOpen, setPastStatementsOpen] = useState(false)
 
   // Widget dépliable "Transactions Stripe" (cotisations + taxes de
-  // séjour réellement encaissées) -- visible par admin ET famille,
-  // compte Lalande et compte Canat toujours affichés séparément, quel
-  // que soit le compte sélectionné en haut de page (demande de Nicolas,
-  // 17/10/2026). Voir dashboard/budget/page.tsx pour le calcul de
-  // `stripeTransactions`.
+  // séjour réellement encaissées) -- visible par admin ET famille.
+  // Filtré sur le compte actuellement sélectionné en haut de page
+  // (`account`), comme le reste du tableau de bord -- demande de
+  // Nicolas le 17/10/2026, qui remplace le premier comportement
+  // (Lalande et Canat toujours affichés séparément ensemble, quel que
+  // soit le compte choisi). Voir dashboard/budget/page.tsx pour le
+  // calcul de `stripeTransactions`.
   const [stripeOpen, setStripeOpen] = useState(false)
-  const lalandeStripeTx = useMemo(
-    () => stripeTransactions.filter((t) => t.account === 'lalande'),
-    [stripeTransactions]
-  )
-  const canatStripeTx = useMemo(
-    () => stripeTransactions.filter((t) => t.account === 'canat'),
-    [stripeTransactions]
+  const accountStripeTx = useMemo(
+    () => stripeTransactions.filter((t) => t.account === account),
+    [stripeTransactions, account]
   )
 
   // Panneau de détail Entrées/Sorties (compte Lalande uniquement) --
@@ -480,27 +478,53 @@ export function BudgetBoard({
           (demande de Nicolas, 17/10/2026), compte Lalande et compte
           Canat toujours affichés séparément à l'intérieur, même quand un
           seul des deux comptes est sélectionné plus haut sur la page. */}
-      <div className="card-canson space-y-3 rounded-xl p-4 ring-1 ring-foreground/10">
-        <button
-          type="button"
-          onClick={() => setStripeOpen((o) => !o)}
-          aria-expanded={stripeOpen}
-          className="flex w-full items-center justify-between gap-2 text-left"
-        >
-          <p className="text-sm font-medium uppercase tracking-wide text-foreground">
-            Transactions Stripe ({stripeTransactions.length})
-          </p>
-          <ChevronDown
-            className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', stripeOpen && 'rotate-180')}
-          />
-        </button>
+      <Card className="py-0">
+        {/* Entete repliee calee a 40px (Card sans padding vertical propre
+            + bouton h-10), meme pattern exact que GuideCard.tsx (Guide
+            de la maison) -- demande de Nicolas le 17/10/2026 ("meme
+            espacements haut bas que les autres widgets"), l'ancienne
+            version (simple div + p-4 fixe) n'etait pas calee sur ce
+            standard. */}
+        <CardHeader>
+          <button
+            type="button"
+            onClick={() => setStripeOpen((o) => !o)}
+            aria-expanded={stripeOpen}
+            className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
+          >
+            <CardTitle className="text-sm md:text-base uppercase tracking-wide">
+              Transactions Stripe ({accountStripeTx.length})
+            </CardTitle>
+            <ChevronDown
+              className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', stripeOpen && 'rotate-180')}
+            />
+          </button>
+        </CardHeader>
         {stripeOpen && (
-          <div className="space-y-4 border-t border-foreground/10 pt-3">
-            <StripeAccountSection label="Compte Lalande" items={lalandeStripeTx} />
-            <StripeAccountSection label="Compte Canat" items={canatStripeTx} />
-          </div>
+          <CardContent className="pb-4">
+            {accountStripeTx.length === 0 ? (
+              <p className="text-sm text-muted-foreground/70">Aucune transaction Stripe pour ce compte.</p>
+            ) : (
+              <div className="space-y-2">
+                {accountStripeTx.map((t) => (
+                  <div
+                    key={t.id}
+                    className="card-canson flex items-start justify-between gap-3 rounded-lg p-3 ring-1 ring-foreground/10"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{t.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.paidAt ? formatDate(t.paidAt) : 'Date inconnue'}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-medium text-foreground">{formatCurrency(t.amount)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
         )}
-      </div>
+      </Card>
 
       {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
           texte collé : même pattern de sélection de fichier que
@@ -574,11 +598,11 @@ export function BudgetBoard({
       </div>
       )}
 
-      {/* Liste des transactions enregistrées pour ce compte */}
+      {/* Liste des transactions enregistrées pour ce compte -- titre
+          "Transactions" retiré le 17/10/2026 (demande de Nicolas,
+          devenu redondant avec le titre du widget "Transactions
+          Stripe" juste au-dessus) */}
       <div className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-wide text-foreground">
-          Transactions ({accountTransactions.length})
-        </p>
         {accountTransactions.length === 0 ? (
           <p className="text-sm text-muted-foreground/70">Aucune transaction enregistrée pour ce compte.</p>
         ) : (
@@ -666,31 +690,6 @@ function BudgetDetailTile({
 // Compte Lalande/Canat affiché à l'intérieur du widget "Transactions
 // Stripe" -- même liste vide/non-vide que StatementRow, pour rester
 // cohérent avec le reste du fichier.
-function StripeAccountSection({ label, items }: { label: string; items: BudgetStripeTransaction[] }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label} ({items.length})
-      </p>
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground/70">Aucune transaction Stripe pour ce compte.</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((t) => (
-            <div key={t.id} className="card-canson flex items-start justify-between gap-3 rounded-lg p-3 ring-1 ring-foreground/10">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">{t.label}</p>
-                <p className="text-xs text-muted-foreground">{t.paidAt ? formatDate(t.paidAt) : 'Date inconnue'}</p>
-              </div>
-              <p className="shrink-0 text-sm font-medium text-foreground">{formatCurrency(t.amount)}</p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // Relevé déposé -- demande de Nicolas le 17/10/2026 : le titre ouvre le
 // relevé (consultation, même URL signée que le téléchargement), l'icône
 // de téléchargement reste à côté, et un bouton de suppression (admin
