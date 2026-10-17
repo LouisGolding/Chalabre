@@ -16,11 +16,14 @@ interface Tile {
   // par Nicolas). Documents n'a pas de tuile pour l'instant : Nicolas
   // réfléchit encore à où le faire apparaître (27/09/2026).
   hiddenForFriend?: boolean
-  // Réservée aux comptes admin (Budget, depuis le 16/10/2026) : masquée
-  // aussi pour les comptes "family", pas seulement "friend" -- la page
-  // elle-même redirige tout compte non-admin (voir budget/page.tsx), la
-  // tuile ne doit donc pas apparaître pour un compte qui serait de toute
-  // façon renvoyé à l'accueil en cliquant dessus.
+  // Réservée aux comptes admin : masquée aussi pour les comptes
+  // "family", pas seulement "friend" -- la page elle-même redirige tout
+  // compte non-admin. A servi pour Budget du 16/10/2026 au 17/10/2026
+  // (onglet alors admin uniquement) ; depuis le 17/10/2026 Budget est
+  // ouvert aux comptes "family" (seul le widget "Déposer le relevé
+  // bancaire" y reste réservé aux admins, voir BudgetBoard.tsx) et ne
+  // porte donc plus ce flag -- conservé pour un futur onglet qui en
+  // aurait besoin.
   adminOnly?: boolean
 }
 
@@ -43,7 +46,7 @@ const TILES: Tile[] = [
   { href: '/dashboard/contacts', label: 'Contacts' },
   { href: '/dashboard/realisations', label: 'Réalisations', hiddenForFriend: true },
   { href: '/dashboard/taches', label: 'Entretien', hiddenForFriend: true },
-  { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true, adminOnly: true },
+  { href: '/dashboard/budget', label: 'Budget', hiddenForFriend: true },
 ]
 
 // Épinglée en BAS de l'écran (demandé par Nicolas le 27/09/2026 : "place

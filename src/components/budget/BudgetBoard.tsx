@@ -35,19 +35,31 @@ import type { BudgetStatement, BudgetTransaction } from '@/types'
 //     voir dashboard/budget/page.tsx, même principe que "Documents") ;
 //     ceux des années précédentes sont repliés par défaut, même principe
 //     que "Événements passés" sur Activités (ActivitesBoard.tsx) ;
-//   - réservé aux admins dans sa totalité (page déjà admin-only, voir
-//     budget/page.tsx) -- plus l'onglet n'apparaît plus que dans la
-//     grille des onglets (TileNav), plus dans le bandeau du bas
-//     (BottomNav), demandé par Nicolas le 16/10/2026.
+//   - le dépôt de relevé (widget "Déposer le relevé bancaire" plus la
+//     liste des relevés déjà déposés qui l'accompagne) reste réservé aux
+//     admins -- demandé par Nicolas le 16/10/2026, reconduit le
+//     17/10/2026 au moment où le reste de la page s'est ouvert à la
+//     famille (voir la prop `isAdmin` plus bas) ; l'onglet n'apparaît
+//     toujours que dans la grille des onglets (TileNav), plus dans le
+//     bandeau du bas (BottomNav), demandé par Nicolas le 16/10/2026.
+//
+// Mise à jour du 17/10/2026 (Nicolas) : budget/page.tsx n'est plus
+// admin-only dans sa totalité -- ce composant reçoit désormais une prop
+// `isAdmin` et c'est lui qui décide quelle partie rester réservée aux
+// admins (le widget de dépôt ci-dessous) et quelle partie ouvrir à la
+// famille (sélecteur de compte, cartes de synthèse, transactions, bilan
+// annuel).
 //
 // Les cartes de tableau de bord (entrées/sorties/solde/en attente) et le
 // bilan annuel affichent toujours des valeurs à blanc ("--") en attendant
 // la table `budget_transactions` (migration distincte, pas encore
 // écrite -- questions ouvertes du prompt encore en cours avec Nicolas).
 export function BudgetBoard({
+  isAdmin,
   initialTransactions,
   initialStatements,
 }: {
+  isAdmin: boolean
   initialTransactions: BudgetTransaction[]
   initialStatements: (BudgetStatement & { downloadUrl: string | null })[]
 }) {
@@ -130,19 +142,28 @@ export function BudgetBoard({
           louis.md). "Entrées"/"Sorties" sont donc appelés à devenir des
           cumuls depuis le début de l'année (pas juste le dernier relevé)
           une fois la vraie donnée branchée. */}
+      {/* DEMO TEMPORAIRE pour Nicolas (16/10/2026) : valeurs cumulées des
+          relevés août + septembre simulées en dur sur le compte Lalande,
+          à retirer dès que Nicolas confirme avoir vu le rendu -- "Solde
+          année précédente" utilise ici le plus ancien solde dont on
+          dispose (avant le relevé d'août), pas le vrai solde au
+          31/12/2025 qu'on n'a pas encore. */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <SummaryTile label="Solde année précédente" value="--" />
-        <SummaryTile label="Entrées" value="--" />
-        <SummaryTile label="Sorties" value="--" />
-        <SummaryTile label="Solde" value="--" />
-        <SummaryTile label="En attente" value="--" />
+        <SummaryTile label="Solde année précédente" value={account === 'lalande' ? '6 381,52 €' : '--'} />
+        <SummaryTile label="Entrées" value={account === 'lalande' ? '35 997,09 €' : '--'} />
+        <SummaryTile label="Sorties" value={account === 'lalande' ? '38 874,63 €' : '--'} />
+        <SummaryTile label="Solde" value={account === 'lalande' ? '3 503,98 €' : '--'} />
+        <SummaryTile label="En attente" value={account === 'lalande' ? 'n/a' : '--'} />
       </div>
 
       {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
           texte collé : même pattern de sélection de fichier que
           "Documents", mais fonctionnel dès maintenant (voir
           /api/budget/statements) pour que les relevés déposés restent
-          consultables, indépendamment de l'extraction IA. */}
+          consultables, indépendamment de l'extraction IA. Réservé aux
+          admins (isAdmin) -- demandé par Nicolas le 17/10/2026, le reste
+          de la page étant désormais ouvert à la famille. */}
+      {isAdmin && (
       <div className="space-y-3 rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10">
         <p className="text-sm md:text-base font-medium uppercase tracking-wide text-foreground">
           Déposer le relevé bancaire ({accountLabel})
@@ -205,6 +226,7 @@ export function BudgetBoard({
           </div>
         )}
       </div>
+      )}
 
       {/* Liste des transactions enregistrées pour ce compte */}
       <div className="space-y-2">
