@@ -72,11 +72,6 @@ const SOLDE_LALANDE = SOLDE_FIN_2025_LALANDE + ENTREES_LALANDE - SORTIES_LALANDE
 const ENTREES_ACCENT = '#3F7D4A'
 const SORTIES_ACCENT = '#A4402E'
 
-const DETAIL_HINT_ENTREES =
-  '10 catégories, extraction ligne par ligne vérifiée au centime le 17/10 — « En attente (mai) » représente les 945,00 € de mai pas encore catégorisés individuellement (page 1/3 manquante), aucune ligne en « Autres ».'
-const DETAIL_HINT_SORTIES =
-  '15 catégories, extraction ligne par ligne vérifiée au centime le 17/10 — « En attente (mai) » représente les 621,00 € de mai pas encore catégorisés individuellement (page 1/3 manquante), aucune ligne en « Autres ».'
-
 // Géométrie du camembert (même rayon que la maquette).
 const DONUT_R = 60
 const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_R
@@ -220,12 +215,10 @@ export function BudgetBoard({
   // que la maquette.
   const [openDetail, setOpenDetail] = useState<'entrees' | 'sorties' | null>(null)
   const [detailChartType, setDetailChartType] = useState<'barres' | 'camembert'>('barres')
-  const [detailTableOpen, setDetailTableOpen] = useState(false)
   const [detailHoverId, setDetailHoverId] = useState<string | null>(null)
 
   const toggleDetail = (key: 'entrees' | 'sorties') => {
     setOpenDetail((prev) => (prev === key ? null : key))
-    setDetailTableOpen(false)
     setDetailHoverId(null)
   }
 
@@ -435,41 +428,6 @@ export function BudgetBoard({
             </div>
           )}
 
-          <div>
-            <button
-              type="button"
-              onClick={() => setDetailTableOpen((o) => !o)}
-              className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
-            >
-              {detailTableOpen ? 'Masquer le tableau' : 'Voir en tableau'}
-            </button>
-            {detailTableOpen && (
-              <div className="mt-2 overflow-x-auto border-t border-foreground/10 pt-2">
-                <table className="w-full border-collapse text-xs">
-                  <thead>
-                    <tr className="text-left text-muted-foreground">
-                      <th className="px-1.5 py-1 font-medium">Catégorie</th>
-                      <th className="px-1.5 py-1 text-right font-medium">Montant</th>
-                      <th className="px-1.5 py-1 text-right font-medium">Part</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detailItems.map((item) => (
-                      <tr key={item.id} className="border-t border-foreground/10">
-                        <td className="px-1.5 py-1 text-foreground">{item.label}</td>
-                        <td className="px-1.5 py-1 text-right tabular-nums text-foreground">{item.amountLabel}</td>
-                        <td className="px-1.5 py-1 text-right tabular-nums text-foreground">{item.percentLabel}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            {openDetail === 'entrees' ? DETAIL_HINT_ENTREES : DETAIL_HINT_SORTIES}
-          </p>
         </div>
       )}
 
