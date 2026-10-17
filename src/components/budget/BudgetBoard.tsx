@@ -10,26 +10,116 @@ import { actionPillClass, cn, formatCurrency, formatDate, viewTogglePillClass } 
 import { BUDGET_ACCOUNTS, BUDGET_CATEGORY_LABELS, type BudgetAccountId } from '@/lib/budget-categories'
 import type { BudgetStatement, BudgetTransaction } from '@/types'
 
-// Chiffres vérifiés ligne par ligne sur les 9 relevés BNP Paribas
-// janvier-septembre 2026 du compte Lalande (totaux officiels "TOTAL DES
-// OPÉRATIONS"/"SOLDE CRÉDITEUR" de chaque relevé) -- voir
-// claude/categorisation-reelle-lalande-2026.md, section A, pour le
-// détail relevé par relevé et la méthode. SOLDE_LALANDE n'est pas une
-// 4e constante indépendante : c'est le résultat du calcul demandé par
-// Nicolas le 17/10/2026 (Solde fin 2025 + Entrées - Sorties), qui doit
-// donc toujours correspondre exactement à la ligne "SOLDE CRÉDITEUR" du
-// dernier relevé reçu plutôt que de pouvoir diverger d'un chiffre saisi
-// à la main séparément.
+// Détail par catégorie du compte Lalande (Entrées/Sorties) -- mêmes
+// catégories, montants et couleurs que la maquette Artifact de l'onglet
+// Budget (artboard "Main", version validée par Nicolas le 17/10/2026,
+// voir aussi claude/categorisation-reelle-lalande-2026.md section C) :
+// vérifiés ligne par ligne sur les 9 relevés 2026. Dominante VERTE pour
+// les Entrées, ROUGE pour les Sorties, luminosité strictement croissante
+// du plus gros montant (le plus sombre) au plus petit (le plus clair) --
+// l'intitulé reste toujours affiché à côté de la couleur, jamais la
+// couleur seule comme identifiant.
 //
 // ⚠️ À METTRE À JOUR à chaque nouveau relevé Lalande reçu (tant que la
-// table `budget_transactions` n'existe pas en base) : ENTREES_LALANDE
-// et SORTIES_LALANDE deviennent les cumuls incluant le nouveau relevé,
-// SOLDE_FIN_2025_LALANDE ne change pas en cours d'année (seulement au
-// 1er janvier suivant, où il devra aussi être renommé "fin 2026").
+// table `budget_transactions` n'existe pas en base), en gardant ces deux
+// listes synchronisées avec celles de la maquette. SOLDE_FIN_2025_LALANDE
+// ne change pas en cours d'année (seulement au 1er janvier suivant, où il
+// devra aussi être renommé "fin 2026"). ENTREES_LALANDE/SORTIES_LALANDE
+// (les 4 cases du tableau de bord) et SOLDE_LALANDE sont tous calculés à
+// partir de ces deux listes, jamais saisis séparément -- impossible donc
+// qu'ils divergent du détail par catégorie affiché juste en dessous.
+type BudgetCategoryBreakdown = { id: string; label: string; amount: number; color: string }
+
+const ENTREES_CATS_LALANDE: BudgetCategoryBreakdown[] = [
+  { id: 'cotisation', label: 'Cotisations mensuelles', amount: 13023.5, color: '#0B3D24' },
+  { id: 'aide_harry', label: 'Aide Harry', amount: 8500.0, color: '#25523B' },
+  { id: 'remboursement', label: 'Remboursement', amount: 4009.5, color: '#3E6752' },
+  { id: 'taxe_sejour', label: 'Taxe de séjour', amount: 3210.0, color: '#587C69' },
+  { id: 'fil_nathan', label: 'Fil Nathan', amount: 1570.0, color: '#729180' },
+  { id: 'assurance', label: 'Assurance', amount: 1442.51, color: '#8BA697' },
+  { id: 'fil_nathan_annule', label: 'Fil Nathan (virement annulé)', amount: 1250.0, color: '#A5BBAE' },
+  { id: 'mai_en_attente', label: 'En attente (mai)', amount: 945.0, color: '#BFD0C5' },
+  { id: 'entretien_jardin', label: 'Entretien jardin', amount: 625.0, color: '#D8E5DC' },
+  { id: 'electricite', label: 'Électricité', amount: 281.58, color: '#F2FAF3' },
+]
+
+const SORTIES_CATS_LALANDE: BudgetCategoryBreakdown[] = [
+  { id: 'travaux', label: 'Travaux', amount: 14235.0, color: '#3D0000' },
+  { id: 'reparations_sinistre', label: 'Réparations sinistre', amount: 4570.0, color: '#4B1111' },
+  { id: 'electricite', label: 'Électricité', amount: 4129.52, color: '#582322' },
+  { id: 'amenagement', label: 'Aménagement / fournitures maison', amount: 3226.0, color: '#663434' },
+  { id: 'taxe_fonciere', label: 'Taxe foncière', amount: 2639.0, color: '#744545' },
+  { id: 'assurance', label: 'Assurance', amount: 2130.53, color: '#825656' },
+  { id: 'remboursement', label: 'Remboursement', amount: 1773.0, color: '#8F6867' },
+  { id: 'fil_nathan', label: 'Fil Nathan', amount: 1429.17, color: '#9D7978' },
+  { id: 'fil_nathan_annule', label: 'Fil Nathan (virement annulé)', amount: 1250.0, color: '#AB8A8A' },
+  { id: 'charges_merlette', label: 'Charges Merlette', amount: 1200.0, color: '#B89C9B' },
+  { id: 'entretien_jardin', label: 'Entretien jardin', amount: 1032.0, color: '#C6ADAC' },
+  { id: 'mai_en_attente', label: 'En attente (mai)', amount: 621.0, color: '#D4BEBD' },
+  { id: 'abonnements', label: 'Abonnements', amount: 395.91, color: '#E2CFCF' },
+  { id: 'menage', label: 'Ménage', amount: 150.0, color: '#EFE1E0' },
+  { id: 'frais_bancaires', label: 'Frais bancaires / saisies', amount: 93.5, color: '#FDF2F1' },
+]
+
 const SOLDE_FIN_2025_LALANDE = 7521.52 // "SOLDE CRÉDITEUR AU 08.01.2026", relevé déc. 2025
-const ENTREES_LALANDE = 34857.09 // somme Crédit, 9 relevés janv.-sept. 2026
-const SORTIES_LALANDE = 38874.63 // somme Débit, 9 relevés janv.-sept. 2026
+const ENTREES_LALANDE = ENTREES_CATS_LALANDE.reduce((sum, c) => sum + c.amount, 0) // = 34 857,09 €
+const SORTIES_LALANDE = SORTIES_CATS_LALANDE.reduce((sum, c) => sum + c.amount, 0) // = 38 874,63 €
 const SOLDE_LALANDE = SOLDE_FIN_2025_LALANDE + ENTREES_LALANDE - SORTIES_LALANDE // = 3 503,98 €, "SOLDE CRÉDITEUR AU 08.10.2026"
+
+// Liseré de sélection des tuiles Entrées/Sorties et couleur du lien "Voir
+// le détail", repris à l'identique de la maquette (demande de Nicolas,
+// 17/10/2026).
+const ENTREES_ACCENT = '#3F7D4A'
+const SORTIES_ACCENT = '#A4402E'
+
+const DETAIL_HINT_ENTREES =
+  '10 catégories, extraction ligne par ligne vérifiée au centime le 17/10 — « En attente (mai) » représente les 945,00 € de mai pas encore catégorisés individuellement (page 1/3 manquante), aucune ligne en « Autres ».'
+const DETAIL_HINT_SORTIES =
+  '15 catégories, extraction ligne par ligne vérifiée au centime le 17/10 — « En attente (mai) » représente les 621,00 € de mai pas encore catégorisés individuellement (page 1/3 manquante), aucune ligne en « Autres ».'
+
+// Géométrie du camembert (même rayon que la maquette).
+const DONUT_R = 60
+const DONUT_CIRCUMFERENCE = 2 * Math.PI * DONUT_R
+
+type BudgetDetailItem = {
+  id: string
+  label: string
+  color: string
+  amountLabel: string
+  percentLabel: string
+  dash: string
+  dashoffset: string
+  strokeWidth: number
+  dimmed: boolean
+  barWidthPct: string
+}
+
+function buildBudgetDetailItems(cats: BudgetCategoryBreakdown[], hoverId: string | null): BudgetDetailItem[] {
+  const total = cats.reduce((sum, c) => sum + c.amount, 0)
+  const sorted = [...cats].sort((a, b) => b.amount - a.amount)
+  const maxAmount = sorted.length > 0 ? sorted[0].amount : 1
+  const hasHover = hoverId !== null
+  let cumulative = 0
+  return sorted.map((c) => {
+    const pct = total > 0 ? (c.amount / total) * 100 : 0
+    const len = (c.amount / total) * DONUT_CIRCUMFERENCE
+    const dashoffset = -cumulative
+    cumulative += len
+    const active = c.id === hoverId
+    return {
+      id: c.id,
+      label: c.label,
+      color: c.color,
+      amountLabel: formatCurrency(c.amount),
+      percentLabel: `${Math.round(pct)} %`,
+      dash: `${len.toFixed(2)} ${(DONUT_CIRCUMFERENCE - len).toFixed(2)}`,
+      dashoffset: dashoffset.toFixed(2),
+      strokeWidth: active ? 32 : 28,
+      dimmed: hasHover && !active,
+      barWidthPct: `${Math.max(4, (c.amount / maxAmount) * 100).toFixed(1)}%`,
+    }
+  })
+}
 
 // Composant client de l'onglet "Budget" (voir claude/prompt-onglet-budget.md)
 // -- mise en forme posée le 15/10/2026 à la demande de Nicolas, esthétique
@@ -71,17 +161,23 @@ const SOLDE_LALANDE = SOLDE_FIN_2025_LALANDE + ENTREES_LALANDE - SORTIES_LALANDE
 // famille (sélecteur de compte, cartes de synthèse, transactions, bilan
 // annuel).
 //
-// Les cartes de tableau de bord : le compte Lalande affiche désormais
-// les 4 vrais chiffres vérifiés ligne par ligne sur les 9 relevés
-// 2026 (voir claude/categorisation-reelle-lalande-2026.md, section A,
-// 17/10/2026) -- "Solde fin [mois]" n'est plus un chiffre séparé mais
-// le RÉSULTAT du calcul Solde fin 2025 + Entrées - Sorties (demandé par
-// Nicolas le 17/10/2026, pour qu'il corresponde toujours exactement à
-// la ligne "SOLDE CRÉDITEUR" du dernier relevé plutôt que de pouvoir
-// diverger). Le compte Canat n'a pas ce même travail de vérification et
-// reste à blanc ("--"). La liste des transactions et le bilan annuel
-// restent à blanc pour les deux comptes, faute de table
-// `budget_transactions` (migration distincte, pas encore écrite --
+// Les cartes de tableau de bord : le compte Lalande affiche les 4 vrais
+// chiffres vérifiés ligne par ligne sur les 9 relevés 2026 (voir
+// claude/categorisation-reelle-lalande-2026.md, section A, 17/10/2026)
+// -- "Solde fin [mois]" n'est pas un chiffre séparé mais le RÉSULTAT du
+// calcul Solde fin 2025 + Entrées - Sorties, pour qu'il corresponde
+// toujours exactement à la ligne "SOLDE CRÉDITEUR" du dernier relevé.
+//
+// Mise à jour du 17/10/2026 (2), Nicolas ("je veux que notre dernière
+// version de la maquette apparaisse") : les tuiles Entrées/Sorties sont
+// désormais cliquables (compte Lalande uniquement) et déplient un
+// panneau de détail par catégorie -- vue "Barres"/"Camembert"
+// (survol/clic pour isoler une catégorie), tableau accessible en
+// alternative, mêmes couleurs et mêmes montants que la maquette Artifact.
+// Le compte Canat n'a pas ce même travail de vérification et reste à
+// blanc partout (tuiles, détail, et la liste des transactions et le
+// bilan annuel restent à blanc pour les deux comptes, faute de table
+// `budget_transactions`, migration distincte pas encore écrite --
 // questions ouvertes du prompt encore en cours avec Nicolas).
 export function BudgetBoard({
   isAdmin,
@@ -101,6 +197,27 @@ export function BudgetBoard({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pastStatementsOpen, setPastStatementsOpen] = useState(false)
+
+  // Panneau de détail Entrées/Sorties (compte Lalande uniquement) --
+  // state propre à ce panneau, réinitialisé (table fermée, survol levé)
+  // à chaque ouverture/fermeture/changement de catégorie, même principe
+  // que la maquette.
+  const [openDetail, setOpenDetail] = useState<'entrees' | 'sorties' | null>(null)
+  const [detailChartType, setDetailChartType] = useState<'barres' | 'camembert'>('barres')
+  const [detailTableOpen, setDetailTableOpen] = useState(false)
+  const [detailHoverId, setDetailHoverId] = useState<string | null>(null)
+
+  const toggleDetail = (key: 'entrees' | 'sorties') => {
+    setOpenDetail((prev) => (prev === key ? null : key))
+    setDetailTableOpen(false)
+    setDetailHoverId(null)
+  }
+
+  const detailItems = useMemo(() => {
+    if (openDetail === 'entrees') return buildBudgetDetailItems(ENTREES_CATS_LALANDE, detailHoverId)
+    if (openDetail === 'sorties') return buildBudgetDetailItems(SORTIES_CATS_LALANDE, detailHoverId)
+    return []
+  }, [openDetail, detailHoverId])
 
   const accountLabel = BUDGET_ACCOUNTS.find((a) => a.id === account)?.label ?? account
 
@@ -169,29 +286,176 @@ export function BudgetBoard({
           claude/categorisation-reelle-lalande-2026.md section A,
           17/10/2026). "Solde fin septembre" n'est PAS un 4e chiffre
           codé en dur : c'est le résultat de SOLDE_FIN_2025_LALANDE +
-          ENTREES_LALANDE - SORTIES_LALANDE (demandé par Nicolas le
-          17/10/2026), ce qui garantit qu'il colle toujours exactement à
-          la ligne "SOLDE CRÉDITEUR AU 08.10.2026" du dernier relevé
-          (3 503,98 €, vérifié). Les intitulés "Solde fin 2025"/"Solde
-          fin [mois]" suivent la convention posée par Nicolas le
-          17/10/2026 (à renommer "Solde fin 2026" au 1er janvier
-          prochain, et "Solde fin [mois]" à chaque nouveau relevé reçu).
+          ENTREES_LALANDE - SORTIES_LALANDE, ce qui garantit qu'il colle
+          toujours exactement à la ligne "SOLDE CRÉDITEUR AU 08.10.2026"
+          du dernier relevé (3 503,98 €, vérifié). Les tuiles Entrées et
+          Sorties sont cliquables (compte Lalande uniquement) et
+          déplient le panneau de détail par catégorie juste en dessous.
           Le compte Canat n'a pas ce même travail de vérification et
           reste à blanc.
-          
+
           ⚠️ Toujours des constantes codées en dur (voir en tête de
           fichier), pas une vraie requête sur une table
           `budget_transactions` (migration pas encore écrite) -- à
-          mettre à jour à la main (ENTREES_LALANDE/SORTIES_LALANDE, et
+          mettre à jour à la main (les deux listes
+          ENTREES_CATS_LALANDE/SORTIES_CATS_LALANDE, et
           SOLDE_FIN_2025_LALANDE au 1er janvier) à chaque nouveau relevé
           reçu, tant que cette table n'existe pas. */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <SummaryTile label="Solde fin 2025" value={account === 'lalande' ? formatCurrency(SOLDE_FIN_2025_LALANDE) : '--'} />
-        <SummaryTile label="Entrées" value={account === 'lalande' ? formatCurrency(ENTREES_LALANDE) : '--'} />
-        <SummaryTile label="Sorties" value={account === 'lalande' ? formatCurrency(SORTIES_LALANDE) : '--'} />
+        {account === 'lalande' ? (
+          <BudgetDetailTile
+            label="Entrées"
+            value={formatCurrency(ENTREES_LALANDE)}
+            accent={ENTREES_ACCENT}
+            open={openDetail === 'entrees'}
+            onClick={() => toggleDetail('entrees')}
+          />
+        ) : (
+          <SummaryTile label="Entrées" value="--" />
+        )}
+        {account === 'lalande' ? (
+          <BudgetDetailTile
+            label="Sorties"
+            value={formatCurrency(SORTIES_LALANDE)}
+            accent={SORTIES_ACCENT}
+            open={openDetail === 'sorties'}
+            onClick={() => toggleDetail('sorties')}
+          />
+        ) : (
+          <SummaryTile label="Sorties" value="--" />
+        )}
         <SummaryTile label="Solde fin septembre" value={account === 'lalande' ? formatCurrency(SOLDE_LALANDE) : '--'} />
         <SummaryTile label="En attente" value={account === 'lalande' ? 'n/a' : '--'} />
       </div>
+
+      {/* Panneau de détail Entrées/Sorties par catégorie -- mêmes vues
+          (Barres/Camembert + tableau accessible) et mêmes données que la
+          maquette Artifact, portées ici le 17/10/2026 à la demande de
+          Nicolas. */}
+      {openDetail && account === 'lalande' && (
+        <div className="card-canson space-y-4 rounded-xl p-4 ring-1 ring-foreground/10">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold uppercase tracking-wide text-foreground">
+              {openDetail === 'entrees' ? 'Entrées' : 'Sorties'} par catégorie
+            </p>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => setDetailChartType('barres')}
+                className={viewTogglePillClass(detailChartType === 'barres')}
+              >
+                Barres
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailChartType('camembert')}
+                className={viewTogglePillClass(detailChartType === 'camembert')}
+              >
+                Camembert
+              </button>
+            </div>
+          </div>
+
+          {detailChartType === 'camembert' ? (
+            <div className="flex flex-wrap items-center justify-center gap-5">
+              <svg width="170" height="170" viewBox="0 0 160 160" className="shrink-0" style={{ transform: 'rotate(-90deg)' }}>
+                <circle cx="80" cy="80" r={DONUT_R} fill="none" stroke="#f1eae3" strokeWidth={28} />
+                {detailItems.map((item) => (
+                  <circle
+                    key={item.id}
+                    cx="80"
+                    cy="80"
+                    r={DONUT_R}
+                    fill="none"
+                    stroke={item.color}
+                    strokeWidth={item.strokeWidth}
+                    strokeDasharray={item.dash}
+                    strokeDashoffset={item.dashoffset}
+                    className="cursor-pointer transition-all"
+                    style={{ opacity: item.dimmed ? 0.4 : 1 }}
+                    onClick={() => setDetailHoverId((prev) => (prev === item.id ? null : item.id))}
+                  />
+                ))}
+              </svg>
+              <div className="flex min-w-[180px] flex-1 flex-col gap-2">
+                {detailItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setDetailHoverId((prev) => (prev === item.id ? null : item.id))}
+                    className="flex items-center gap-2 text-left transition-opacity"
+                    style={{ opacity: item.dimmed ? 0.4 : 1 }}
+                  >
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: item.color }} />
+                    <span className="min-w-0 flex-1 text-sm text-foreground">{item.label}</span>
+                    <span className="text-sm font-medium tabular-nums text-foreground">{item.percentLabel}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {detailItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setDetailHoverId((prev) => (prev === item.id ? null : item.id))}
+                  className="flex flex-col gap-1 text-left transition-opacity"
+                  style={{ opacity: item.dimmed ? 0.4 : 1 }}
+                >
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className="min-w-0 text-foreground">{item.label}</span>
+                    <span className="shrink-0 font-medium tabular-nums text-foreground">{item.amountLabel}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-foreground/10">
+                    <div
+                      className="h-full rounded-full transition-[width]"
+                      style={{ background: item.color, width: item.barWidthPct }}
+                    />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setDetailTableOpen((o) => !o)}
+              className="text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground"
+            >
+              {detailTableOpen ? 'Masquer le tableau' : 'Voir en tableau'}
+            </button>
+            {detailTableOpen && (
+              <div className="mt-2 overflow-x-auto border-t border-foreground/10 pt-2">
+                <table className="w-full border-collapse text-xs">
+                  <thead>
+                    <tr className="text-left text-muted-foreground">
+                      <th className="px-1.5 py-1 font-medium">Catégorie</th>
+                      <th className="px-1.5 py-1 text-right font-medium">Montant</th>
+                      <th className="px-1.5 py-1 text-right font-medium">Part</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detailItems.map((item) => (
+                      <tr key={item.id} className="border-t border-foreground/10">
+                        <td className="px-1.5 py-1 text-foreground">{item.label}</td>
+                        <td className="px-1.5 py-1 text-right tabular-nums text-foreground">{item.amountLabel}</td>
+                        <td className="px-1.5 py-1 text-right tabular-nums text-foreground">{item.percentLabel}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {openDetail === 'entrees' ? DETAIL_HINT_ENTREES : DETAIL_HINT_SORTIES}
+          </p>
+        </div>
+      )}
 
       {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
           texte collé : même pattern de sélection de fichier que
@@ -302,6 +566,47 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
       <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-lg font-medium text-foreground">{value}</p>
     </div>
+  )
+}
+
+// Variante cliquable de SummaryTile pour Entrées/Sorties (compte Lalande
+// uniquement) : même habillage, plus un chevron qui pivote et un lien
+// "Voir le détail" dans la couleur d'accent de la catégorie
+// (vert/Entrées, rouge/Sorties), plus un liseré de la même couleur
+// quand le panneau de détail est ouvert -- repris de la maquette
+// Artifact (17/10/2026).
+function BudgetDetailTile({
+  label,
+  value,
+  accent,
+  open,
+  onClick,
+}: {
+  label: string
+  value: string
+  accent: string
+  open: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      className="card-canson rounded-lg p-3 text-left ring-1 ring-foreground/10 transition-shadow"
+      style={open ? { boxShadow: `0 0 0 2px ${accent}` } : undefined}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
+        <ChevronDown
+          className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+        />
+      </div>
+      <p className="text-lg font-medium text-foreground">{value}</p>
+      <p className="mt-0.5 text-[10px]" style={{ color: accent }}>
+        Voir le détail
+      </p>
+    </button>
   )
 }
 
