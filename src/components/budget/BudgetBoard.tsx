@@ -204,6 +204,7 @@ export function BudgetBoard({
   // soit le compte choisi). Voir dashboard/budget/page.tsx pour le
   // calcul de `stripeTransactions`.
   const [stripeOpen, setStripeOpen] = useState(false)
+  const [bilanOpen, setBilanOpen] = useState(false)
   const accountStripeTx = useMemo(
     () => stripeTransactions.filter((t) => t.account === account),
     [stripeTransactions, account]
@@ -561,9 +562,7 @@ export function BudgetBoard({
           devenu redondant avec le titre du widget "Transactions
           Stripe" juste au-dessus) */}
       <div className="space-y-2">
-        {accountTransactions.length === 0 ? (
-          <p className="text-sm text-muted-foreground/70">Aucune transaction enregistrée pour ce compte.</p>
-        ) : (
+        {accountTransactions.length > 0 && (
           <div className="space-y-2">
             {accountTransactions.map((t) => (
               <TransactionCard key={t.id} transaction={t} />
@@ -583,13 +582,25 @@ export function BudgetBoard({
           vérifiée ligne par ligne à ce jour, contrairement à 2026. */}
       <Card className="py-0">
         <CardHeader>
-          <CardTitle className="text-sm md:text-base uppercase tracking-wide">Bilan année 2025</CardTitle>
+          <button
+            type="button"
+            onClick={() => setBilanOpen((o) => !o)}
+            aria-expanded={bilanOpen}
+            className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
+          >
+            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Bilan année 2025</CardTitle>
+            <ChevronDown
+              className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', bilanOpen && 'rotate-180')}
+            />
+          </button>
         </CardHeader>
-        <CardContent className="pb-4">
-          <p className="text-sm text-muted-foreground/70">
-            Disponible une fois les relevés de l&apos;année 2025 vérifiés pour ce compte.
-          </p>
-        </CardContent>
+        {bilanOpen && (
+          <CardContent className="pb-4">
+            <p className="text-sm text-muted-foreground/70">
+              Disponible une fois les relevés de l&apos;année 2025 vérifiés pour ce compte.
+            </p>
+          </CardContent>
+        )}
       </Card>
     </div>
   )
