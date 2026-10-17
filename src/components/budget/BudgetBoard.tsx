@@ -6,9 +6,30 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { ChevronDown, Download, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { actionPillClass, cn, formatDate, viewTogglePillClass } from '@/lib/utils'
+import { actionPillClass, cn, formatCurrency, formatDate, viewTogglePillClass } from '@/lib/utils'
 import { BUDGET_ACCOUNTS, BUDGET_CATEGORY_LABELS, type BudgetAccountId } from '@/lib/budget-categories'
 import type { BudgetStatement, BudgetTransaction } from '@/types'
+
+// Chiffres vérifiés ligne par ligne sur les 9 relevés BNP Paribas
+// janvier-septembre 2026 du compte Lalande (totaux officiels "TOTAL DES
+// OPÉRATIONS"/"SOLDE CRÉDITEUR" de chaque relevé) -- voir
+// claude/categorisation-reelle-lalande-2026.md, section A, pour le
+// détail relevé par relevé et la méthode. SOLDE_LALANDE n'est pas une
+// 4e constante indépendante : c'est le résultat du calcul demandé par
+// Nicolas le 17/10/2026 (Solde fin 2025 + Entrées - Sorties), qui doit
+// donc toujours correspondre exactement à la ligne "SOLDE CRÉDITEUR" du
+// dernier relevé reçu plutôt que de pouvoir diverger d'un chiffre saisi
+// à la main séparément.
+//
+// ⚠️ À METTRE À JOUR à chaque nouveau relevé Lalande reçu (tant que la
+// table `budget_transactions` n'existe pas en base) : ENTREES_LALANDE
+// et SORTIES_LALANDE deviennent les cumuls incluant le nouveau relevé,
+// SOLDE_FIN_2025_LALANDE ne change pas en cours d'année (seulement au
+// 1er janvier suivant, où il devra aussi être renommé "fin 2026").
+const SOLDE_FIN_2025_LALANDE = 7521.52 // "SOLDE CRÉDITEUR AU 08.01.2026", relevé déc. 2025
+const ENTREES_LALANDE = 34857.09 // somme Crédit, 9 relevés janv.-sept. 2026
+const SORTIES_LALANDE = 38874.63 // somme Débit, 9 relevés janv.-sept. 2026
+const SOLDE_LALANDE = SOLDE_FIN_2025_LALANDE + ENTREES_LALANDE - SORTIES_LALANDE // = 3 503,98 €, "SOLDE CRÉDITEUR AU 08.10.2026"
 
 // Composant client de l'onglet "Budget" (voir claude/prompt-onglet-budget.md)
 // -- mise en forme posée le 15/10/2026 à la demande de Nicolas, esthétique
@@ -50,10 +71,18 @@ import type { BudgetStatement, BudgetTransaction } from '@/types'
 // famille (sélecteur de compte, cartes de synthèse, transactions, bilan
 // annuel).
 //
-// Les cartes de tableau de bord (entrées/sorties/solde/en attente) et le
-// bilan annuel affichent toujours des valeurs à blanc ("--") en attendant
-// la table `budget_transactions` (migration distincte, pas encore
-// écrite -- questions ouvertes du prompt encore en cours avec Nicolas).
+// Les cartes de tableau de bord : le compte Lalande affiche désormais
+// les 4 vrais chiffres vérifiés ligne par ligne sur les 9 relevés
+// 2026 (voir claude/categorisation-reelle-lalande-2026.md, section A,
+// 17/10/2026) -- "Solde fin [mois]" n'est plus un chiffre séparé mais
+// le RÉSULTAT du calcul Solde fin 2025 + Entrées - Sorties (demandé par
+// Nicolas le 17/10/2026, pour qu'il corresponde toujours exactement à
+// la ligne "SOLDE CRÉDITEUR" du dernier relevé plutôt que de pouvoir
+// diverger). Le compte Canat n'a pas ce même travail de vérification et
+// reste à blanc ("--"). La liste des transactions et le bilan annuel
+// restent à blanc pour les deux comptes, faute de table
+// `budget_transactions` (migration distincte, pas encore écrite --
+// questions ouvertes du prompt encore en cours avec Nicolas).
 export function BudgetBoard({
   isAdmin,
   initialTransactions,
@@ -133,26 +162,34 @@ export function BudgetBoard({
         ))}
       </div>
 
-      {/* Tableau de bord -- valeurs à blanc, pas encore de table
-          budget_transactions en base. "Solde année précédente" ajouté le
-          16/10/2026 à la demande de Nicolas : point de départ du calcul,
-          de sorte que Solde = Solde année précédente + Entrées - Sorties
-          (corrélation vérifiée à la main sur les deux premiers relevés
-          réels avant d'ajouter cette case, voir points-a-regler-avec-
-          louis.md). "Entrées"/"Sorties" sont donc appelés à devenir des
-          cumuls depuis le début de l'année (pas juste le dernier relevé)
-          une fois la vraie donnée branchée. */}
-      {/* DEMO TEMPORAIRE pour Nicolas (16/10/2026) : valeurs cumulées des
-          relevés août + septembre simulées en dur sur le compte Lalande,
-          à retirer dès que Nicolas confirme avoir vu le rendu -- "Solde
-          année précédente" utilise ici le plus ancien solde dont on
-          dispose (avant le relevé d'août), pas le vrai solde au
-          31/12/2025 qu'on n'a pas encore. */}
+      {/* Tableau de bord Lalande -- les 3 chiffres d'entrée viennent de la
+          vérification ligne par ligne des 9 relevés janvier-septembre
+          2026 (totaux officiels "TOTAL DES OPÉRATIONS"/"SOLDE
+          CRÉDITEUR" de chaque relevé, voir
+          claude/categorisation-reelle-lalande-2026.md section A,
+          17/10/2026). "Solde fin septembre" n'est PAS un 4e chiffre
+          codé en dur : c'est le résultat de SOLDE_FIN_2025_LALANDE +
+          ENTREES_LALANDE - SORTIES_LALANDE (demandé par Nicolas le
+          17/10/2026), ce qui garantit qu'il colle toujours exactement à
+          la ligne "SOLDE CRÉDITEUR AU 08.10.2026" du dernier relevé
+          (3 503,98 €, vérifié). Les intitulés "Solde fin 2025"/"Solde
+          fin [mois]" suivent la convention posée par Nicolas le
+          17/10/2026 (à renommer "Solde fin 2026" au 1er janvier
+          prochain, et "Solde fin [mois]" à chaque nouveau relevé reçu).
+          Le compte Canat n'a pas ce même travail de vérification et
+          reste à blanc.
+          
+          ⚠️ Toujours des constantes codées en dur (voir en tête de
+          fichier), pas une vraie requête sur une table
+          `budget_transactions` (migration pas encore écrite) -- à
+          mettre à jour à la main (ENTREES_LALANDE/SORTIES_LALANDE, et
+          SOLDE_FIN_2025_LALANDE au 1er janvier) à chaque nouveau relevé
+          reçu, tant que cette table n'existe pas. */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <SummaryTile label="Solde année précédente" value={account === 'lalande' ? '6 381,52 €' : '--'} />
-        <SummaryTile label="Entrées" value={account === 'lalande' ? '35 997,09 €' : '--'} />
-        <SummaryTile label="Sorties" value={account === 'lalande' ? '38 874,63 €' : '--'} />
-        <SummaryTile label="Solde" value={account === 'lalande' ? '3 503,98 €' : '--'} />
+        <SummaryTile label="Solde fin 2025" value={account === 'lalande' ? formatCurrency(SOLDE_FIN_2025_LALANDE) : '--'} />
+        <SummaryTile label="Entrées" value={account === 'lalande' ? formatCurrency(ENTREES_LALANDE) : '--'} />
+        <SummaryTile label="Sorties" value={account === 'lalande' ? formatCurrency(SORTIES_LALANDE) : '--'} />
+        <SummaryTile label="Solde fin septembre" value={account === 'lalande' ? formatCurrency(SOLDE_LALANDE) : '--'} />
         <SummaryTile label="En attente" value={account === 'lalande' ? 'n/a' : '--'} />
       </div>
 
