@@ -4,11 +4,11 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { ChevronDown, Download, Plus } from 'lucide-react'
+import { ChevronDown, Download, Plus, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { actionPillClass, cn, formatCurrency, formatDate, viewTogglePillClass } from '@/lib/utils'
 import { BUDGET_ACCOUNTS, BUDGET_CATEGORY_LABELS, type BudgetAccountId } from '@/lib/budget-categories'
-import type { BudgetStatement, BudgetTransaction } from '@/types'
+import type { BudgetStatement, BudgetStripeTransaction, BudgetTransaction } from '@/types'
 
 // Détail par catégorie du compte Lalande (Entrées/Sorties) -- mêmes
 // catégories, montants et couleurs que la maquette Artifact de l'onglet
@@ -183,10 +183,12 @@ export function BudgetBoard({
   isAdmin,
   initialTransactions,
   initialStatements,
+  stripeTransactions,
 }: {
   isAdmin: boolean
   initialTransactions: BudgetTransaction[]
   initialStatements: (BudgetStatement & { downloadUrl: string | null })[]
+  stripeTransactions: BudgetStripeTransaction[]
 }) {
   const router = useRouter()
   const [account, setAccount] = useState<BudgetAccountId>('lalande')
@@ -197,6 +199,22 @@ export function BudgetBoard({
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pastStatementsOpen, setPastStatementsOpen] = useState(false)
+
+  // Widget dépliable "Transactions Stripe" (cotisations + taxes de
+  // séjour réellement encaissées) -- visible par admin ET famille,
+  // compte Lalande et compte Canat toujours affichés séparément, quel
+  // que soit le compte sélectionné en haut de page (demande de Nicolas,
+  // 17/10/2026). Voir dashboard/budget/page.tsx pour le calcul de
+  // `stripeTransactions`.
+  const [stripeOpen, setStripeOpen] = useState(false)
+  const lalandeStripeTx = useMemo(
+    () => stripeTransactions.filter((t) => t.account === 'lalande'),
+    [stripeTransactions]
+  )
+  const canatStripeTx = useMemo(
+    () => stripeTransactions.filter((t) => t.account === 'canat'),
+    [stripeTransactions]
+  )
 
   // Panneau de détail Entrées/Sorties (compte Lalande uniquement) --
   // state propre à ce panneau, réinitialisé (table fermée, survol levé)
@@ -457,6 +475,33 @@ export function BudgetBoard({
         </div>
       )}
 
+      {/* Transactions Stripe (cotisations + taxes de séjour réellement
+          encaissées) -- widget dépliable, visible par admin ET famille
+          (demande de Nicolas, 17/10/2026), compte Lalande et compte
+          Canat toujours affichés séparément à l'intérieur, même quand un
+          seul des deux comptes est sélectionné plus haut sur la page. */}
+      <div className="card-canson space-y-3 rounded-xl p-4 ring-1 ring-foreground/10">
+        <button
+          type="button"
+          onClick={() => setStripeOpen((o) => !o)}
+          aria-expanded={stripeOpen}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
+          <p className="text-sm font-medium uppercase tracking-wide text-foreground">
+            Transactions Stripe ({stripeTransactions.length})
+          </p>
+          <ChevronDown
+            className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', stripeOpen && 'rotate-180')}
+          />
+        </button>
+        {stripeOpen && (
+          <div className="space-y-4 border-t border-foreground/10 pt-3">
+            <StripeAccountSection label="Compte Lalande" items={lalandeStripeTx} />
+            <StripeAccountSection label="Compte Canat" items={canatStripeTx} />
+          </div>
+        )}
+      </div>
+
       {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
           texte collé : même pattern de sélection de fichier que
           "Documents", mais fonctionnel dès maintenant (voir
@@ -545,14 +590,22 @@ export function BudgetBoard({
         )}
       </div>
 
-      {/* Bilan annuel -- en attente de l'historique en base */}
+      {/* "Bilan annuel" renommé "Bilan année 2025" -- demande de Nicolas,
+          17/10/2026 : un widget par année CIVILE COMPLÈTE ("Bilan année
+          2026" s'ajoutera à côté de celui-ci, pas à sa place, une fois
+          2026 terminée -- donc à partir de janvier 2027). Reste un
+          placeholder pour l'instant : seul le solde de clôture au
+          31.12.2025 est un chiffre vérifié (voir SOLDE_FIN_2025_LALANDE
+          plus haut, et claude/categorisation-reelle-lalande-2026.md,
+          section A) -- aucune donnée Entrées/Sorties 2025 n'a été
+          vérifiée ligne par ligne à ce jour, contrairement à 2026. */}
       <Card className="py-0">
         <CardHeader>
-          <CardTitle className="text-sm md:text-base uppercase tracking-wide">Bilan annuel</CardTitle>
+          <CardTitle className="text-sm md:text-base uppercase tracking-wide">Bilan année 2025</CardTitle>
         </CardHeader>
         <CardContent className="pb-4">
           <p className="text-sm text-muted-foreground/70">
-            Disponible une fois l&apos;historique de l&apos;année enregistré pour ce compte.
+            Disponible une fois les relevés de l&apos;année 2025 vérifiés pour ce compte.
           </p>
         </CardContent>
       </Card>
@@ -610,25 +663,106 @@ function BudgetDetailTile({
   )
 }
 
+// Compte Lalande/Canat affiché à l'intérieur du widget "Transactions
+// Stripe" -- même liste vide/non-vide que StatementRow, pour rester
+// cohérent avec le reste du fichier.
+function StripeAccountSection({ label, items }: { label: string; items: BudgetStripeTransaction[] }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+        {label} ({items.length})
+      </p>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground/70">Aucune transaction Stripe pour ce compte.</p>
+      ) : (
+        <div className="space-y-2">
+          {items.map((t) => (
+            <div key={t.id} className="card-canson flex items-start justify-between gap-3 rounded-lg p-3 ring-1 ring-foreground/10">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{t.label}</p>
+                <p className="text-xs text-muted-foreground">{t.paidAt ? formatDate(t.paidAt) : 'Date inconnue'}</p>
+              </div>
+              <p className="shrink-0 text-sm font-medium text-foreground">{formatCurrency(t.amount)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Relevé déposé -- demande de Nicolas le 17/10/2026 : le titre ouvre le
+// relevé (consultation, même URL signée que le téléchargement), l'icône
+// de téléchargement reste à côté, et un bouton de suppression (admin
+// uniquement -- ce composant n'est de toute façon rendu que dans le bloc
+// {isAdmin && (...)} de BudgetBoard) retire le relevé.
 function StatementRow({ statement }: { statement: BudgetStatement & { downloadUrl: string | null } }) {
   return (
     <div className="card-canson flex items-center justify-between gap-3 rounded-lg p-3 ring-1 ring-foreground/10">
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-foreground">{statement.file_name}</p>
+        {statement.downloadUrl ? (
+          <a
+            href={statement.downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="truncate text-sm font-medium text-foreground hover:underline"
+          >
+            {statement.file_name}
+          </a>
+        ) : (
+          <p className="truncate text-sm font-medium text-foreground">{statement.file_name}</p>
+        )}
         <p className="text-xs text-muted-foreground">{formatDate(statement.created_at)}</p>
       </div>
-      {statement.downloadUrl && (
-        <a
-          href={statement.downloadUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-          aria-label="Télécharger ce relevé"
-        >
-          <Download className="h-4 w-4" />
-        </a>
-      )}
+      <div className="flex shrink-0 items-center gap-3">
+        {statement.downloadUrl && (
+          <a
+            href={statement.downloadUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Télécharger ce relevé"
+          >
+            <Download className="h-4 w-4" />
+          </a>
+        )}
+        <DeleteStatementButton id={statement.id} />
+      </div>
     </div>
+  )
+}
+
+function DeleteStatementButton({ id }: { id: string }) {
+  const router = useRouter()
+  const [pending, setPending] = useState(false)
+
+  const handleDelete = async () => {
+    setPending(true)
+    try {
+      const res = await fetch(`/api/budget/statements?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error ?? 'Erreur lors de la suppression')
+      }
+      router.refresh()
+    } catch {
+      // silencieux -- même convention que DeleteDocumentButton
+      // (DocumentsAdmin.tsx) : le relevé reste affiché si la suppression échoue.
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleDelete}
+      disabled={pending}
+      aria-label="Supprimer ce relevé"
+      className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
   )
 }
 

@@ -2,7 +2,7 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { BudgetBoard } from '@/components/budget/BudgetBoard'
-import type { BudgetStatement } from '@/types'
+import type { BudgetStatement, BudgetStripeTransaction } from '@/types'
 
 // Onglet "Budget" (voir claude/prompt-onglet-budget.md) -- mise en forme
 // posée le 15/10/2026 à la demande de Nicolas, avant la création de la
@@ -80,10 +80,89 @@ export default async function BudgetPage() {
     }))
   }
 
+  // Transactions Stripe réellement encaissées (cotisations + taxes de
+  // séjour, statut "paid") -- widget dépliable visible par admin ET
+  // famille (demande de Nicolas, 17/10/2026), donc chargé ici
+  // inconditionnellement, contrairement aux relevés déposés plus haut.
+  // Pas de typage Supabase généré dans ce projet (voir
+  // dashboard/admin/paiements/page.tsx) : types explicites plutôt que
+  // `any`.
+  type TmPaymentRow = {
+    id: string
+    amount: number
+    month: string
+    paid_at: string | null
+    profiles: { family_group: string; first_name: string; last_name: string } | null
+  }
+  type TsPaymentRow = {
+    id: string
+    amount: number
+    paid_at: string | null
+    profiles: { first_name: string; last_name: string } | null
+    bookings: { house_side: string | null } | null
+  }
+
+  const { data: tmPaymentsRaw } = await supabase
+    .from('tm_payments')
+    .select('id, amount, month, paid_at, profiles(family_group, first_name, last_name)')
+    .eq('status', 'paid')
+    .order('paid_at', { ascending: false })
+
+  const { data: tsPaymentsRaw } = await supabase
+    .from('ts_payments')
+    .select('id, amount, paid_at, profiles(first_name, last_name), bookings(house_side)')
+    .eq('status', 'paid')
+    .order('paid_at', { ascending: false })
+
+  const tmPayments = (tmPaymentsRaw ?? []) as unknown as TmPaymentRow[]
+  const tsPayments = (tsPaymentsRaw ?? []) as unknown as TsPaymentRow[]
+
+  const stripeTransactions: BudgetStripeTransaction[] = []
+
+  // Cotisation mensuelle -- rattachée au côté de la maison du cotisant.
+  for (const p of tmPayments) {
+    const account = p.profiles?.family_group
+    if (account !== 'lalande' && account !== 'canat') continue
+    stripeTransactions.push({
+      id: `tm-${p.id}`,
+      account,
+      kind: 'cotisation',
+      label: `Cotisation ${p.month} — ${p.profiles?.first_name} ${p.profiles?.last_name}`,
+      amount: Number(p.amount),
+      paidAt: p.paid_at ?? '',
+    })
+  }
+
+  // Taxe de séjour -- rattachée au côté de la maison OÙ le séjour a eu
+  // lieu (pas forcément celui du payeur), "petite_maison" routée sur
+  // Lalande (voir le commentaire sur BudgetStripeTransaction,
+  // src/types/index.ts). Un séjour sans `house_side` renseigné (créé
+  // avant l'ajout de ce champ) n'est rattaché à aucun des deux comptes.
+  for (const p of tsPayments) {
+    const side = p.bookings?.house_side
+    const account = side === 'petite_maison' ? 'lalande' : side
+    if (account !== 'lalande' && account !== 'canat') continue
+    stripeTransactions.push({
+      id: `ts-${p.id}`,
+      account,
+      kind: 'taxe_sejour',
+      label: `Taxe de séjour — ${p.profiles?.first_name} ${p.profiles?.last_name}`,
+      amount: Number(p.amount),
+      paidAt: p.paid_at ?? '',
+    })
+  }
+
+  stripeTransactions.sort((a, b) => b.paidAt.localeCompare(a.paidAt))
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <PageTitle>Budget</PageTitle>
-      <BudgetBoard isAdmin={isAdmin} initialTransactions={[]} initialStatements={statementsWithUrl} />
+      <BudgetBoard
+        isAdmin={isAdmin}
+        initialTransactions={[]}
+        initialStatements={statementsWithUrl}
+        stripeTransactions={stripeTransactions}
+      />
     </div>
   )
 }

@@ -169,6 +169,32 @@ export interface BudgetStatement {
   created_at: string
 }
 
+// Transaction Stripe réellement encaissée (cotisation mensuelle ou taxe
+// de séjour, statut "paid"), rattachée à un compte Lalande/Canat pour le
+// widget dépliable "Transactions Stripe" de BudgetBoard.tsx (demande de
+// Nicolas, 17/10/2026). Calculée à chaque chargement de page à partir de
+// tm_payments/ts_payments (voir dashboard/budget/page.tsx), jamais
+// stockée séparément. Le compte vient :
+// - pour une cotisation (tm_payments), de profiles.family_group (le
+//   côté de la maison du cotisant) ;
+// - pour une taxe de séjour (ts_payments), de bookings.house_side (le
+//   côté de la maison OÙ le séjour a eu lieu -- pas forcément celui du
+//   payeur, un invité "friend" pouvant séjourner côté Lalande comme côté
+//   Canat), "petite_maison" étant routé sur le compte Lalande (même
+//   règle que pour la taxe de séjour elle-même, voir
+//   migration_house_side_petite_maison.sql).
+// ⚠️ Un seul compte Stripe existe à ce jour pour tous les paiements
+// (aucun routage bancaire réel par compte) : cette répartition reste
+// donc uniquement comptable/d'affichage.
+export interface BudgetStripeTransaction {
+  id: string
+  account: 'lalande' | 'canat'
+  kind: 'cotisation' | 'taxe_sejour'
+  label: string
+  amount: number
+  paidAt: string
+}
+
 export interface LocalEvent {
   id: string
   title: string

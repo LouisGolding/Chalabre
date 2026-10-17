@@ -96,3 +96,58 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ statement })
 }
+
+// Suppression d'un relevé déposé -- demandé par Nicolas le 17/10/2026
+// ("on aura la possibilité de les supprimer"). Réservé aux admins, même
+// pattern que DELETE /api/documents : la ligne est supprimée en base
+// puis le fichier retiré du Storage en best effort (on ne fait pas
+// échouer la requête si ce nettoyage échoue, la ligne en base étant
+// déjà supprimée, ce qui est ce qui compte pour l'utilisateur).
+export async function DELETE(request: Request) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
+  }
+
+  const { searchParams } = new URL(request.url)
+  const id = searchParams.get('id')
+  if (!id) {
+    return NextResponse.json({ error: 'Paramètre "id" manquant' }, { status: 400 })
+  }
+
+  const { data: caller } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (caller?.role !== 'admin') {
+    return NextResponse.json({ error: 'Réservé aux administrateurs' }, { status: 403 })
+  }
+
+  const { data: statement, error: fetchError } = await supabase
+    .from('budget_statements')
+    .select('storage_path')
+    .eq('id', id)
+    .single()
+  if (fetchError || !statement) {
+    const notReady = /relation .*budget_statements.* does not exist/i.test(fetchError?.message ?? '')
+    return NextResponse.json(
+      {
+        error: notReady
+          ? "Le dépôt de relevés n'est pas encore activé en base (migration_budget_statements.sql pas encore appliquée, en attente de l'accord de Louis)."
+          : 'Relevé introuvable',
+      },
+      { status: notReady ? 500 : 404 }
+    )
+  }
+
+  const { error: deleteError } = await supabase.from('budget_statements').delete().eq('id', id)
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 })
+  }
+
+  try {
+    await supabase.storage.from(BUCKET).remove([statement.storage_path])
+  } catch {
+    // silencieux -- nettoyage best effort
+  }
+
+  return NextResponse.json({ ok: true })
+}
