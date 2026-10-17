@@ -42,3 +42,8 @@ next-env.d.ts
 
 # Réglages Claude Code personnels (permissions, etc.) — ne pas partager
 .claude/settings.local.json
+
+# Relevés bancaires déposés par Nicolas pour calibrer l'extraction IA de
+# l'onglet Budget (voir claude/points-a-regler-avec-louis.md) -- documents
+# sensibles, jamais dans l'historique Git, même par erreur.
+/releves-prives/
