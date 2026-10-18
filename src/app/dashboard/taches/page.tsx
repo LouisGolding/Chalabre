@@ -13,6 +13,12 @@ export default async function TachesPage() {
   if (!user) redirect('/auth/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  // "friend" exclu, comme Réalisations/Budget (voir TileNav.tsx,
+  // hiddenForFriend) -- manquait ici jusqu'au 18/10/2026 (audit
+  // pré-lancement, point signalé à Nicolas) : la tuile était bien
+  // masquée pour un compte "ami", mais rien n'empêchait d'accéder à
+  // /dashboard/taches directement par son URL.
+  if (profile?.role !== 'admin' && profile?.role !== 'family') redirect('/dashboard')
 
   const { data: tasks } = await supabase
     .from('tasks')

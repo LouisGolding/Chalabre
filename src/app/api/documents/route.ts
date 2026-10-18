@@ -3,12 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 import { DOCUMENT_CATEGORY_IDS } from '@/lib/document-categories'
 
 // Upload / suppression de documents (onglet "Documents").
-// Réservé aux admins : les autres comptes peuvent uniquement consulter
-// (lecture via la page elle-même, RLS "documents_select"). Les policies
-// "documents_admin" côté base autorisent déjà l'admin à tout faire sur la
-// table `documents` ; côté Storage, le bucket "documents" est PRIVÉ
-// (migration_documents_storage.sql) et ses policies reprennent les mêmes
-// règles — la lecture passe par des URLs signées générées dans
+// Réservé aux admins : l'onglet entier (y compris la simple consultation)
+// est devenu admin-only le 16/10/2026 (voir claude/points-a-regler-avec-
+// louis.md) -- les policies RLS "documents_admin"/"documents_select"
+// (table) et "documents_storage_admin"/"documents_storage_select"
+// (Storage) ont été resserrées en ce sens le 18/10/2026 (audit
+// pré-lancement, supabase/migration_access_hardening.sql) pour rester
+// cohérentes avec la page, qui redirige déjà tout compte non-admin.
+// Le bucket "documents" reste PRIVÉ (migration_documents_storage.sql) --
+// la lecture passe par des URLs signées générées dans
 // src/app/dashboard/documents/page.tsx.
 //
 // documents.file_url stocke le CHEMIN du fichier dans le bucket
