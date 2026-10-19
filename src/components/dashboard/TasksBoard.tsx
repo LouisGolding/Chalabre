@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { format, parseISO } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { ChevronDown, Trash2 } from 'lucide-react'
+import { ChevronDown, MessageCircle, Phone, Trash2, X } from 'lucide-react'
 import { actionPillClass, cn, viewTogglePillClass } from '@/lib/utils'
 import { MONTH_OPTIONS, SEASON_OPTIONS, PERIOD_LABELS, TaskPeriod, isPeriodCurrent } from '@/lib/task-periods'
+import { TaskContactTag, TaskNote } from '@/types'
 
 // Refonte complète du 27/09/2026, demandée par Nicolas (l'onglet devient
 // "Entretien" — voir taches/page.tsx). Résumé des règles, pour ne pas les
@@ -30,9 +31,22 @@ import { MONTH_OPTIONS, SEASON_OPTIONS, PERIOD_LABELS, TaskPeriod, isPeriodCurre
 //   ci-dessous) : pas de tâche planifiée côté serveur pour l'instant,
 //   donc une tâche jardin ne réapparaît vraiment que quand quelqu'un
 //   rouvre cette page après l'échéance — suffisant pour l'usage prévu.
-// - Commentaire optionnel proposé à la coche, uniquement pour les tâches
-//   non récurrentes (donc jamais pour le jardin).
 // - Tri au choix, par urgence ou par catégorie, appliqué aux 4 listes.
+//
+// Refonte du 19/10/2026 (demandée par Aurélie, maquette Artifact
+// "Entretien — Suivi & Contact") -- remplace l'ancien commentaire
+// unique proposé à la coche :
+// - "Suivi" : plusieurs notes datées par tâche (table `task_notes`),
+//   ajoutables à tout moment (pas seulement en cochant la tâche).
+//   Chaque note peut porter une date de RDV facultative -- dès qu'elle
+//   est à moins de 30 jours, le RDV apparaît sur la page d'accueil
+//   (voir dashboard/page.tsx, widget "RDV à venir"). Append-only, comme
+//   les commentaires de Réalisations : pas de modification, suppression
+//   par l'auteur ou un admin.
+// - "Contact" : un ou plusieurs contacts de la catégorie "Services"
+//   (Contacts) associables à la tâche (table `task_contacts`).
+// - Les deux sont ouverts à l'admin ET à la famille (indépendant de
+//   `canEdit`, réservé lui à l'ajout/suppression de tâche).
 //
 // Complement du 04/10/2026 (demande par Nicolas) :
 // - Pastilles de categorie/urgence/periode/recurrence (formulaire
@@ -70,8 +84,22 @@ export interface TaskItem {
   recurrence: Recurrence | null
   completed: boolean
   completedAt: string | null
-  comment: string | null
   authorName: string | null
+  // Suivi & Contact (19/10/2026, demandé par Aurélie) -- remplacent
+  // l'ancien champ unique `comment` : plusieurs notes datées (chacune
+  // pouvant porter une date de RDV), et plusieurs contacts associés
+  // (Services) -- voir migration_task_notes_contacts.sql.
+  notes: TaskNote[]
+  contacts: TaskContactTag[]
+}
+
+// Un contact de la catégorie "Services" (Contacts), proposé dans le
+// sélecteur de la pastille "Contact" -- juste ce qu'il faut pour
+// l'afficher et l'associer.
+export interface ServiceContact {
+  id: string
+  name: string
+  role: string
 }
 
 // Ordre demandé par Nicolas pour la pastille catégorie et pour le tri
@@ -144,9 +172,15 @@ interface TasksBoardProps {
   // supprimer une tâche ; tout le monde peut voir la liste et cocher (le
   // "cocher" n'a jamais été réservé aux admins côté API, voir route.ts).
   canEdit: boolean
+  // Contacts de la catégorie "Services" (Contacts), proposés dans le
+  // sélecteur de la pastille "Contact" -- voir taches/page.tsx.
+  servicesContacts: ServiceContact[]
+  // Sert à savoir si on peut supprimer SA PROPRE note de suivi (en plus
+  // d'un admin, qui peut toujours tout supprimer via `canEdit`).
+  currentUserId: string
 }
 
-export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
+export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUserId }: TasksBoardProps) {
   const [tasks, setTasks] = useState(initialTasks)
   // Widget "déroulant" (demandé par Nicolas le 27/09/2026) : replié par
   // défaut, un clic sur le titre du widget révèle le formulaire d'ajout.
@@ -164,10 +198,16 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Commentaire optionnel proposé juste après avoir coché une tâche non
-  // récurrente (jamais pour le jardin) — voir toggle() plus bas.
-  const [commentDraftId, setCommentDraftId] = useState<string | null>(null)
-  const [commentDraftText, setCommentDraftText] = useState('')
+  // Suivi & Contact (19/10/2026, demandé par Aurélie) : état d'affichage
+  // (panneau "Suivi" déplié ou non, sélecteur "Contact" ouvert ou non) et
+  // brouillons (texte / date de RDV en cours de saisie), par tâche. Plus
+  // lié à la coche -- une note peut s'ajouter à tout moment, pas
+  // seulement en cochant la tâche (contrairement à l'ancien champ
+  // `comment` unique qu'ils remplacent).
+  const [suiviOpen, setSuiviOpen] = useState<Record<string, boolean>>({})
+  const [pickerOpenFor, setPickerOpenFor] = useState<string | null>(null)
+  const [draftText, setDraftText] = useState<Record<string, string>>({})
+  const [draftDate, setDraftDate] = useState<Record<string, string>>({})
 
   // "Réveil" des tâches jardin récurrentes dont l'échéance est passée :
   // repassées à "non cochée" au chargement de la page (voir le grand
@@ -204,12 +244,6 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
     setTasks((prev) =>
       prev.map((t) => (t.id === task.id ? { ...t, completed: nextCompleted, completedAt: nextCompletedAt } : t))
     )
-    if (nextCompleted && !task.recurrence) {
-      setCommentDraftId(task.id)
-      setCommentDraftText('')
-    } else if (commentDraftId === task.id) {
-      setCommentDraftId(null)
-    }
     try {
       const res = await fetch('/api/tasks', {
         method: 'PATCH',
@@ -225,20 +259,96 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
     }
   }
 
-  const saveComment = async (taskId: string) => {
-    const text = commentDraftText.trim()
-    setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, comment: text || null } : t)))
-    setCommentDraftId(null)
-    setCommentDraftText('')
+  // --- Suivi : plusieurs notes datées par tâche, chacune pouvant porter
+  //     une date de RDV facultative (voir migration_task_notes_contacts.sql
+  //     et dashboard/page.tsx pour le widget d'accueil "RDV à venir"). ---
+  const toggleSuivi = (taskId: string) =>
+    setSuiviOpen((prev) => ({ ...prev, [taskId]: !prev[taskId] }))
+
+  const addNote = async (taskId: string) => {
+    const text = (draftText[taskId] ?? '').trim()
+    if (!text) return
+    const rdv = draftDate[taskId] || null
     try {
-      const res = await fetch('/api/tasks', {
-        method: 'PATCH',
+      const res = await fetch('/api/tasks/notes', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: taskId, comment: text }),
+        body: JSON.stringify({ task_id: taskId, text, rdv_date: rdv }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erreur')
+      const n = data.note
+      const note: TaskNote = {
+        id: n.id,
+        task_id: n.task_id,
+        user_id: n.user_id,
+        text: n.text,
+        rdv_date: n.rdv_date,
+        created_at: n.created_at,
+        profile: n.profile ? { first_name: n.profile.first_name, last_name: n.profile.last_name } : undefined,
+      }
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, notes: [...t.notes, note] } : t)))
+      setDraftText((prev) => ({ ...prev, [taskId]: '' }))
+      setDraftDate((prev) => ({ ...prev, [taskId]: '' }))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur lors de l’ajout de la note')
+    }
+  }
+
+  const deleteNote = async (taskId: string, noteId: string) => {
+    const previous = tasks
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, notes: t.notes.filter((n) => n.id !== noteId) } : t))
+    )
+    try {
+      const res = await fetch(`/api/tasks/notes?id=${noteId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+    } catch {
+      setTasks(previous)
+      setError('Impossible de supprimer cette note.')
+    }
+  }
+
+  // --- Contact : plusieurs artisans (catégorie "Services" de Contacts)
+  //     associables à une même tâche (confirmé par Aurélie le
+  //     19/10/2026). ---
+  const attachContact = async (taskId: string, contact: ServiceContact) => {
+    setPickerOpenFor(null)
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, contacts: [...t.contacts, { contact_id: contact.id, name: contact.name, role: contact.role }] }
+          : t
+      )
+    )
+    try {
+      const res = await fetch('/api/tasks/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId, contact_id: contact.id }),
       })
       if (!res.ok) throw new Error()
     } catch {
-      setError('Impossible d’enregistrer le commentaire.')
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, contacts: t.contacts.filter((c) => c.contact_id !== contact.id) } : t
+        )
+      )
+      setError('Impossible d’associer ce contact.')
+    }
+  }
+
+  const detachContact = async (taskId: string, contactId: string) => {
+    const previous = tasks
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, contacts: t.contacts.filter((c) => c.contact_id !== contactId) } : t))
+    )
+    try {
+      const res = await fetch(`/api/tasks/contacts?task_id=${taskId}&contact_id=${contactId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+    } catch {
+      setTasks(previous)
+      setError('Impossible de retirer ce contact.')
     }
   }
 
@@ -271,8 +381,9 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
           recurrence: t.recurrence ?? null,
           completed: t.completed,
           completedAt: t.completed_at ?? null,
-          comment: t.comment ?? null,
           authorName: null,
+          notes: [],
+          contacts: [],
         },
         ...prev,
       ])
@@ -469,12 +580,23 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                     title={null}
                     tasks={archives}
                     canEdit={canEdit}
+                    currentUserId={currentUserId}
                     onToggle={toggle}
                     onDelete={deleteTask}
-                    commentDraftId={commentDraftId}
-                    commentDraftText={commentDraftText}
-                    onCommentDraftChange={setCommentDraftText}
-                    onCommentSave={saveComment}
+                    servicesContacts={servicesContacts}
+                    suiviOpen={suiviOpen}
+                    pickerOpenFor={pickerOpenFor}
+                    draftText={draftText}
+                    draftDate={draftDate}
+                    onToggleSuivi={toggleSuivi}
+                    onOpenPicker={setPickerOpenFor}
+                    onClosePicker={() => setPickerOpenFor(null)}
+                    onDraftTextChange={(taskId, text) => setDraftText((prev) => ({ ...prev, [taskId]: text }))}
+                    onDraftDateChange={(taskId, date) => setDraftDate((prev) => ({ ...prev, [taskId]: date }))}
+                    onAddNote={addNote}
+                    onDeleteNote={deleteNote}
+                    onAttachContact={attachContact}
+                    onDetachContact={detachContact}
                   />
                 )}
               </div>
@@ -521,12 +643,23 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 title="À faire ce mois-ci"
                 tasks={thisMonth}
                 canEdit={canEdit}
+                currentUserId={currentUserId}
                 onToggle={toggle}
                 onDelete={deleteTask}
-                commentDraftId={commentDraftId}
-                commentDraftText={commentDraftText}
-                onCommentDraftChange={setCommentDraftText}
-                onCommentSave={saveComment}
+                servicesContacts={servicesContacts}
+                suiviOpen={suiviOpen}
+                pickerOpenFor={pickerOpenFor}
+                draftText={draftText}
+                draftDate={draftDate}
+                onToggleSuivi={toggleSuivi}
+                onOpenPicker={setPickerOpenFor}
+                onClosePicker={() => setPickerOpenFor(null)}
+                onDraftTextChange={(taskId, text) => setDraftText((prev) => ({ ...prev, [taskId]: text }))}
+                onDraftDateChange={(taskId, date) => setDraftDate((prev) => ({ ...prev, [taskId]: date }))}
+                onAddNote={addNote}
+                onDeleteNote={deleteNote}
+                onAttachContact={attachContact}
+                onDetachContact={detachContact}
               />
             )}
 
@@ -535,12 +668,23 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 title="À faire"
                 tasks={general}
                 canEdit={canEdit}
+                currentUserId={currentUserId}
                 onToggle={toggle}
                 onDelete={deleteTask}
-                commentDraftId={commentDraftId}
-                commentDraftText={commentDraftText}
-                onCommentDraftChange={setCommentDraftText}
-                onCommentSave={saveComment}
+                servicesContacts={servicesContacts}
+                suiviOpen={suiviOpen}
+                pickerOpenFor={pickerOpenFor}
+                draftText={draftText}
+                draftDate={draftDate}
+                onToggleSuivi={toggleSuivi}
+                onOpenPicker={setPickerOpenFor}
+                onClosePicker={() => setPickerOpenFor(null)}
+                onDraftTextChange={(taskId, text) => setDraftText((prev) => ({ ...prev, [taskId]: text }))}
+                onDraftDateChange={(taskId, date) => setDraftDate((prev) => ({ ...prev, [taskId]: date }))}
+                onAddNote={addNote}
+                onDeleteNote={deleteNote}
+                onAttachContact={attachContact}
+                onDetachContact={detachContact}
               />
             )}
 
@@ -549,12 +693,23 @@ export function TasksBoard({ initialTasks, canEdit }: TasksBoardProps) {
                 title="Périodique"
                 tasks={jardin}
                 canEdit={canEdit}
+                currentUserId={currentUserId}
                 onToggle={toggle}
                 onDelete={deleteTask}
-                commentDraftId={commentDraftId}
-                commentDraftText={commentDraftText}
-                onCommentDraftChange={setCommentDraftText}
-                onCommentSave={saveComment}
+                servicesContacts={servicesContacts}
+                suiviOpen={suiviOpen}
+                pickerOpenFor={pickerOpenFor}
+                draftText={draftText}
+                draftDate={draftDate}
+                onToggleSuivi={toggleSuivi}
+                onOpenPicker={setPickerOpenFor}
+                onClosePicker={() => setPickerOpenFor(null)}
+                onDraftTextChange={(taskId, text) => setDraftText((prev) => ({ ...prev, [taskId]: text }))}
+                onDraftDateChange={(taskId, date) => setDraftDate((prev) => ({ ...prev, [taskId]: date }))}
+                onAddNote={addNote}
+                onDeleteNote={deleteNote}
+                onAttachContact={attachContact}
+                onDetachContact={detachContact}
               />
             )}
           </CardContent>
@@ -568,22 +723,44 @@ function TaskList({
   title,
   tasks,
   canEdit,
+  currentUserId,
   onToggle,
   onDelete,
-  commentDraftId,
-  commentDraftText,
-  onCommentDraftChange,
-  onCommentSave,
+  servicesContacts,
+  suiviOpen,
+  pickerOpenFor,
+  draftText,
+  draftDate,
+  onToggleSuivi,
+  onOpenPicker,
+  onClosePicker,
+  onDraftTextChange,
+  onDraftDateChange,
+  onAddNote,
+  onDeleteNote,
+  onAttachContact,
+  onDetachContact,
 }: {
   title: string | null
   tasks: TaskItem[]
   canEdit: boolean
+  currentUserId: string
   onToggle: (task: TaskItem) => void
   onDelete: (id: string) => void
-  commentDraftId: string | null
-  commentDraftText: string
-  onCommentDraftChange: (text: string) => void
-  onCommentSave: (id: string) => void
+  servicesContacts: ServiceContact[]
+  suiviOpen: Record<string, boolean>
+  pickerOpenFor: string | null
+  draftText: Record<string, string>
+  draftDate: Record<string, string>
+  onToggleSuivi: (taskId: string) => void
+  onOpenPicker: (taskId: string) => void
+  onClosePicker: () => void
+  onDraftTextChange: (taskId: string, text: string) => void
+  onDraftDateChange: (taskId: string, date: string) => void
+  onAddNote: (taskId: string) => void
+  onDeleteNote: (taskId: string, noteId: string) => void
+  onAttachContact: (taskId: string, contact: ServiceContact) => void
+  onDetachContact: (taskId: string, contactId: string) => void
 }) {
   return (
     <div className="space-y-2">
@@ -597,33 +774,93 @@ function TaskList({
           Nicolas le 05/10/2026. Absente pour Archives (title deja null). */}
       {title && <div className="border-b border-border" />}
       {tasks.map((task) => (
-        <div key={task.id}>
-          <TaskRow task={task} canEdit={canEdit} onToggle={() => onToggle(task)} onDelete={() => onDelete(task.id)} />
-          {commentDraftId === task.id && (
-            <div className="flex items-center gap-2 pb-2 pl-7">
-              <Input
-                autoFocus
-                value={commentDraftText}
-                onChange={(e) => onCommentDraftChange(e.target.value)}
-                placeholder="Commentaire (facultatif)…"
-                onKeyDown={(e) => e.key === 'Enter' && onCommentSave(task.id)}
-                className="flex-1"
-              />
-              <Button type="button" size="sm" onClick={() => onCommentSave(task.id)}>OK</Button>
-            </div>
-          )}
-          {task.comment && commentDraftId !== task.id && (
-            <p className="pb-2 pl-7 text-xs text-muted-foreground">« {task.comment} »</p>
-          )}
-        </div>
+        <TaskRow
+          key={task.id}
+          task={task}
+          canEdit={canEdit}
+          currentUserId={currentUserId}
+          onToggle={() => onToggle(task)}
+          onDelete={() => onDelete(task.id)}
+          servicesContacts={servicesContacts}
+          suiviOpen={!!suiviOpen[task.id]}
+          showPicker={pickerOpenFor === task.id}
+          draftText={draftText[task.id] ?? ''}
+          draftDate={draftDate[task.id] ?? ''}
+          onToggleSuivi={() => onToggleSuivi(task.id)}
+          onOpenPicker={() => onOpenPicker(task.id)}
+          onClosePicker={onClosePicker}
+          onDraftTextChange={(text) => onDraftTextChange(task.id, text)}
+          onDraftDateChange={(date) => onDraftDateChange(task.id, date)}
+          onAddNote={() => onAddNote(task.id)}
+          onDeleteNote={(noteId) => onDeleteNote(task.id, noteId)}
+          onAttachContact={(contact) => onAttachContact(task.id, contact)}
+          onDetachContact={(contactId) => onDetachContact(task.id, contactId)}
+        />
       ))}
     </div>
   )
 }
 
+function formatNoteDate(iso: string): string {
+  try {
+    return format(parseISO(iso), 'd MMM', { locale: fr })
+  } catch {
+    return ''
+  }
+}
+
 // Ordre des colonnes demandé par Nicolas le 27/09/2026 : case à cocher,
-// catégorie, tâche, période, urgence, puis la poubelle.
-function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdit: boolean; onToggle: () => void; onDelete: () => void }) {
+// catégorie, tâche, période, urgence, puis la poubelle. Pastilles
+// "Contact"/"Suivi" ajoutées le 19/10/2026 (demandé par Aurélie) : voir
+// la maquette Artifact "Entretien — Suivi & Contact" -- associent la
+// tâche à un ou plusieurs artisans (Contacts → Services) et tiennent un
+// historique de notes datées, chacune pouvant porter une date de RDV.
+// Ouvert à l'admin ET à la famille (indépendant de `canEdit`, réservé
+// lui à l'ajout/suppression de tâche).
+function TaskRow({
+  task,
+  canEdit,
+  currentUserId,
+  onToggle,
+  onDelete,
+  servicesContacts,
+  suiviOpen,
+  showPicker,
+  draftText,
+  draftDate,
+  onToggleSuivi,
+  onOpenPicker,
+  onClosePicker,
+  onDraftTextChange,
+  onDraftDateChange,
+  onAddNote,
+  onDeleteNote,
+  onAttachContact,
+  onDetachContact,
+}: {
+  task: TaskItem
+  canEdit: boolean
+  currentUserId: string
+  onToggle: () => void
+  onDelete: () => void
+  servicesContacts: ServiceContact[]
+  suiviOpen: boolean
+  showPicker: boolean
+  draftText: string
+  draftDate: string
+  onToggleSuivi: () => void
+  onOpenPicker: () => void
+  onClosePicker: () => void
+  onDraftTextChange: (text: string) => void
+  onDraftDateChange: (date: string) => void
+  onAddNote: () => void
+  onDeleteNote: (noteId: string) => void
+  onAttachContact: (contact: ServiceContact) => void
+  onDetachContact: (contactId: string) => void
+}) {
+  const attachedIds = new Set(task.contacts.map((c) => c.contact_id))
+  const pickerOptions = servicesContacts.filter((c) => !attachedIds.has(c.id))
+
   return (
     <div className="py-2 border-b border-border last:border-0">
       {/* Version bureau (md et plus) : une seule ligne, inchangee. */}
@@ -706,6 +943,136 @@ function TaskRow({ task, canEdit, onToggle, onDelete }: { task: TaskItem; canEdi
           {task.title}
         </p>
       </div>
+
+      {/* Pastilles "Contact" et "Suivi" (19/10/2026) -- voir le grand
+          commentaire au-dessus de TaskRow. */}
+      <div className="pl-0 md:pl-[46px] mt-2 flex flex-wrap items-center gap-2 relative">
+        {task.contacts.map((c) => (
+          <div
+            key={c.contact_id}
+            className="inline-flex items-center gap-1.5 border border-foreground px-2 py-0.5 text-[11px] text-foreground"
+          >
+            <Phone className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span>
+              <span className="font-medium">{c.role}</span> — {c.name}
+            </span>
+            <button
+              type="button"
+              onClick={() => onDetachContact(c.contact_id)}
+              aria-label={`Retirer ${c.name}`}
+              className="text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={onOpenPicker}
+          className="inline-flex items-center gap-1.5 border border-dashed border-muted-foreground px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground hover:border-foreground hover:text-foreground"
+        >
+          <Phone className="h-3 w-3" aria-hidden="true" />
+          Contact
+        </button>
+
+        <button
+          type="button"
+          onClick={onToggleSuivi}
+          className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground hover:text-foreground"
+        >
+          <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+          Suivi{task.notes.length > 0 ? ` (${task.notes.length})` : ''}
+          <ChevronDown className={cn('h-2.5 w-2.5 transition-transform', suiviOpen && 'rotate-180')} />
+        </button>
+
+        {showPicker && (
+          <div className="absolute left-0 top-7 z-10 min-w-[220px] rounded-md border border-border bg-card p-2 shadow-lg">
+            <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Choisir un contact (Services)
+            </p>
+            {pickerOptions.length === 0 ? (
+              <p className="px-1 py-1 text-xs text-muted-foreground">Aucun contact disponible.</p>
+            ) : (
+              pickerOptions.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => onAttachContact(c)}
+                  className="flex w-full items-center justify-between gap-2 border-b border-border px-1 py-1.5 text-left text-sm last:border-0 hover:bg-muted"
+                >
+                  <span>{c.name}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{c.role}</span>
+                </button>
+              ))
+            )}
+            <button
+              type="button"
+              onClick={onClosePicker}
+              className="mt-1.5 px-1 text-[10px] uppercase tracking-[0.06em] text-muted-foreground hover:text-foreground"
+            >
+              Annuler
+            </button>
+          </div>
+        )}
+      </div>
+
+      {suiviOpen && (
+        <div className="pl-0 md:pl-[46px] mt-2 space-y-2 rounded-md border border-border bg-muted/40 p-3">
+          {task.notes.length === 0 ? (
+            <p className="text-xs italic text-muted-foreground">Aucune note de suivi pour l&apos;instant.</p>
+          ) : (
+            task.notes.map((note) => {
+              const authorName = note.profile ? `${note.profile.first_name} ${note.profile.last_name}`.trim() : null
+              const canDelete = note.user_id === currentUserId || canEdit
+              return (
+                <p key={note.id} className="flex items-start justify-between gap-2 text-xs text-foreground/90">
+                  <span>
+                    <span className="text-muted-foreground">{formatNoteDate(note.created_at)}</span>
+                    {authorName && <> — <span className="font-medium">{authorName}</span></>} :{' '}
+                    {note.rdv_date && (
+                      <span className="mr-1 font-semibold uppercase tracking-wide text-primary">
+                        RDV {formatNoteDate(note.rdv_date)}
+                      </span>
+                    )}
+                    {note.text}
+                  </span>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDeleteNote(note.id)}
+                      aria-label="Supprimer cette note"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
+                </p>
+              )
+            })
+          )}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <input
+              type="text"
+              value={draftText}
+              onChange={(e) => onDraftTextChange(e.target.value)}
+              placeholder="Ajouter une note de suivi…"
+              onKeyDown={(e) => e.key === 'Enter' && onAddNote()}
+              className="min-w-[180px] flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground"
+            />
+            <span className="text-[9px] uppercase tracking-wide text-muted-foreground">RDV (facult.)</span>
+            <input
+              type="date"
+              value={draftDate}
+              onChange={(e) => onDraftDateChange(e.target.value)}
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+            />
+            <button type="button" onClick={onAddNote} className={actionPillClass}>
+              Ajouter
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

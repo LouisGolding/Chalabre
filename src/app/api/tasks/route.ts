@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-// Ajoute une tâche, ou met à jour son statut fait/à faire et son
-// commentaire. Réservé aux admins côté base pour l'ajout/la suppression
-// (voir schema.sql, policy "tasks_admin") — tout le monde peut lire la
-// liste. Le PATCH (coche + commentaire) n'a volontairement pas de
-// vérification de rôle ici : c'était déjà le cas avant la refonte du
-// 27/09/2026, et le "reset" automatique des tâches jardin récurrentes
-// (TasksBoard.tsx) doit pouvoir tourner depuis n'importe quel compte
-// connecté qui ouvre la page.
+// Ajoute une tâche, ou met à jour son statut fait/à faire. Réservé aux
+// admins côté base pour l'ajout/la suppression (voir schema.sql, policy
+// "tasks_admin") — tout le monde peut lire la liste. Le PATCH (coche)
+// n'a volontairement pas de vérification de rôle ici : c'était déjà le
+// cas avant la refonte du 27/09/2026, et le "reset" automatique des
+// tâches jardin récurrentes (TasksBoard.tsx) doit pouvoir tourner depuis
+// n'importe quel compte connecté qui ouvre la page.
+//
+// Le champ `comment` (une seule note, proposée à la coche) a été
+// retiré de ce PATCH le 19/10/2026 (demandé par Aurélie) : remplacé par
+// plusieurs notes datées dans la table `task_notes`, voir
+// /api/tasks/notes/route.ts et migration_task_notes_contacts.sql.
 //
 // Commentaire "mode développement" retiré le 29/09/2026 (n'était plus
 // vrai) : Louis a supprimé le mode simulé (isDev) de toutes les routes
@@ -57,7 +61,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const { id, completed, comment } = await request.json()
+  const { id, completed } = await request.json()
   if (!id || typeof id !== 'string') {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
@@ -70,9 +74,6 @@ export async function PATCH(request: Request) {
     // réapparition à échéance des tâches jardin récurrentes — voir
     // TasksBoard.tsx.
     update.completed_at = completed ? new Date().toISOString() : null
-  }
-  if (typeof comment === 'string') {
-    update.comment = comment.trim() || null
   }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })

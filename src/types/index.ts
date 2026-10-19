@@ -245,3 +245,27 @@ export interface HouseLogComment {
   created_at: string
   profile?: Profile
 }
+
+// Suivi & Contact sur les tâches d'Entretien (19/10/2026, demandé par
+// Aurélie) -- voir migration_task_notes_contacts.sql (pas encore
+// appliquée) et TasksBoard.tsx. Remplace l'ancien champ unique
+// `tasks.comment`.
+export interface TaskNote {
+  id: string
+  task_id: string
+  user_id: string
+  text: string
+  rdv_date: string | null
+  created_at: string
+  // Juste prénom/nom (pas le Profile complet) -- c'est tout ce que
+  // l'affichage d'une note de suivi a besoin de savoir sur son auteur.
+  profile?: { first_name: string; last_name: string }
+}
+
+// Contact (Services) associé à une tâche -- juste ce qu'il faut pour
+// l'affichage d'une pastille, pas le Contact complet.
+export interface TaskContactTag {
+  contact_id: string
+  name: string
+  role: string
+}

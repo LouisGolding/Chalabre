@@ -111,6 +111,57 @@ export default async function DashboardPage() {
   const tasksThisMonth = (openTasks ?? []).filter((t) => isPeriodCurrent(t.period))
   const tasksThisMonthLabel = eventsLabel(tasksThisMonth)
 
+  // "RDV à venir" (19/10/2026, demandé par Aurélie) : dès qu'une note de
+  // suivi d'une tâche d'Entretien porte une date de RDV à moins de 30
+  // jours, elle apparaît ici -- voir TasksBoard.tsx et
+  // migration_task_notes_contacts.sql (pas encore appliquée, donc cette
+  // requête ne renvoie rien tant qu'elle ne l'est pas). Réservé à
+  // admin/family, jamais "friend" (même périmètre que l'onglet Entretien
+  // lui-même -- voir taches/page.tsx), donc pas exécutée pour un compte
+  // ami.
+  let upcomingRdvs: { taskId: string; title: string; rdvDate: string; contacts: string }[] = []
+  if (profile.role !== 'friend') {
+    const in30DaysISO = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const { data: rdvNotes } = await supabase
+      .from('task_notes')
+      .select('task_id, rdv_date, created_at, tasks(title)')
+      .not('rdv_date', 'is', null)
+      .order('created_at', { ascending: false })
+
+    // Seule la note la plus récente de chaque tâche compte (ex. un RDV
+    // reporté annule le précédent) -- `rdvNotes` est trié du plus récent
+    // au plus ancien, donc le premier rencontré par tâche suffit.
+    const latestByTask = new Map<string, { title: string; rdvDate: string }>()
+    for (const n of rdvNotes ?? []) {
+      if (latestByTask.has(n.task_id)) continue
+      const taskTitle = (n.tasks as unknown as { title: string } | null)?.title
+      if (taskTitle && n.rdv_date) latestByTask.set(n.task_id, { title: taskTitle, rdvDate: n.rdv_date })
+    }
+
+    const upcomingTaskIds = [...latestByTask.entries()]
+      .filter(([, v]) => v.rdvDate >= todayISO && v.rdvDate <= in30DaysISO)
+      .sort((a, b) => a[1].rdvDate.localeCompare(b[1].rdvDate))
+      .map(([taskId]) => taskId)
+
+    const contactsByTask = new Map<string, string>()
+    if (upcomingTaskIds.length > 0) {
+      const { data: taskContacts } = await supabase
+        .from('task_contacts')
+        .select('task_id, contacts(name)')
+        .in('task_id', upcomingTaskIds)
+      for (const tc of taskContacts ?? []) {
+        const name = (tc.contacts as unknown as { name: string } | null)?.name
+        if (!name) continue
+        contactsByTask.set(tc.task_id, contactsByTask.has(tc.task_id) ? `${contactsByTask.get(tc.task_id)}, ${name}` : name)
+      }
+    }
+
+    upcomingRdvs = upcomingTaskIds.map((taskId) => {
+      const entry = latestByTask.get(taskId)!
+      return { taskId, title: entry.title, rdvDate: entry.rdvDate, contacts: contactsByTask.get(taskId) ?? '' }
+    })
+  }
+
   // Prochain séjour du titulaire du compte (hors accompagnants) — remis
   // sur l'accueil le 27/09/2026 à la demande de Nicolas, sur le modèle
   // exact de l'onglet Planning (voir planning/page.tsx : nextBooking).
@@ -358,6 +409,33 @@ export default async function DashboardPage() {
               </p>
             </div>
           ))}
+
+        {/* "RDV à venir" (19/10/2026, demandé par Aurélie) : notes de
+            suivi des tâches d'Entretien portant une date de RDV à moins
+            de 30 jours (voir upcomingRdvs plus haut, et TasksBoard.tsx
+            pour l'ajout d'une telle note). Même principe que "À suivre"
+            ci-dessus : une ligne par RDV (date, titre court de la tâche,
+            contact(s) associé(s)), masqué entièrement s'il n'y en a
+            aucun. Jamais affiché pour un compte "friend" (upcomingRdvs
+            reste vide pour ce rôle, voir plus haut). */}
+        {upcomingRdvs.length > 0 && (
+          <Link href="/dashboard/taches" className="mt-12 block w-fit">
+            <p className="text-lg font-normal text-background md:text-xl">RDV à venir</p>
+            <div className="mt-2 space-y-1">
+              {upcomingRdvs.slice(0, 4).map((rdv) => (
+                <p key={rdv.taskId} className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background md:text-xs">
+                  {format(parseISO(rdv.rdvDate), 'd MMM', { locale: fr })} · {shortTitle(rdv.title)}
+                  {rdv.contacts ? ` · ${rdv.contacts}` : ''}
+                </p>
+              ))}
+              {upcomingRdvs.length > 4 && (
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background/70 md:text-xs">
+                  +{upcomingRdvs.length - 4}
+                </p>
+              )}
+            </div>
+          </Link>
+        )}
 
         {/* "Présents en ce moment" masqué (pas supprimé) le 27/09/2026 à la
             demande de Nicolas : "je verrai plus tard comment et où on
