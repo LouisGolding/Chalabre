@@ -175,7 +175,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         </CardContent>
       </Card>
 
-      <form action="/auth/signout" method="post">
+      <form action="/auth/signout" method="post" className="flex justify-center">
         <button type="submit" className={actionPillClass}>
           Se déconnecter
         </button>
