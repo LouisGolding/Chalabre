@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { actionPillClass } from '@/lib/utils'
 import { UNKNOWN_DATE_OF_BIRTH } from '@/lib/profile'
 import type { FamilyGroup, Profile } from '@/types'
 
@@ -35,10 +35,16 @@ import type { FamilyGroup, Profile } from '@/types'
 // "Se déconnecter" vivait jusqu'ici dans le bandeau du bas (voir
 // BottomNav.tsx) -- déplacé en bas de cette page le 19/10/2026, le
 // bandeau pointant désormais vers "Mon profil" à la place. Même route
-// /auth/signout (POST uniquement, voir ce fichier) et même style de
-// bouton que le filet de sécurité "Profil introuvable" de
-// dashboard/layout.tsx, pour rester cohérent avec l'autre endroit du
-// site où ce bouton existe déjà.
+// /auth/signout (POST uniquement, voir ce fichier).
+//
+// "Enregistrer" et "Se déconnecter" traités comme toutes les pastilles
+// d'action du site (demande d'Aurélie, 19/10/2026) -- `actionPillClass`
+// (src/lib/utils.ts), déjà utilisé pour "Valider"/"Modifier"/"Publier"/
+// "+ Ajouter" ailleurs (NextStayCard.tsx, RealisationsBoard.tsx,
+// TasksBoard.tsx...), appliqué ici sur des <button> natifs plutôt que
+// le composant <Button> (dont le rounded-lg/bg-primary par défaut
+// entre en conflit avec cette pastille, voir le commentaire d'origine
+// d'actionPillClass).
 export function ProfileForm({ profile }: { profile: Profile }) {
   const [firstName, setFirstName] = useState(profile.first_name ?? '')
   const [lastName, setLastName] = useState(profile.last_name ?? '')
@@ -88,10 +94,6 @@ export function ProfileForm({ profile }: { profile: Profile }) {
       <Card>
         <CardHeader>
           <CardTitle>Mes informations</CardTitle>
-          <CardDescription>
-            Les informations renseignées à votre première connexion. Vous pouvez les
-            corriger à tout moment, et ajouter votre numéro de téléphone.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -166,18 +168,15 @@ export function ProfileForm({ profile }: { profile: Profile }) {
               <p className="text-sm text-green-600">Modifications enregistrées.</p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <button type="submit" className={actionPillClass} disabled={loading}>
               {loading ? 'Enregistrement...' : 'Enregistrer'}
-            </Button>
+            </button>
           </form>
         </CardContent>
       </Card>
 
       <form action="/auth/signout" method="post">
-        <button
-          type="submit"
-          className="inline-flex items-center justify-center w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
-        >
+        <button type="submit" className={actionPillClass}>
           Se déconnecter
         </button>
       </form>
