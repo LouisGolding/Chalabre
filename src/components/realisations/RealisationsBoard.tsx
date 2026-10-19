@@ -3,12 +3,23 @@
 import { useMemo, useRef, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight, ChevronLeft, Heart, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { actionPillClass, cn } from '@/lib/utils'
-import type { HouseLogEntry } from '@/types'
+import type { HouseLogEntry, HouseLogComment } from '@/types'
 
-export type RealisationEntry = Omit<HouseLogEntry, 'photos'> & { photos: { id: string; url: string }[] }
+export type RealisationComment = HouseLogComment
+
+// Likes/commentaires (19/10/2026, demandé par Aurélie, "à la manière
+// d'Instagram") -- likeCount/likedByMe calculés côté serveur
+// (dashboard/realisations/page.tsx) à partir de house_log_likes ;
+// comments préchargés en entier comme les photos, pas de pagination.
+export type RealisationEntry = Omit<HouseLogEntry, 'photos'> & {
+  photos: { id: string; url: string }[]
+  likeCount: number
+  likedByMe: boolean
+  comments: RealisationComment[]
+}
 
 const PHOTO_BUCKET = 'house-log'
 const SIGNED_URL_TTL = 60 * 60
@@ -176,6 +187,65 @@ export function RealisationsBoard({
     }
   }
 
+  // "J'aime" optimiste (change dans l'interface avant la reponse du
+  // serveur, revert si la requete echoue) -- meme principe que les
+  // enregistrements auto-debounces ailleurs sur le site (EditableTmTier.tsx),
+  // simplifie ici puisqu'il n'y a qu'un aller-retour, pas de debounce.
+  const handleToggleLike = async (entryId: string) => {
+    const entry = entries.find((e) => e.id === entryId)
+    if (!entry) return
+    const wasLiked = entry.likedByMe
+    setEntries((prev) =>
+      prev.map((e) =>
+        e.id === entryId
+          ? { ...e, likedByMe: !wasLiked, likeCount: e.likeCount + (wasLiked ? -1 : 1) }
+          : e
+      )
+    )
+    try {
+      const res = wasLiked
+        ? await fetch(`/api/house-log/likes?house_log_id=${entryId}`, { method: 'DELETE' })
+        : await fetch('/api/house-log/likes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ house_log_id: entryId }),
+          })
+      if (!res.ok) throw new Error()
+    } catch {
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === entryId
+            ? { ...e, likedByMe: wasLiked, likeCount: e.likeCount + (wasLiked ? 1 : -1) }
+            : e
+        )
+      )
+    }
+  }
+
+  const handleAddComment = async (entryId: string, content: string) => {
+    const res = await fetch('/api/house-log/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ house_log_id: entryId, content }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error ?? "Erreur lors de l'envoi du commentaire")
+    setEntries((prev) =>
+      prev.map((e) => (e.id === entryId ? { ...e, comments: [...e.comments, data.comment] } : e))
+    )
+  }
+
+  const handleDeleteComment = async (entryId: string, commentId: string) => {
+    const res = await fetch(`/api/house-log/comments?id=${commentId}`, { method: 'DELETE' })
+    if (res.ok) {
+      setEntries((prev) =>
+        prev.map((e) =>
+          e.id === entryId ? { ...e, comments: e.comments.filter((c) => c.id !== commentId) } : e
+        )
+      )
+    }
+  }
+
   return (
     <div className="space-y-6">
       <form
@@ -225,10 +295,15 @@ export function RealisationsBoard({
             key={entry.id}
             entry={entry}
             canEdit={canEdit(entry)}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
             onDelete={() => handleDeleteEntry(entry.id)}
             onSave={(newTitle, newContent) => handleSaveEntry(entry.id, newTitle, newContent)}
             onAddPhotos={(files) => handleAddPhotos(entry.id, files)}
             onDeletePhoto={(photoId) => handleDeletePhoto(entry.id, photoId)}
+            onToggleLike={() => handleToggleLike(entry.id)}
+            onAddComment={(content) => handleAddComment(entry.id, content)}
+            onDeleteComment={(commentId) => handleDeleteComment(entry.id, commentId)}
           />
         ))}
         {flat.length === 0 && olderByYear.length === 0 && (
@@ -244,10 +319,15 @@ export function RealisationsBoard({
           year={year}
           entries={yearEntries}
           canEdit={canEdit}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
           onDeleteEntry={handleDeleteEntry}
           onSaveEntry={handleSaveEntry}
           onAddPhotos={handleAddPhotos}
           onDeletePhoto={handleDeletePhoto}
+          onToggleLike={handleToggleLike}
+          onAddComment={handleAddComment}
+          onDeleteComment={handleDeleteComment}
         />
       ))}
     </div>
@@ -258,18 +338,28 @@ function YearGroup({
   year,
   entries,
   canEdit,
+  currentUserId,
+  isAdmin,
   onDeleteEntry,
   onSaveEntry,
   onAddPhotos,
   onDeletePhoto,
+  onToggleLike,
+  onAddComment,
+  onDeleteComment,
 }: {
   year: number
   entries: RealisationEntry[]
   canEdit: (entry: RealisationEntry) => boolean
+  currentUserId: string
+  isAdmin: boolean
   onDeleteEntry: (id: string) => void
   onSaveEntry: (id: string, title: string, content: string) => Promise<boolean>
   onAddPhotos: (entryId: string, files: FileList | null) => void
   onDeletePhoto: (entryId: string, photoId: string) => void
+  onToggleLike: (entryId: string) => void
+  onAddComment: (entryId: string, content: string) => Promise<void>
+  onDeleteComment: (entryId: string, commentId: string) => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -290,10 +380,15 @@ function YearGroup({
               key={entry.id}
               entry={entry}
               canEdit={canEdit(entry)}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
               onDelete={() => onDeleteEntry(entry.id)}
               onSave={(newTitle, newContent) => onSaveEntry(entry.id, newTitle, newContent)}
               onAddPhotos={(files) => onAddPhotos(entry.id, files)}
               onDeletePhoto={(photoId) => onDeletePhoto(entry.id, photoId)}
+              onToggleLike={() => onToggleLike(entry.id)}
+              onAddComment={(content) => onAddComment(entry.id, content)}
+              onDeleteComment={(commentId) => onDeleteComment(entry.id, commentId)}
             />
           ))}
         </div>
@@ -305,17 +400,27 @@ function YearGroup({
 function RealisationCard({
   entry,
   canEdit,
+  currentUserId,
+  isAdmin,
   onDelete,
   onSave,
   onAddPhotos,
   onDeletePhoto,
+  onToggleLike,
+  onAddComment,
+  onDeleteComment,
 }: {
   entry: RealisationEntry
   canEdit: boolean
+  currentUserId: string
+  isAdmin: boolean
   onDelete: () => void
   onSave: (title: string, content: string) => Promise<boolean>
   onAddPhotos: (files: FileList | null) => void
   onDeletePhoto: (photoId: string) => void
+  onToggleLike: () => void
+  onAddComment: (content: string) => Promise<void>
+  onDeleteComment: (commentId: string) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(entry.title ?? '')
@@ -431,7 +536,102 @@ function RealisationCard({
           />
         </label>
       )}
+
+      {/* Likes/commentaires (19/10/2026, demande d'Aurelie, "a la
+          maniere d'Instagram") -- coeur plein + rouge quand on a deja
+          like (fill-current reprend la couleur du texte, ici
+          text-destructive), icone de commentaire a cote en simple
+          compteur (ouvre pas de panneau separe, les commentaires sont
+          deja tous affiches juste en dessous). */}
+      <div className="mt-3 flex items-center gap-4 border-t border-border/60 pt-3">
+        <button
+          type="button"
+          onClick={onToggleLike}
+          aria-pressed={entry.likedByMe}
+          aria-label={entry.likedByMe ? "Je n'aime plus" : "J'aime"}
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs font-medium transition-colors',
+            entry.likedByMe ? 'text-destructive' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Heart className={cn('h-4 w-4', entry.likedByMe && 'fill-current')} />
+          {entry.likeCount > 0 && entry.likeCount}
+        </button>
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          <MessageCircle className="h-4 w-4" />
+          {entry.comments.length > 0 && entry.comments.length}
+        </span>
+      </div>
+
+      {entry.comments.length > 0 && (
+        <ul className="mt-2 space-y-1.5">
+          {entry.comments.map((comment) => {
+            const commentAuthor = comment.profile
+              ? `${comment.profile.first_name} ${comment.profile.last_name}`.trim()
+              : 'Un membre de la famille'
+            const canDeleteComment = comment.user_id === currentUserId || isAdmin
+            return (
+              <li key={comment.id} className="flex items-start justify-between gap-2 text-sm">
+                <p className="text-foreground">
+                  <span className="font-medium">{commentAuthor}</span>{' '}
+                  <span className="text-foreground/90">{comment.content}</span>
+                </p>
+                {canDeleteComment && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteComment(comment.id)}
+                    aria-label="Supprimer ce commentaire"
+                    className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      <CommentForm onSubmit={onAddComment} />
     </article>
+  )
+}
+
+// Champ "Ajouter un commentaire..." en bas de chaque post -- son propre
+// etat local (texte en cours de frappe), independant du reste du post,
+// pour ne pas re-render toute la carte a chaque frappe.
+function CommentForm({ onSubmit }: { onSubmit: (content: string) => Promise<void> }) {
+  const [value, setValue] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!value.trim() || submitting) return
+    setSubmitting(true)
+    try {
+      await onSubmit(value.trim())
+      setValue('')
+    } catch {
+      // silencieux -- le texte reste dans le champ si l'envoi echoue,
+      // pour pouvoir retenter sans tout retaper
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-2 flex items-center gap-2">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Ajouter un commentaire..."
+        className="h-8 flex-1 rounded-lg border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground"
+      />
+      <button type="submit" disabled={!value.trim() || submitting} className={actionPillClass}>
+        Publier
+      </button>
+    </form>
   )
 }
 

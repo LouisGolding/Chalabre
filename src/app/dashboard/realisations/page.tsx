@@ -49,9 +49,41 @@ export default async function RealisationsPage() {
     photosByEntry.set(p.house_log_id, list)
   }
 
+  // Likes/commentaires (19/10/2026, demande d'Aurelie, "a la maniere
+  // d'Instagram") -- chargement en bloc comme les photos ci-dessus, pas
+  // de pagination (le fil Réalisations reste de taille raisonnable).
+  const { data: likes } = entryIds.length > 0
+    ? await supabase.from('house_log_likes').select('house_log_id, user_id').in('house_log_id', entryIds)
+    : { data: [] }
+  const { data: comments } = entryIds.length > 0
+    ? await supabase
+        .from('house_log_comments')
+        .select('*, profile:profiles(first_name, last_name)')
+        .in('house_log_id', entryIds)
+        .order('created_at', { ascending: true })
+    : { data: [] }
+
+  const likesByEntry = new Map<string, { count: number; likedByMe: boolean }>()
+  for (const l of likes ?? []) {
+    const current = likesByEntry.get(l.house_log_id) ?? { count: 0, likedByMe: false }
+    current.count += 1
+    if (l.user_id === user.id) current.likedByMe = true
+    likesByEntry.set(l.house_log_id, current)
+  }
+
+  const commentsByEntry = new Map<string, typeof comments>()
+  for (const c of comments ?? []) {
+    const list = commentsByEntry.get(c.house_log_id) ?? []
+    list.push(c)
+    commentsByEntry.set(c.house_log_id, list)
+  }
+
   const initialEntries: RealisationEntry[] = (entries ?? []).map((e) => ({
     ...e,
     photos: photosByEntry.get(e.id) ?? [],
+    likeCount: likesByEntry.get(e.id)?.count ?? 0,
+    likedByMe: likesByEntry.get(e.id)?.likedByMe ?? false,
+    comments: commentsByEntry.get(e.id) ?? [],
   }))
 
   return (

@@ -233,3 +233,15 @@ export interface HouseLogPhoto {
   storage_path: string
   created_at: string
 }
+
+// Likes/commentaires (19/10/2026, demandé par Aurélie, "à la manière
+// d'Instagram") -- voir migration_house_log_reactions.sql (pas encore
+// appliquée) et RealisationsBoard.tsx.
+export interface HouseLogComment {
+  id: string
+  house_log_id: string
+  user_id: string
+  content: string
+  created_at: string
+  profile?: Profile
+}
