@@ -26,7 +26,7 @@ export default async function TachesPage() {
   // migration_task_notes_contacts.sql (pas encore appliquée) et
   // TasksBoard.tsx. Remplacent l'ancien champ unique `tasks.comment`
   // (colonne gardée en base, juste plus lue ici).
-  const { data: tasks } = await supabase
+  const { data: tasks, error: tasksError } = await supabase
     .from('tasks')
     .select(
       '*, profiles(first_name, last_name), task_notes(id, text, rdv_date, created_at, user_id, profile:profiles(first_name, last_name)), task_contacts(contact_id, contacts(id, name, role))'
@@ -34,7 +34,26 @@ export default async function TachesPage() {
     .order('completed', { ascending: true })
     .order('created_at', { ascending: false })
 
-  type TaskRow = {
+  // Tant que migration_task_notes_contacts.sql n'est pas appliquée, les
+  // tables task_notes/task_contacts n'existent pas et l'embed ci-dessus
+  // échoue entièrement (PostgREST ne trouve pas la relation) -- sans ce
+  // filet, `tasks` serait `null` et la page afficherait "aucune tâche" alors
+  // que les tâches existent toujours bel et bien en base. Repli automatique
+  // sur une requête sans ces deux tables, le temps que Louis applique la
+  // migration.
+  let taskRows = (tasks ?? []) as unknown as RawTaskRow[]
+  if (tasksError) {
+    const { data: fallbackTasks } = await supabase
+      .from('tasks')
+      .select('*, profiles(first_name, last_name)')
+      .order('completed', { ascending: true })
+      .order('created_at', { ascending: false })
+    taskRows = ((fallbackTasks ?? []) as unknown as Omit<RawTaskRow, 'task_notes' | 'task_contacts'>[]).map(
+      (t) => ({ ...t, task_notes: null, task_contacts: null })
+    )
+  }
+
+  type RawTaskRow = {
     id: string
     title: string
     category: TaskItem['category']
@@ -57,7 +76,7 @@ export default async function TachesPage() {
     task_contacts: { contact_id: string; contacts: { id: string; name: string; role: string } | null }[] | null
   }
 
-  const items: TaskItem[] = ((tasks ?? []) as TaskRow[]).map((t) => {
+  const items: TaskItem[] = taskRows.map((t) => {
     const notes: TaskNote[] = (t.task_notes ?? [])
       .map((n) => ({
         id: n.id,
