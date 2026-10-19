@@ -119,6 +119,29 @@ const CATEGORY_LABEL: Record<Category, string> = {
   entretien: 'Entretien',
 }
 
+// Suggestion "intelligente" de contact (19/10/2026, demande d'Aurélie) :
+// pour les catégories qui ont un corps de métier évident, la pastille
+// "Contact" ne propose que les contacts Services dont le rôle (texte libre,
+// ex. "Plombier", "Électricité", "Jardinier / Débroussailleur") contient un
+// des mots-clés ci-dessous -- comparaison insensible à la casse et aux
+// accents. Les catégories absentes de cette liste (Réparation, Manutention)
+// proposent tous les contacts Services, un travail de réparation pouvant
+// nécessiter n'importe quel corps de métier. "Autres" n'a volontairement
+// pas d'entrée : la pastille "+ Contact" est masquée pour cette catégorie
+// (voir canAddContact dans TaskRow).
+const CATEGORY_CONTACT_KEYWORDS: Partial<Record<Category, string[]>> = {
+  plomberie: ['plomb'],
+  electricite: ['electric'],
+  jardin: ['jardin'],
+}
+
+function normalizeForMatch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2 }
 
 // Plus de fond/encadre sur la pastille d'urgence -- demande par Nicolas
@@ -859,7 +882,13 @@ function TaskRow({
   onDetachContact: (contactId: string) => void
 }) {
   const attachedIds = new Set(task.contacts.map((c) => c.contact_id))
-  const pickerOptions = servicesContacts.filter((c) => !attachedIds.has(c.id))
+  const categoryKeywords = CATEGORY_CONTACT_KEYWORDS[task.category]
+  const pickerOptions = servicesContacts
+    .filter((c) => !attachedIds.has(c.id))
+    .filter((c) => !categoryKeywords || categoryKeywords.some((kw) => normalizeForMatch(c.role).includes(kw)))
+  // "Autres" : pas de corps de métier évident -- pas de proposition de
+  // contact du tout pour cette catégorie (demande d'Aurélie).
+  const canAddContact = task.category !== 'autre'
 
   return (
     <div className="py-2 border-b border-border last:border-0">
@@ -967,14 +996,16 @@ function TaskRow({
           </div>
         ))}
 
-        <button
-          type="button"
-          onClick={onOpenPicker}
-          className="inline-flex items-center gap-1.5 border border-dashed border-muted-foreground px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground hover:border-foreground hover:text-foreground"
-        >
-          <Phone className="h-3 w-3" aria-hidden="true" />
-          Contact
-        </button>
+        {canAddContact && (
+          <button
+            type="button"
+            onClick={showPicker ? onClosePicker : onOpenPicker}
+            className="inline-flex items-center gap-1.5 border border-dashed border-muted-foreground px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground hover:border-foreground hover:text-foreground"
+          >
+            <Phone className="h-3 w-3" aria-hidden="true" />
+            Contact
+          </button>
+        )}
 
         <button
           type="button"
@@ -992,19 +1023,28 @@ function TaskRow({
               Choisir un contact (Services)
             </p>
             {pickerOptions.length === 0 ? (
-              <p className="px-1 py-1 text-xs text-muted-foreground">Aucun contact disponible.</p>
+              <p className="px-1 py-1 text-xs text-muted-foreground">
+                {categoryKeywords
+                  ? `Aucun contact "${CATEGORY_LABEL[task.category]}" enregistré dans Services.`
+                  : 'Aucun contact disponible.'}
+              </p>
             ) : (
-              pickerOptions.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => onAttachContact(c)}
-                  className="flex w-full items-center justify-between gap-2 border-b border-border px-1 py-1.5 text-left text-sm last:border-0 hover:bg-muted"
-                >
-                  <span>{c.name}</span>
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{c.role}</span>
-                </button>
-              ))
+              // Défilable (19/10/2026, demande d'Aurélie) : la liste peut
+              // dépasser la hauteur visible quand le widget Services compte
+              // beaucoup de contacts.
+              <div className="max-h-56 overflow-y-auto">
+                {pickerOptions.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => onAttachContact(c)}
+                    className="flex w-full items-center justify-between gap-2 border-b border-border px-1 py-1.5 text-left text-sm last:border-0 hover:bg-muted"
+                  >
+                    <span>{c.name}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{c.role}</span>
+                  </button>
+                ))}
+              </div>
             )}
             <button
               type="button"
