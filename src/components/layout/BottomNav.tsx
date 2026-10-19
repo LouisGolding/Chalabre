@@ -84,6 +84,15 @@ const SHOW_SUIVI_PAIEMENTS = false
 // Graisse normale (font-normal), pas grasse — changé le 29/09/2026 à la
 // demande de Nicolas (était en font-bold depuis toujours), sur tous les
 // onglets (pas seulement l'accueil).
+//
+// "Se déconnecter" devient "Mon profil" (19/10/2026, demande
+// d'Aurélie) : le lien vit toujours à cette même place (voir tout le
+// commentaire ci-dessus sur le positionnement, inchangé), mais mène
+// désormais à une page dédiée (/dashboard/profil) qui reprend les
+// informations saisies à la première connexion, modifiables, avec un
+// numéro de téléphone en plus -- "Se déconnecter" lui-même n'a pas
+// disparu, il a simplement été déplacé en bas de cette nouvelle page
+// (voir ProfileForm.tsx).
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   const items = (role === 'admin' ? ADMIN_ITEMS : []).filter(
@@ -126,11 +135,12 @@ export function BottomNav({ role }: { role: UserRole }) {
           {item.label}
         </Link>
       ))}
-      <form action="/auth/signout" method="post">
-        <button type="submit" className={linkClass(false)}>
-          Se déconnecter
-        </button>
-      </form>
+      <Link
+        href="/dashboard/profil"
+        className={linkClass(pathname === '/dashboard/profil')}
+      >
+        Mon profil
+      </Link>
       {itemsAfter.map((item) => (
         <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
           {item.label}

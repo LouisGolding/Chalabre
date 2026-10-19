@@ -24,6 +24,11 @@ export interface Profile {
   tm_tier: number | null // montant libre depuis migration_tm_amount_libre.sql
   rib: string | null
   avatar_url: string | null
+  // Numero de telephone, voir migration_profile_phone.sql (pas encore
+  // appliquee) -- saisi librement depuis la page "Mon profil",
+  // ajoutee le 19/10/2026 a la demande d'Aurelie. Null pour tout compte
+  // qui ne l'a pas encore renseigne (tous, avant cette migration).
+  phone: string | null
   created_at: string
   // Couleur assignee a ce compte (voir src/lib/colors.ts) -- recalculee et
   // persistee a l'inscription (handle_new_user) ou par migration pour les
