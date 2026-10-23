@@ -189,7 +189,7 @@ export function TileNav({ role }: { role: UserRole }) {
               className="pointer-events-none absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-md"
               style={{
                 background:
-                  'radial-gradient(circle, rgba(115,52,63,0.55) 0%, rgba(115,52,63,0.3) 45%, rgba(115,52,63,0) 75%)',
+                  'radial-gradient(circle, rgba(115,52,63,0.16) 0%, rgba(115,52,63,0.07) 45%, rgba(115,52,63,0) 75%)',
               }}
             />
             {/* Croix occitane, agrandie d'un tiers (23/10/2026, demande
