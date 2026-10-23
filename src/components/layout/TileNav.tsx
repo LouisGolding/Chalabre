@@ -118,19 +118,15 @@ export function TileNav({ role }: { role: UserRole }) {
     <div
       className={cn(
         'fixed inset-x-0 z-30 transition-[bottom] duration-[1500ms] ease-in-out',
-        // Repliée, la poignée (h-7, 28px) doit être collée au bord haut
-        // du bandeau du bas (Membres / Suivi paiements / Se déconnecter,
-        // voir BottomNav.tsx, h-12/48px mobile, h-14/56px bureau) — d'où
-        // bottom-12/md:bottom-14, qui correspond exactement à sa hauteur.
-        // Un essai précédent laissait 14px d'espace entre les deux (pour
-        // ne pas chevaucher son texte, à l'époque où BottomNav restait
-        // transparent) ; devenu inutile depuis que BottomNav a lui aussi
-        // un fond fixe opaque (28/09/2026) — les deux se touchent
-        // maintenant sans se gêner, demandé par Nicolas. Dépliée ou sur
-        // l'accueil, la grille garde son ancrage habituel (bottom-7/
-        // md:bottom-9, réglage plus ancien, accolé à BottomNav sans
-        // chevaucher son texte).
-        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-12 md:bottom-14'
+        // Repliée, la poignée était initialement collée au bord haut du
+        // bandeau du bas (bottom-12/md:bottom-14, la hauteur exacte de
+        // BottomNav, voir BottomNav.tsx) — rapprochée de moitié du
+        // bandeau le 23/10/2026 (demande d'Aurélie, "rapproche la de
+        // moitié par rapport au bord du bandeau bas") : bottom-6/
+        // md:bottom-7 (24px/28px). Dépliée ou sur l'accueil, la grille
+        // garde son ancrage habituel (bottom-7/md:bottom-9, réglage plus
+        // ancien, accolé à BottomNav sans chevaucher son texte).
+        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-6 md:bottom-7'
       )}
     >
       {/* Fond fixe derrière la grille (uniquement quand elle est
@@ -171,7 +167,7 @@ export function TileNav({ role }: { role: UserRole }) {
             onClick={() => setIsOpen((v) => !v)}
             aria-expanded={isOpen}
             aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
-            className="flex h-10 w-14 items-center justify-center text-foreground transition-opacity hover:opacity-70"
+            className="relative flex h-10 w-14 items-center justify-center text-foreground transition-opacity hover:opacity-70"
           >
             {/* Croix occitane a la place du chevron (23/10/2026, demande
                 d'Aurelie, maquette validee), ajustee le meme jour (icone 2x
@@ -183,9 +179,28 @@ export function TileNav({ role }: { role: UserRole }) {
                 apparence au repos est identique ouverte/fermee ; seul le
                 demi-tour signale l'action. Voir .icon-croix-occitane dans
                 globals.css. */}
+            {/* Halo flou derrière la croix (demandé par Aurélie le
+                23/10/2026) : un rond flou, un peu plus grand que la
+                croix, aux contours progressifs (jamais nets) -- un
+                dégradé radial qui s'estompe vers la transparence, encore
+                adouci par un flou CSS, plutôt qu'un cercle plein. */}
             <span
               aria-hidden="true"
-              className={cn('icon-croix-occitane h-8 w-8 shrink-0 transition-transform duration-[1500ms] ease-in-out', isOpen && '-rotate-180')}
+              className="pointer-events-none absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-md"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(115,52,63,0.55) 0%, rgba(115,52,63,0.3) 45%, rgba(115,52,63,0) 75%)',
+              }}
+            />
+            {/* Croix occitane, agrandie d'un tiers (23/10/2026, demande
+                d'Aurélie : 32px -> ~43px) et en rouge bordeaux moyen foncé
+                fixe (#73343F, teinte de la palette Argile "invités", voir
+                src/lib/colors.ts) plutôt qu'en currentColor suivant le
+                thème -- couleur volontairement la même en clair et en
+                sombre. */}
+            <span
+              aria-hidden="true"
+              className={cn('icon-croix-occitane relative h-[43px] w-[43px] shrink-0 text-[#73343F] transition-transform duration-[1500ms] ease-in-out', isOpen && '-rotate-180')}
             />
           </button>
         )}
