@@ -3,6 +3,7 @@
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   format,
+  startOfDay,
   startOfMonth,
   endOfMonth,
   startOfWeek,
@@ -304,16 +305,22 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   // par tout le reste de l'affichage (jours, séjours...), sont une version
   // élargie de cette période en semaine/quinzaine — voir BUFFER_DAYS.
   const periodStart = useMemo(() => {
-    // "Quinzaine" (mobile uniquement, voir plus bas) : deux semaines
-    // pleines, alignées sur le même début (lundi) que "semaine".
-    if (viewMode === 'week' || viewMode === 'fortnight') return startOfWeek(currentDate, { weekStartsOn: 1 })
+    // "Semaine" : alignée sur le lundi (ISO), comme avant. "Quinzaine" :
+    // fenêtre glissante de 14 jours démarrant au jour affiché (aujourd'hui
+    // par défaut à l'arrivée sur la page), PAS alignée sur le lundi --
+    // changé le 23/10/2026 à la demande d'Aurélie ("la quinzaine à
+    // venir") : avant ce changement, "Quinzaine" repartait du lundi de
+    // la semaine en cours, ce qui pouvait inclure des jours déjà passés
+    // au lieu de montrer les 14 prochains jours à partir d'aujourd'hui.
+    if (viewMode === 'week') return startOfWeek(currentDate, { weekStartsOn: 1 })
+    if (viewMode === 'fortnight') return startOfDay(currentDate)
     if (viewMode === 'year') return startOfYear(currentDate)
     return startOfMonth(currentDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate.getTime(), viewMode])
   const periodEnd = useMemo(() => {
     if (viewMode === 'week') return endOfWeek(currentDate, { weekStartsOn: 1 })
-    if (viewMode === 'fortnight') return addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), 13)
+    if (viewMode === 'fortnight') return addDays(startOfDay(currentDate), 13)
     if (viewMode === 'year') return endOfYear(currentDate)
     return endOfMonth(currentDate)
     // eslint-disable-next-line react-hooks/exhaustive-deps
