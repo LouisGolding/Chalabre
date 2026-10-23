@@ -181,6 +181,29 @@
   .dark .pill-canson-hover:hover {
     background-image: none;
   }
+
+  /* Icone "croix occitane" de la poignee de TileNav (23/10/2026,
+     demande d'Aurelie : remplace la fleche ChevronUp). Fournie en PNG
+     (silhouette noire sur fond transparent, voir
+     public/images/croix-occitane.png) plutot qu'en SVG trace a la main
+     -- utilisee comme masque CSS (mask-image) plutot qu'une simple
+     <img>, pour qu'elle se colore comme une icone normale (currentColor
+     via background-color) et reste coherente en mode sombre, au lieu de
+     rester figee en noir. Double declaration prefixee/non prefixee
+     (webkit) pour Safari/iOS, comme la texture papier du corps de page
+     plus haut dans ce fichier.
+  */
+  .icon-croix-occitane {
+    background-color: currentColor;
+    -webkit-mask-image: url('/images/croix-occitane.png');
+    mask-image: url('/images/croix-occitane.png');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
   html {
     @apply font-sans;
   }

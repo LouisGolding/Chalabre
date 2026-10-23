@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
 
@@ -170,7 +169,17 @@ export function TileNav({ role }: { role: UserRole }) {
             aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
             className="flex h-7 w-12 items-center justify-center rounded-t-lg bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] text-foreground transition-opacity hover:opacity-70 dark:bg-none"
           >
-            <ChevronUp className={cn('h-4 w-4 transition-transform', isOpen && 'rotate-180')} />
+            {/* Croix occitane a la place du chevron (23/10/2026, demande
+                d'Aurelie, maquette validee) : meme mecanique de rotation
+                qu'avant (rotate-180 au clic), juste l'icone qui change --
+                voir .icon-croix-occitane dans globals.css. La croix etant
+                symetrique, son apparence au repos est identique ouverte/
+                fermee ; seul le demi-tour (aller a l'ouverture, retour en
+                sens inverse a la fermeture) signale l'action. */}
+            <span
+              aria-hidden="true"
+              className={cn('icon-croix-occitane h-4 w-4 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')}
+            />
           </button>
         )}
         {isExpanded && (
