@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { Plus, Trash2, ChevronDown, Phone, Mail, Globe, ArrowRightLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
+import { actionPillClass, cn } from '@/lib/utils'
 import { CONTACT_CATEGORIES } from '@/lib/contact-categories'
 import { Contact } from '@/types'
 
@@ -324,12 +324,11 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
       )}
 
       {canEdit && (
-        <button
-          type="button"
-          onClick={addRow}
-          disabled={adding}
-          className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
-        >
+        // Pastille "Ajouter une ligne" alignée le 23/10/2026 (demande
+        // d'Aurélie) sur le style commun des pastilles d'action du site
+        // (actionPillClass, voir utils.ts -- "Valider", "+ Ajouter des
+        // photos", etc.), à la place de son style bespoke d'origine.
+        <button type="button" onClick={addRow} disabled={adding} className={actionPillClass}>
           <Plus className="h-3.5 w-3.5" />
           Ajouter une ligne
         </button>

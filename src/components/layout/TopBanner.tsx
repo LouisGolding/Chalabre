@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { useId } from 'react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { colorForName, colorForPaletteIndex } from '@/lib/colors'
@@ -89,20 +90,36 @@ export function TopBanner({ profile }: { profile: Profile }) {
   // couleur affichée pour cette même personne dans Planning sinon).
   //
   // Position verticale : calée sur le CENTRE du dessin de la bâtisse, pas
-  // sur le centre du bandeau de 80px, à la demande explicite d'Aurélie --
-  // le dessin lui-même n'est pas centré dans ces 80px (voir plus bas :
-  // espace du haut = 2x espace du bas), un médaillon simplement "centré
-  // verticalement" aurait donc semblé décalé par rapport au logo. Calcul
-  // (même viewport de référence 402px que le reste de ce bandeau) :
-  // centre du dessin = 29.75px (son décalage du haut) + 38.49px (sa
-  // hauteur à max-w-[112px], ratio 652/1897) / 2 ≈ 49px depuis le haut du
-  // bandeau. Zone cliquable de 36px centrée sur cette même ligne :
-  // top = 49 - 18 = 31px.
+  // sur le centre du bandeau de 80px (essai initial du 23/10/2026, voir
+  // historique git) -- remplacé le même jour par un calage sur le HAUT du
+  // dessin, à la nouvelle demande explicite d'Aurélie ("aligne le haut de
+  // la medaille avec le haut du logo"). Le haut du dessin est à 29.75px du
+  // haut du bandeau (mt-[29.75px] du lien du logo, voir plus bas). Le rond
+  // du médaillon mesure 23px et vit dans une zone cliquable de 36px
+  // centrée par flex (items-center/justify-center) : pour que le HAUT du
+  // rond tombe exactement à 29.75px, la zone de 36px doit donc commencer à
+  // 29.75 - (36-23)/2 = 29.75 - 6.5 = 23.25px du haut du bandeau.
+  //
+  // Aspect "négatif" (23/10/2026, demande d'Aurélie : "fais apparaitre son
+  // aspect, en negatif (couleur pleine, lettre transparente)") -- remplace
+  // l'ancien rendu (contour + lettre colorés, fond transparent) par un
+  // rond ENTIÈREMENT rempli de badgeColor, avec l'initiale découpée en
+  // véritable trou transparent (pas juste une lettre d'une autre couleur)
+  // qui laisse voir ce qu'il y a dessous (texture papier du bandeau, ou
+  // tuile/photo quand le médaillon passe au-dessus). Pas possible en CSS
+  // pur (mix-blend-mode ne fait pas de vraie transparence de type
+  // Porter-Duff "destination-out" de façon fiable sur tous les
+  // navigateurs) -- fait avec un <mask> SVG : un disque blanc + le texte
+  // de l'initiale en noir à l'intérieur du mask (le noir = zone retirée),
+  // appliqué à un disque plein de badgeColor. `useId()` donne un id de
+  // mask garanti unique (évite toute collision si ce composant venait à
+  // être rendu plusieurs fois sur une même page).
   const badgeColor =
     typeof profile.color_hue === 'number'
       ? colorForPaletteIndex(profile.family_group, profile.color_hue)
       : colorForName('Séjour')
   const initial = profile.first_name.trim().charAt(0).toUpperCase()
+  const maskId = useId()
 
   return (
     <header
@@ -133,15 +150,17 @@ export function TopBanner({ profile }: { profile: Profile }) {
       <Link
         href="/dashboard/profil"
         aria-label="Mon profil"
-        className="absolute right-4 top-[31px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
+        className="absolute right-4 top-[23.25px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
       >
-        <span
-          aria-hidden="true"
-          className="flex h-[23px] w-[23px] items-center justify-center rounded-full border-[1.4px] text-xs leading-none"
-          style={{ borderColor: badgeColor, color: badgeColor }}
-        >
-          {initial}
-        </span>
+        <svg aria-hidden="true" width="23" height="23" viewBox="0 0 23 23" className="text-xs">
+          <mask id={maskId}>
+            <circle cx="11.5" cy="11.5" r="11.5" fill="white" />
+            <text x="11.5" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize="12" fill="black">
+              {initial}
+            </text>
+          </mask>
+          <circle cx="11.5" cy="11.5" r="11.5" fill={badgeColor} mask={`url(#${maskId})`} />
+        </svg>
       </Link>
     </header>
   )
