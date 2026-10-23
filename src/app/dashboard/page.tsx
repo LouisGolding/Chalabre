@@ -396,18 +396,23 @@ export default async function DashboardPage() {
             rôle que "RDV à venir" juste en dessous (liste de lignes,
             masqué pour un compte "friend" -- Entretien ne lui est de
             toute façon pas accessible, voir TileNav.tsx). Placée avant
-            "Tâche ce mois ci" : l'urgence prime sur la période. */}
+            "Tâche ce mois ci" : l'urgence prime sur la période.
+            Taille de texte alignée sur "Tâche ce mois ci" juste en
+            dessous (23/10/2026, demande d'Aurélie) : text-[10px]/md:text-xs
+            -> text-xs/md:text-sm, et même tracking (0,08em au lieu de
+            0,06em), pour que les deux listes se lisent à la même
+            échelle. */}
         {urgentTasks.length > 0 && profile.role !== 'friend' && (
           <Link href="/dashboard/taches" className="mt-12 block w-fit">
             <p className="text-lg font-normal text-background md:text-xl">Tâches urgentes</p>
             <div className="mt-2 space-y-1">
               {urgentTasks.slice(0, 4).map((task) => (
-                <p key={task.id} className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background md:text-xs">
+                <p key={task.id} className="text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
                   {task.title}
                 </p>
               ))}
               {urgentTasks.length > 4 && (
-                <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background/70 md:text-xs">
+                <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-background/70 md:text-sm">
                   +{urgentTasks.length - 4}
                 </p>
               )}
