@@ -4,9 +4,19 @@
 -- migrations déjà en place. Rejouable sans risque.
 -- ============================================================
 --
--- ⚠️ NE PAS APPLIQUER SANS L'ACCORD DE LOUIS ⚠️
+-- ✅ DÉJÀ APPLIQUÉE EN PRODUCTION (23/10/2026) ✅
 --
--- Contexte : nouvelle page "Mon profil" (19/10/2026, demandée par
+-- Appliquée par Aurélie elle-même (guidée pas à pas par Claude, qui n'a
+-- exécuté aucune requête lui-même), après que le formulaire "Mon profil"
+-- a échoué en production avec l'erreur PostgREST "Could not find the
+-- 'phone' column of 'profiles' in the schema cache" -- qui bloquait en
+-- réalité TOUT le formulaire (prénom/nom/date/groupe compris), pas
+-- seulement le téléphone, puisque ProfileForm.tsx envoie un seul
+-- update() qui échoue entièrement si un champ référence une colonne
+-- absente. Vérifié en base (lecture seule) le 23/10/2026 après coup :
+-- la colonne phone existe bien désormais (text, nullable).
+--
+-- Contexte original : nouvelle page "Mon profil" (19/10/2026, demandée par
 -- Aurélie), accessible depuis le bandeau du bas à la place de
 -- "Se déconnecter" (qui vit désormais en bas de cette page, voir
 -- ProfileForm.tsx et BottomNav.tsx). Elle reprend les informations déjà
