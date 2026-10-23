@@ -117,7 +117,7 @@ export function TileNav({ role }: { role: UserRole }) {
   return (
     <div
       className={cn(
-        'fixed inset-x-0 z-30',
+        'fixed inset-x-0 z-30 transition-[bottom] duration-[1500ms] ease-in-out',
         // Repliée, la poignée (h-7, 28px) doit être collée au bord haut
         // du bandeau du bas (Membres / Suivi paiements / Se déconnecter,
         // voir BottomNav.tsx, h-12/48px mobile, h-14/56px bureau) — d'où
@@ -147,43 +147,65 @@ export function TileNav({ role }: { role: UserRole }) {
           laissait justement passer un filet de contenu (ex. les flèches
           d'un carrousel photo de "Réalisations") juste au-dessus de la
           grille — corrigé le 28/09/2026, capture d'écran annotée à
-          l'appui. */}
-      {isExpanded && !hasPhotoBackground && (
+          l'appui. Toujours montée (plus de montage conditionnel sur
+          isExpanded) et pilotée par opacity, pour s'estomper en 1,5s en
+          même temps que la grille se déploie (demandé par Aurélie le
+          23/10/2026) plutôt que d'apparaître/disparaître d'un coup. */}
+      {!hasPhotoBackground && (
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
+          className={cn(
+            "absolute inset-0 bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] transition-opacity duration-[1500ms] ease-in-out dark:bg-none",
+            isExpanded ? 'opacity-100' : 'opacity-0'
+          )}
         />
       )}
       <div className="relative flex flex-col items-center">
         {showToggle && (
-          // Fond texturé (même image/échelle que le reste du site) sur la
-          // poignée elle-même, sans bordure grise, plutôt qu'un bg-card
-          // uni encadré — demandé par Nicolas le 28/09/2026, capture
-          // annotée à l'appui : lui seul doit se voir (pas de bande
-          // fixe de part et d'autre, ce que le fond transparent de son
-          // conteneur assure déjà).
+          // Poignée sans fond propre (retiré le 23/10/2026, demande
+          // d'Aurélie) : seule la croix doit se voir, pas de pastille
+          // ni de texture derrière elle. La zone cliquable (h-10 w-14)
+          // reste plus grande que l'icône pour un clic confortable.
           <button
             type="button"
             onClick={() => setIsOpen((v) => !v)}
             aria-expanded={isOpen}
             aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
-            className="flex h-7 w-12 items-center justify-center rounded-t-lg bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] text-foreground transition-opacity hover:opacity-70 dark:bg-none"
+            className="flex h-10 w-14 items-center justify-center text-foreground transition-opacity hover:opacity-70"
           >
             {/* Croix occitane a la place du chevron (23/10/2026, demande
-                d'Aurelie, maquette validee) : meme mecanique de rotation
-                qu'avant (rotate-180 au clic), juste l'icone qui change --
-                voir .icon-croix-occitane dans globals.css. La croix etant
-                symetrique, son apparence au repos est identique ouverte/
-                fermee ; seul le demi-tour (aller a l'ouverture, retour en
-                sens inverse a la fermeture) signale l'action. */}
+                d'Aurelie, maquette validee), ajustee le meme jour (icone 2x
+                plus grosse, sans fond, rotation sur 1.5s au rythme de la
+                grille) : -rotate-180 (et non rotate-180) pour que
+                l'ouverture tourne dans le sens inverse des aiguilles d'une
+                montre et la fermeture dans le sens des aiguilles d'une
+                montre, comme demande. La croix etant symetrique, son
+                apparence au repos est identique ouverte/fermee ; seul le
+                demi-tour signale l'action. Voir .icon-croix-occitane dans
+                globals.css. */}
             <span
               aria-hidden="true"
-              className={cn('icon-croix-occitane h-4 w-4 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')}
+              className={cn('icon-croix-occitane h-8 w-8 shrink-0 transition-transform duration-[1500ms] ease-in-out', isOpen && '-rotate-180')}
             />
           </button>
         )}
-        {isExpanded && (
-          <nav className="grid w-full grid-cols-3 gap-[14px] px-4 py-[14px]">
+        {/* Déploiement progressif sur 1,5s (demandé par Aurélie le
+            23/10/2026, comme la maquette) : la grille reste toujours
+            montée et c'est grid-template-rows qui anime 0fr -> 1fr
+            (plutôt qu'un max-height deviné), le <nav> en overflow-hidden
+            masquant les tuiles tant que la ligne est à 0fr. */}
+        <div
+          className={cn(
+            'grid w-full transition-[grid-template-rows] duration-[1500ms] ease-in-out',
+            isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+          )}
+        >
+          <nav
+            className={cn(
+              'grid grid-cols-3 gap-[14px] overflow-hidden px-4 py-[14px] transition-opacity duration-[1500ms] ease-in-out',
+              isExpanded ? 'opacity-100' : 'opacity-0'
+            )}
+          >
             {tiles.map((tile) => (
               <Link
                 key={tile.href}
@@ -197,7 +219,7 @@ export function TileNav({ role }: { role: UserRole }) {
               </Link>
             ))}
           </nav>
-        )}
+        </div>
       </div>
     </div>
   )
