@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { useId } from 'react'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { colorForName, colorForPaletteIndex } from '@/lib/colors'
+import { colorForName, colorForPaletteIndex, textureMultipliedColor } from '@/lib/colors'
 import type { Profile } from '@/types'
 
 // Bandeau du haut — refonte du 27/09/2026 demandée par Nicolas : plus
@@ -120,6 +120,14 @@ export function TopBanner({ profile }: { profile: Profile }) {
       : colorForName('Séjour')
   const initial = profile.first_name.trim().charAt(0).toUpperCase()
   const maskId = useId()
+  // Assombrit badgeColor du même effet moyen que le mélange "multiply"
+  // avec la texture papier, pour que ce rond PLEIN (un <svg>, pas un fond
+  // CSS) rende la même teinte à l'œil que les séjours de Planning et la
+  // bannière "Prochain séjour" de l'accueil, qui appliquent tous deux ce
+  // mélange (coloredTextureStyle, voir colors.ts) -- sans ça le médaillon
+  // paraissait plus clair que "sa pastille planning" (remarqué par
+  // Aurélie le 23/10/2026), alors que la couleur de départ est identique.
+  const fillColor = textureMultipliedColor(badgeColor)
 
   return (
     <header
@@ -159,7 +167,7 @@ export function TopBanner({ profile }: { profile: Profile }) {
               {initial}
             </text>
           </mask>
-          <circle cx="11.5" cy="11.5" r="11.5" fill={badgeColor} mask={`url(#${maskId})`} />
+          <circle cx="11.5" cy="11.5" r="11.5" fill={fillColor} mask={`url(#${maskId})`} />
         </svg>
       </Link>
     </header>

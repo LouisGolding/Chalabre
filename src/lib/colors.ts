@@ -360,3 +360,34 @@ export function coloredTextureStyle(color: string) {
     backgroundBlendMode: 'multiply',
   } as const
 }
+
+// Médaillon "Mon profil" du bandeau du haut (23/10/2026) : Aurélie a
+// remarqué que sa couleur paraissait plus claire que "sa pastille
+// planning" alors que la formule (colorForPaletteIndex / colorForName)
+// est pourtant identique -- la différence venait du rendu, pas du
+// calcul : les séjours de Planning (PlanningView.tsx) ET la bannière
+// "Prochain séjour" de l'accueil (NextStayCard.tsx) appliquent toutes
+// les deux coloredTextureStyle ci-dessus (couleur + texture papier en
+// fond, assombrie par un mélange "multiply"), alors que le médaillon --
+// un <svg> avec un <mask>, pas un fond CSS -- affichait la couleur pleine
+// sans ce mélange. Plutôt que de retisser la texture (photo) dans un
+// cercle de 23px, où le motif ne se verrait de toute façon pas (un seul
+// pavé de 307x205px à cette échelle), cette fonction reproduit l'effet
+// moyen du mélange "multiply" avec cette texture : couleur moyenne du
+// fichier /images/texture-papier.jpg mesurée directement (#f6f0e9, soit
+// 246/240/233 sur 255) appliquée canal par canal, exactement comme le
+// ferait le navigateur en assombrissant chaque pixel coloré par la
+// valeur du pixel de texture sous lui -- ici simplifié à la valeur
+// moyenne puisque le médaillon est trop petit pour que le grain du papier
+// s'y distingue.
+const TEXTURE_AVERAGE_RGB = { r: 246, g: 240, b: 233 } as const
+
+export function textureMultipliedColor(hex: string): string {
+  const c = hex.replace('#', '')
+  const r = parseInt(c.substring(0, 2), 16)
+  const g = parseInt(c.substring(2, 4), 16)
+  const b = parseInt(c.substring(4, 6), 16)
+  const mult = (v: number, t: number) => Math.round((v * t) / 255)
+  const toHex = (v: number) => v.toString(16).padStart(2, '0')
+  return `#${toHex(mult(r, TEXTURE_AVERAGE_RGB.r))}${toHex(mult(g, TEXTURE_AVERAGE_RGB.g))}${toHex(mult(b, TEXTURE_AVERAGE_RGB.b))}`
+}
