@@ -95,7 +95,16 @@ const SHOW_SUIVI_PAIEMENTS = false
 // (voir ProfileForm.tsx).
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
-  const items = (role === 'admin' ? ADMIN_ITEMS : []).filter(
+
+  // Bandeau retiré entièrement pour les comptes famille et amis (23/10/2026,
+  // demande d'Aurélie) : ces deux rôles n'avaient plus que "Mon profil" ici
+  // (items vide pour eux, voir ADMIN_ITEMS ci-dessus), lien désormais déplacé
+  // dans le bandeau du haut sous forme de médaillon (voir TopBanner.tsx).
+  // Comptes admin : inchangé, ce bandeau reste utile (Membres, Suivi
+  // paiements, Documents, Activités) et garde "Mon profil" avec le reste.
+  if (role !== 'admin') return null
+
+  const items = ADMIN_ITEMS.filter(
     (item) => SHOW_SUIVI_PAIEMENTS || item.href !== '/dashboard/admin/paiements'
   )
   const hasPhotoBackground = pathname === '/dashboard'

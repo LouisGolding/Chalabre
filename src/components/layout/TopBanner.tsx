@@ -4,6 +4,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
+import type { Profile } from '@/types'
 
 // Bandeau du haut — refonte du 27/09/2026 demandée par Nicolas : plus
 // aucun onglet ici (ils vivent désormais dans la grille de tuiles de la
@@ -62,9 +64,40 @@ import { cn } from '@/lib/utils'
 // pages, donc border-foreground (text-foreground, voir par ex. le <h1>
 // de taches/page.tsx) — pas de bordure du tout sur l'accueil, où la
 // photo plein écran crée déjà une séparation nette.
-export function TopBanner() {
+export function TopBanner({ profile }: { profile: Profile }) {
   const pathname = usePathname()
   const hasPhotoBackground = pathname === '/dashboard'
+
+  // Médaillon "Mon profil" (23/10/2026, demande d'Aurélie) : les comptes
+  // famille et amis n'ont plus de bandeau du bas du tout (voir
+  // BottomNav.tsx, qui ne se rend plus pour ces deux rôles) -- leur seul
+  // lien, "Mon profil", vit désormais ici, sous la forme d'un petit
+  // médaillon en haut à droite plutôt qu'un onglet de bandeau. Comptes
+  // admin : inchangé, "Mon profil" reste dans BottomNav avec
+  // Membres/Suivi paiements/etc., pas de médaillon ici pour eux.
+  //
+  // Initiale + couleur : même calcul que NextStayCard.tsx (color_hue
+  // enregistré en base si connu, sinon repli calculé depuis le nom),
+  // avec colorForPaletteIndex(family_group, index) -- la couleur Argile
+  // propre à cette personne, pas une couleur fixe.
+  //
+  // Position verticale : calée sur le CENTRE du dessin de la bâtisse, pas
+  // sur le centre du bandeau de 80px, à la demande explicite d'Aurélie --
+  // le dessin lui-même n'est pas centré dans ces 80px (voir plus bas :
+  // espace du haut = 2x espace du bas), un médaillon simplement "centré
+  // verticalement" aurait donc semblé décalé par rapport au logo. Calcul
+  // (même viewport de référence 402px que le reste de ce bandeau) :
+  // centre du dessin = 29.75px (son décalage du haut) + 38.49px (sa
+  // hauteur à max-w-[112px], ratio 652/1897) / 2 ≈ 49px depuis le haut du
+  // bandeau. Zone cliquable de 36px centrée sur cette même ligne :
+  // top = 49 - 18 = 31px.
+  const showProfileBadge = profile.role !== 'admin'
+  const colorIndex =
+    typeof profile.color_hue === 'number'
+      ? profile.color_hue
+      : fallbackIndexForName(`${profile.first_name} ${profile.last_name}`)
+  const badgeColor = colorForPaletteIndex(profile.family_group, colorIndex)
+  const initial = profile.first_name.trim().charAt(0).toUpperCase()
 
   return (
     <header
@@ -92,6 +125,21 @@ export function TopBanner() {
           className="h-auto w-[25.6vw] max-w-[112px]"
         />
       </Link>
+      {showProfileBadge && (
+        <Link
+          href="/dashboard/profil"
+          aria-label="Mon profil"
+          className="absolute right-4 top-[31px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
+        >
+          <span
+            aria-hidden="true"
+            className="flex h-[23px] w-[23px] items-center justify-center rounded-full border-[1.4px] text-xs leading-none"
+            style={{ borderColor: badgeColor, color: badgeColor }}
+          >
+            {initial}
+          </span>
+        </Link>
+      )}
     </header>
   )
 }

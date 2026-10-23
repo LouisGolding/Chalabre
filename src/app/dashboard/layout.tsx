@@ -50,7 +50,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen">
-      <TopBanner />
+      <TopBanner profile={profile} />
       {/* Padding-bas du <main> = la place prise par TileNav + BottomNav,
           épinglées en fixed par-dessus le bas de l'écran (250px mobile /
           302px bureau — même calcul que celui documenté dans TileNav.tsx :
