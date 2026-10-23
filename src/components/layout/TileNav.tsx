@@ -90,11 +90,13 @@ export function TileNav({ role }: { role: UserRole }) {
   // imposante) : masquée par défaut, réduite à une petite poignée
   // (bouton chevron) ; un clic dessus déploie la grille complète, un
   // second clic la referme. Non persisté (redémarre fermée à chaque
-  // navigation/rechargement). L'accueil garde la grille toujours
-  // dépliée, sans poignée (demandé par Nicolas le 28/09/2026) : seule la
-  // photo plein écran y justifiait une grille imposante en permanence,
-  // pas les pages au fond texturé.
-  const [isOpen, setIsOpen] = useState(false)
+  // navigation/rechargement). L'accueil avait jusqu'ici la grille
+  // toujours dépliée, sans poignée (demandé par Nicolas le 28/09/2026) ;
+  // depuis le 23/10/2026 (demande d'Aurélie), elle a elle aussi la
+  // poignée et peut être repliée -- seule différence : elle s'affiche
+  // DÉPLIÉE par défaut (hasPhotoBackground au lieu de false), là où
+  // toutes les autres pages démarrent repliées.
+  const [isOpen, setIsOpen] = useState(hasPhotoBackground)
   // Repliée par défaut à CHAQUE arrivée sur un onglet, pas seulement au tout
   // premier chargement (demandé par Nicolas le 02/10/2026) : TileNav vit
   // dans le layout partagé du tableau de bord (dashboard/layout.tsx) et
@@ -109,9 +111,13 @@ export function TileNav({ role }: { role: UserRole }) {
   const [lastPathname, setLastPathname] = useState(pathname)
   if (pathname !== lastPathname) {
     setLastPathname(pathname)
-    setIsOpen(false)
+    setIsOpen(hasPhotoBackground)
   }
-  const showToggle = !hasPhotoBackground
+  // Poignée affichée sur toutes les pages, accueil compris depuis le
+  // 23/10/2026 (showToggle valait auparavant !hasPhotoBackground, donc
+  // false sur l'accueil -- plus de différence de système entre les
+  // pages, seul l'état replié/déplié par défaut change).
+  const showToggle = true
   const isExpanded = showToggle ? isOpen : true
 
   return (
@@ -193,14 +199,18 @@ export function TileNav({ role }: { role: UserRole }) {
               }}
             />
             {/* Croix occitane, agrandie d'un tiers (23/10/2026, demande
-                d'Aurélie : 32px -> ~43px) et en rouge bordeaux moyen foncé
-                fixe (#73343F, teinte de la palette Argile "invités", voir
-                src/lib/colors.ts) plutôt qu'en currentColor suivant le
-                thème -- couleur volontairement la même en clair et en
-                sombre. */}
+                d'Aurélie : 32px -> ~43px). Couleur fixe (ne suit plus le
+                thème via currentColor) : blanche sur l'accueil, pour
+                rester lisible sur la photo plein écran -- rouge bordeaux
+                #73343F (palette Argile "invités", voir src/lib/colors.ts)
+                partout ailleurs. */}
             <span
               aria-hidden="true"
-              className={cn('icon-croix-occitane relative h-[43px] w-[43px] shrink-0 text-[#73343F] transition-transform duration-[1500ms] ease-in-out', isOpen && '-rotate-180')}
+              className={cn(
+                'icon-croix-occitane relative h-[43px] w-[43px] shrink-0 transition-transform duration-[1500ms] ease-in-out',
+                hasPhotoBackground ? 'text-white' : 'text-[#73343F]',
+                isOpen && '-rotate-180'
+              )}
             />
           </button>
         )}
