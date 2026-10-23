@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { viewTogglePillClass } from '@/lib/utils'
+import { PlanThumbnail, FullscreenPlanViewer } from '@/components/guide/PlanViewer'
 import {
   STORAGE_FLOORS,
   SLOTS_PER_FLOOR,
@@ -11,6 +12,11 @@ import {
   type StorageSlotRow,
   type HouseSideFilter,
 } from '@/lib/storage-guide'
+
+// Même ratio moyen que StorageOrganization.tsx (widget "Organisation des
+// placards") pour les mêmes images de plan -- voir le commentaire
+// d'origine là-bas pour le détail (~6200x2400px, ratio 2.56-2.62 d'un
+// étage à l'autre, object-contain absorbe l'écart).
 
 interface StorageSlotsAdminProps {
   initialSlots: StorageSlotRow[]
@@ -33,6 +39,19 @@ interface StorageSlotsAdminProps {
 // Enregistrement au blur du texte (pas a chaque frappe) : plus simple et
 // plus fiable qu'un debounce, et laisse l'admin "ecrire ou supprimer
 // tant qu'il veut" avant que quoi que ce soit ne parte au serveur.
+//
+// Plan de l'etage, affiche en bas du widget (23/10/2026, demande
+// d'Aurelie : "fait apparaitre les plans de niveau reperage placards.
+// quand on selectionne rez de chaussee, le plan du RDC apparait en bas
+// du widget") -- memes images et memes fonctionnalites (vignette,
+// plein ecran, pincement pour zoomer) que le widget "Organisation des
+// placards" (StorageOrganization.tsx), via PlanViewer.tsx. `floor`
+// valant toujours l'un des 4 etages (jamais null, voir useState plus
+// bas), le plan s'affiche des l'ouverture du widget (RDC par defaut) et
+// change des qu'un autre etage est choisi -- pas besoin d'un etat
+// "aucun etage choisi".
+const PLAN_ASPECT_RATIO = 2.6
+
 export function StorageSlotsAdmin({ initialSlots }: StorageSlotsAdminProps) {
   const [slots, setSlots] = useState<Record<string, StorageSlotRow>>(() => {
     const map: Record<string, StorageSlotRow> = {}
@@ -43,6 +62,9 @@ export function StorageSlotsAdmin({ initialSlots }: StorageSlotsAdminProps) {
   const [slotNumber, setSlotNumber] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fullscreenPlan, setFullscreenPlan] = useState(false)
+
+  const currentFloor = STORAGE_FLOORS.find((f) => f.id === floor)!
 
   const key = slotNumber !== null ? storageSlotKey(floor, slotNumber) : null
   const current = key ? slots[key] : undefined
@@ -151,6 +173,22 @@ export function StorageSlotsAdmin({ initialSlots }: StorageSlotsAdminProps) {
           {saving && <p className="text-xs text-muted-foreground">Enregistrement…</p>}
           {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
+      )}
+
+      <PlanThumbnail
+        level={currentFloor}
+        aspectRatio={PLAN_ASPECT_RATIO}
+        altPrefix="Rangement"
+        onToggle={() => setFullscreenPlan(true)}
+      />
+
+      {fullscreenPlan && (
+        <FullscreenPlanViewer
+          level={currentFloor}
+          aspectRatio={PLAN_ASPECT_RATIO}
+          altPrefix="Rangement"
+          onClose={() => setFullscreenPlan(false)}
+        />
       )}
     </div>
   )
