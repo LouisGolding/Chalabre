@@ -99,10 +99,20 @@ export default async function DashboardPage() {
   // contrairement à local_events.
   const { data: openTasks } = await supabase
     .from('tasks')
-    .select('title, period, completed')
+    .select('id, title, period, completed, priority')
     .eq('completed', false)
   const tasksThisMonth = (openTasks ?? []).filter((t) => isPeriodCurrent(t.period))
   const tasksThisMonthLabel = eventsLabel(tasksThisMonth)
+
+  // "Tâches urgentes" (23/10/2026, demandé par Aurélie : "si elles sont
+  // urgentes, affiches les d'office dans la page d'accueil, et laisse la
+  // tant qu'elle n'est pas cochée"). Même source que tasksThisMonth
+  // ci-dessus (tâches d'Entretien non cochées), filtrée sur priority ===
+  // 'high' ("Urgente" dans TasksBoard.tsx) au lieu de la période en
+  // cours -- une tâche urgente reste donc affichée ici indéfiniment tant
+  // qu'elle n'est pas cochée dans l'onglet Entretien, quelle que soit sa
+  // période.
+  const urgentTasks = (openTasks ?? []).filter((t) => t.priority === 'high')
 
   // "RDV à venir" (19/10/2026, demandé par Aurélie) : dès qu'une note de
   // suivi d'une tâche d'Entretien porte une date de RDV à moins de 30
@@ -376,6 +386,33 @@ export default async function DashboardPage() {
                 )
               })()}
           </div>
+        )}
+
+        {/* "Tâches urgentes" (23/10/2026, demandé par Aurélie) : toute
+            tâche d'Entretien marquée "Urgente" et pas encore cochée,
+            affichée ici d'office, sans lien avec sa période -- disparaît
+            dès qu'elle est cochée dans l'onglet Entretien (voir
+            urgentTasks plus haut). Même traitement visuel/gating par
+            rôle que "RDV à venir" juste en dessous (liste de lignes,
+            masqué pour un compte "friend" -- Entretien ne lui est de
+            toute façon pas accessible, voir TileNav.tsx). Placée avant
+            "Tâche ce mois ci" : l'urgence prime sur la période. */}
+        {urgentTasks.length > 0 && profile.role !== 'friend' && (
+          <Link href="/dashboard/taches" className="mt-12 block w-fit">
+            <p className="text-lg font-normal text-background md:text-xl">Tâches urgentes</p>
+            <div className="mt-2 space-y-1">
+              {urgentTasks.slice(0, 4).map((task) => (
+                <p key={task.id} className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background md:text-xs">
+                  {task.title}
+                </p>
+              ))}
+              {urgentTasks.length > 4 && (
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.06em] text-background/70 md:text-xs">
+                  +{urgentTasks.length - 4}
+                </p>
+              )}
+            </div>
+          </Link>
         )}
 
         {/* "Tâche ce mois ci" — relié aux vraies tâches d'Entretien le

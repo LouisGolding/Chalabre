@@ -93,7 +93,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
     <div className="space-y-6 max-w-xl">
       <Card>
         <CardHeader>
-          <CardTitle>Mes informations</CardTitle>
+          <CardTitle className="text-sm md:text-base uppercase tracking-wide">Mes informations</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
