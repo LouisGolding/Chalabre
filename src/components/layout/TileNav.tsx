@@ -134,7 +134,17 @@ export function TileNav({ role }: { role: UserRole }) {
   return (
     <div
       className={cn(
-        'fixed inset-x-0 z-30 transition-[bottom] duration-[1500ms] ease-in-out',
+        // z-50 (23/10/2026, demande d'Aurélie : "veille a ce que la croix
+        // occitane soit au dessus du bandeau du bas, et pas masqué par ce
+        // dernier") -- pour les comptes admin, qui gardent BottomNav
+        // (z-40, voir BottomNav.tsx) en plus de cette grille, la poignée
+        // repliée (bottom-6/md:bottom-7, 24px/28px) tombe dans la hauteur
+        // même de BottomNav (h-12/h-14, 48px/56px) : avec un z-index plus
+        // bas (z-30 auparavant) que le fond opaque de BottomNav sur les
+        // pages sans photo, la croix se retrouvait peinte EN DESSOUS, donc
+        // invisible. z-50 (> 40) place cette grille, poignée comprise,
+        // toujours au-dessus de BottomNav, pour tous les rôles.
+        'fixed inset-x-0 z-50 transition-[bottom] duration-[1500ms] ease-in-out',
         // Repliée, la poignée était initialement collée au bord haut du
         // bandeau du bas (bottom-12/md:bottom-14, la hauteur exacte de
         // BottomNav, voir BottomNav.tsx) — rapprochée de moitié du
