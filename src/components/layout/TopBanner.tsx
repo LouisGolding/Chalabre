@@ -95,10 +95,21 @@ export function TopBanner({ profile }: { profile: Profile }) {
   // dessin, à la nouvelle demande explicite d'Aurélie ("aligne le haut de
   // la medaille avec le haut du logo"). Le haut du dessin est à 29.75px du
   // haut du bandeau (mt-[29.75px] du lien du logo, voir plus bas). Le rond
-  // du médaillon mesure 23px et vit dans une zone cliquable de 36px
-  // centrée par flex (items-center/justify-center) : pour que le HAUT du
-  // rond tombe exactement à 29.75px, la zone de 36px doit donc commencer à
-  // 29.75 - (36-23)/2 = 29.75 - 6.5 = 23.25px du haut du bandeau.
+  // du médaillon vit dans une zone cliquable de 36px centrée par flex
+  // (items-center/justify-center) : pour que le HAUT du rond tombe
+  // exactement à 29.75px, la zone de 36px doit donc commencer à
+  // 29.75 - (36 - diamètre_du_rond) / 2 du haut du bandeau.
+  //
+  // Taille du rond (23/10/2026, demande d'Aurélie : "fais la medaille 1
+  // tiers plus gros") : 23px -> 31px (23 * 4/3 = 30,67, arrondi à l'entier
+  // le plus proche -- même méthode que pour la croix occitane de TileNav
+  // le même jour, 32px -> 43px). Rayon/centre SVG et position du texte
+  // recalculés à l'identique (moitié du diamètre), taille de police de
+  // l'initiale remise à l'échelle dans le même rapport (12px -> 16px,
+  // 12 * 31/23 ≈ 16,2). Zone cliquable de 36px inchangée (encore assez de
+  // marge, 2,5px de chaque côté) : seul le rond grossit, pas sa zone de
+  // clic. Nouveau calcul du haut de la zone cliquable :
+  // 29.75 - (36 - 31) / 2 = 29.75 - 2.5 = 27.25px du haut du bandeau.
   //
   // Aspect "négatif" (23/10/2026, demande d'Aurélie : "fais apparaitre son
   // aspect, en negatif (couleur pleine, lettre transparente)") -- remplace
@@ -158,16 +169,16 @@ export function TopBanner({ profile }: { profile: Profile }) {
       <Link
         href="/dashboard/profil"
         aria-label="Mon profil"
-        className="absolute right-4 top-[23.25px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
+        className="absolute right-4 top-[27.25px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
       >
-        <svg aria-hidden="true" width="23" height="23" viewBox="0 0 23 23" className="text-xs">
+        <svg aria-hidden="true" width="31" height="31" viewBox="0 0 31 31" className="text-xs">
           <mask id={maskId}>
-            <circle cx="11.5" cy="11.5" r="11.5" fill="white" />
-            <text x="11.5" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize="12" fill="black">
+            <circle cx="15.5" cy="15.5" r="15.5" fill="white" />
+            <text x="15.5" y="15.5" textAnchor="middle" dominantBaseline="central" fontSize="16" fill="black">
               {initial}
             </text>
           </mask>
-          <circle cx="11.5" cy="11.5" r="11.5" fill={fillColor} mask={`url(#${maskId})`} />
+          <circle cx="15.5" cy="15.5" r="15.5" fill={fillColor} mask={`url(#${maskId})`} />
         </svg>
       </Link>
     </header>
