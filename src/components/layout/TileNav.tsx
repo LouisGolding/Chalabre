@@ -119,6 +119,17 @@ export function TileNav({ role }: { role: UserRole }) {
   // pages, seul l'état replié/déplié par défaut change).
   const showToggle = true
   const isExpanded = showToggle ? isOpen : true
+  // Halo flou derrière la croix : visible seulement quand quelque chose
+  // de "chargé" passe dessous (texte/caractères de la page, ou la photo
+  // de l'accueil), pas sur le fond beige canson uni (demande d'Aurélie du
+  // 23/10/2026, après la mise en place du halo). Sur l'accueil
+  // (hasPhotoBackground), la photo est toujours derrière, repliée ou
+  // dépliée -- halo toujours visible. Sur les autres pages : repliée
+  // (!isExpanded), le fond papier fixe de cette grille est encore à
+  // opacity-0 (voir plus bas) donc le contenu de la page défile
+  // potentiellement dessous -- halo visible ; dépliée (isExpanded), ce
+  // même fond papier recouvre tout en beige uni -- halo masqué.
+  const showHalo = hasPhotoBackground || !isExpanded
 
   return (
     <div
@@ -189,10 +200,17 @@ export function TileNav({ role }: { role: UserRole }) {
                 23/10/2026) : un rond flou, un peu plus grand que la
                 croix, aux contours progressifs (jamais nets) -- un
                 dégradé radial qui s'estompe vers la transparence, encore
-                adouci par un flou CSS, plutôt qu'un cercle plein. */}
+                adouci par un flou CSS, plutôt qu'un cercle plein.
+                Masqué sur fond beige canson uni (showHalo plus haut,
+                précisé par Aurélie juste après la mise en place du
+                halo) : visible seulement quand du texte ou une photo
+                passe dessous, pas sur un simple aplat de couleur. */}
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-md"
+              className={cn(
+                'pointer-events-none absolute left-1/2 top-1/2 h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-md transition-opacity duration-[1500ms] ease-in-out',
+                showHalo ? 'opacity-100' : 'opacity-0'
+              )}
               style={{
                 background:
                   'radial-gradient(circle, rgba(115,52,63,0.16) 0%, rgba(115,52,63,0.07) 45%, rgba(115,52,63,0) 75%)',

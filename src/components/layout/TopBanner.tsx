@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
+import { colorForName, colorForPaletteIndex } from '@/lib/colors'
 import type { Profile } from '@/types'
 
 // Bandeau du haut — refonte du 27/09/2026 demandée par Nicolas : plus
@@ -77,10 +77,16 @@ export function TopBanner({ profile }: { profile: Profile }) {
   // ce bandeau pour Membres/Suivi paiements/Documents/Activités, sans
   // "Mon profil" dedans.
   //
-  // Initiale + couleur : même calcul que NextStayCard.tsx (color_hue
-  // enregistré en base si connu, sinon repli calculé depuis le nom),
-  // avec colorForPaletteIndex(family_group, index) -- la couleur Argile
-  // propre à cette personne, pas une couleur fixe.
+  // Initiale + couleur : demande explicite d'Aurélie le 23/10/2026
+  // ("associe la couleur de la pastille à la couleur de sa pastille
+  // planning") -- reprend EXACTEMENT la même formule que la couleur
+  // d'un séjour propre (pas un accompagnant) dans Planning
+  // (resolveColor, voir dashboard/planning/page.tsx) : color_hue
+  // enregistré en base avec family_group si connu
+  // (colorForPaletteIndex), sinon le même repli que Planning pour un
+  // compte sans couleur enregistrée (colorForName('Séjour'), pas un
+  // repli par nom propre à ce bandeau -- resterait incohérent avec la
+  // couleur affichée pour cette même personne dans Planning sinon).
   //
   // Position verticale : calée sur le CENTRE du dessin de la bâtisse, pas
   // sur le centre du bandeau de 80px, à la demande explicite d'Aurélie --
@@ -92,11 +98,10 @@ export function TopBanner({ profile }: { profile: Profile }) {
   // hauteur à max-w-[112px], ratio 652/1897) / 2 ≈ 49px depuis le haut du
   // bandeau. Zone cliquable de 36px centrée sur cette même ligne :
   // top = 49 - 18 = 31px.
-  const colorIndex =
+  const badgeColor =
     typeof profile.color_hue === 'number'
-      ? profile.color_hue
-      : fallbackIndexForName(`${profile.first_name} ${profile.last_name}`)
-  const badgeColor = colorForPaletteIndex(profile.family_group, colorIndex)
+      ? colorForPaletteIndex(profile.family_group, profile.color_hue)
+      : colorForName('Séjour')
   const initial = profile.first_name.trim().charAt(0).toUpperCase()
 
   return (
