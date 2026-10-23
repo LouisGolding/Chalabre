@@ -433,10 +433,13 @@ export function BudgetBoard({
       )}
 
       {/* Transactions Stripe (cotisations + taxes de séjour réellement
-          encaissées) -- widget dépliable, visible par admin ET famille
-          (demande de Nicolas, 17/10/2026), compte Lalande et compte
-          Canat toujours affichés séparément à l'intérieur, même quand un
-          seul des deux comptes est sélectionné plus haut sur la page. */}
+          encaissées) -- widget dépliable, réservé aux admins depuis le
+          23/10/2026 (demande d'Aurélie, revient sur la décision du
+          17/10/2026 qui l'ouvrait aussi à la famille). Compte Lalande et
+          compte Canat toujours affichés séparément à l'intérieur, même
+          quand un seul des deux comptes est sélectionné plus haut sur la
+          page. */}
+      {isAdmin && (
       <Card className="py-0">
         {/* Entete repliee calee a 40px (Card sans padding vertical propre
             + bouton h-10), meme pattern exact que GuideCard.tsx (Guide
@@ -484,6 +487,7 @@ export function BudgetBoard({
           </CardContent>
         )}
       </Card>
+      )}
 
       {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
           texte collé : même pattern de sélection de fichier que

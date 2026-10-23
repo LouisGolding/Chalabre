@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { BudgetBoard } from '@/components/budget/BudgetBoard'
 import type { BudgetStatement, BudgetStripeTransaction } from '@/types'
@@ -41,11 +41,9 @@ import type { BudgetStatement, BudgetStripeTransaction } from '@/types'
 // donc ici d'interroger budget_statements pour un compte "family", qui
 // n'y aurait de toute façon pas accès.
 export default async function BudgetPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   // "friend" reste exclu (comme Réalisations/Entretien, voir TileNav.tsx) ;
   // admin et family accèdent désormais tous les deux à la page.
   if (profile?.role !== 'admin' && profile?.role !== 'family') redirect('/dashboard')

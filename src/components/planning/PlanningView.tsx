@@ -237,12 +237,24 @@ interface DragState {
 
 export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin, onDatesPersisted }: PlanningViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
-  // Vue par défaut : "semaine", pas "mois" comme avant — depuis que le
-  // mobile n'affiche plus que Semaine/Quinzaine (28/09/2026, demandé par
-  // Nicolas), "mois" comme état initial n'aurait correspondu à aucune
-  // pastille visible sur mobile. "Semaine" existe des deux côtés
-  // (mobile et bureau), un choix neutre pour les deux.
+  // Vue par défaut : "semaine" au premier rendu (valeur neutre, identique
+  // cote serveur et cote client, pour eviter tout flash d'hydratation),
+  // immediatement remplacee par "Quinzaine" (mobile) ou "Mois" (bureau)
+  // via le useLayoutEffect juste en dessous -- demande d'Aurelie le
+  // 23/10/2026 ("quinzaine" par defaut sur mobile, "mois" sur
+  // ordinateur). Remplace le choix du 28/09/2026 (Nicolas) qui gardait
+  // "semaine" comme valeur par defaut dans les deux cas.
   const [viewMode, setViewMode] = useState<ViewMode>('week')
+  // Bascule une seule fois, au montage (tableau de dependances vide) :
+  // si l'utilisateur change ensuite de vue, ou redimensionne la fenetre,
+  // on ne revient pas dessus. Seuil 768px = le breakpoint `md:` deja
+  // utilise partout ailleurs sur le site, y compris pour les pastilles
+  // de vue elles-memes ("Quinzaine" en md:hidden, "Mois" en hidden
+  // md:inline, voir plus bas).
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return
+    setViewMode(window.innerWidth >= 768 ? 'month' : 'fortnight')
+  }, [])
   // Direction du dernier changement de période, pour l'animation de
   // glissement (slide) — appliquée aussi bien depuis les flèches que
   // depuis un geste de glissement sur le planning.

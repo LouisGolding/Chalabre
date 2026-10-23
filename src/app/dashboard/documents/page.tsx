@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,11 +9,8 @@ import { Document } from '@/types'
 import { DOCUMENT_CATEGORIES } from '@/lib/document-categories'
 
 export default async function DocumentsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   // Onglet réservé aux admins "pour l'instant" (demande de Nicolas le
   // 17/10/2026, à l'occasion de l'ajout de la catégorie "Relevés
   // bancaires") : avant cette date, seul "friend" était bloqué, donc un

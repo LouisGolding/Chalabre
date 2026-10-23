@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { TopBanner } from '@/components/layout/TopBanner'
 import { TileNav } from '@/components/layout/TileNav'
 import { BottomNav } from '@/components/layout/BottomNav'
@@ -10,16 +10,14 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // getCurrentUserAndProfile() est memorisee par requete (23/10/2026,
+  // voir ce fichier) : le page.tsx de l'onglet affiche a l'interieur de
+  // ce layout appelle la meme fonction sans declencher de second
+  // aller-retour vers Supabase -- fait partie du correctif de latence
+  // demande par Aurelie ('3 secondes' pour ouvrir un onglet).
+  const { user, profile } = await getCurrentUserAndProfile()
 
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
 
   // Signed in but no profiles row — the handle_new_user trigger did not fire.
   // Redirecting to /auth/login here would ping-pong forever, since the proxy

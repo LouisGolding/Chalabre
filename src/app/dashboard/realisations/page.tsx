@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { RealisationsBoard, type RealisationEntry } from '@/components/realisations/RealisationsBoard'
 
@@ -10,11 +10,8 @@ import { RealisationsBoard, type RealisationEntry } from '@/components/realisati
 // les prévenir activement. Réservé aux membres de la famille (RLS
 // house_log_select, admin + family) — jamais aux amis.
 export default async function RealisationsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role === 'friend') redirect('/dashboard')
   const isAdmin = profile?.role === 'admin'
 

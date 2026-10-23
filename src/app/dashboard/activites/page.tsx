@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { ActivitesBoard } from '@/components/activites/ActivitesBoard'
 import type { LocalEvent } from '@/types'
@@ -15,11 +15,8 @@ import type { LocalEvent } from '@/types'
 // systématique ci-dessous pour tout compte non-admin (pas seulement
 // 'friend' comme documents/page.tsx).
 export default async function ActivitesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const { data: events } = await supabase

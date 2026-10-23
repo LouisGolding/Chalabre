@@ -1,8 +1,7 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { PageTitle } from '@/components/layout/PageTitle'
 import { ProfileForm } from '@/components/profil/ProfileForm'
-import type { Profile } from '@/types'
 
 // Page "Mon profil" (19/10/2026, demandée par Aurélie) : accessible à
 // tous les comptes connectés (admin, family, friend — pas réservée),
@@ -13,15 +12,8 @@ import type { Profile } from '@/types'
 // corriger, plus un numéro de téléphone (nouvelle colonne, voir
 // migration_profile_phone.sql, pas encore appliquée).
 export default async function ProfilPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single<Profile>()
 
   // Même filet de sécurité que DashboardLayout pour un compte sans ligne
   // `profiles` (le trigger handle_new_user n'a pas tourné) : pas de page

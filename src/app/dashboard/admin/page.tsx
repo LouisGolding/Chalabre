@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { MembersTable, MemberRow } from '@/components/admin/MembersTable'
 import { StaysHistory, StayRow } from '@/components/admin/StaysHistory'
@@ -78,11 +78,8 @@ function aggregateStatus(payments: NestedTsPayment[]): StayRow['status'] {
 // est délégué à StaysHistory.tsx, un composant client (l'état replié/
 // déplié par année ne peut pas vivre dans cette page serveur).
 export default async function AdminPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   if (profile?.role !== 'admin') redirect('/dashboard')
 
   const { data: profiles } = await supabase

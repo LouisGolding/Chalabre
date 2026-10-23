@@ -115,7 +115,7 @@ function sortValue(row: Contact, key: SortKey): string {
 // Mêmes caractéristiques visuelles que ce tableau (en-tête gris clair
 // majuscules, bordures, espacements des cellules) — demandé par
 // Nicolas le 30/09/2026.
-function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; contacts: Contact[]; isAdmin: boolean }) {
+function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; contacts: Contact[]; canEdit: boolean }) {
   const [rows, setRows] = useState(contacts)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -221,23 +221,23 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                     </button>
                   </th>
                 ))}
-                {isAdmin && <th className="w-14" />}
+                {canEdit && <th className="w-14" />}
               </tr>
             </thead>
             <tbody>
               {sorted.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
                   <td className="px-3 py-2.5">
-                    <EditableCell value={c.role} editable={isAdmin} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
+                    <EditableCell value={c.role} editable={canEdit} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
                   </td>
                   <td className="px-3 py-2.5 font-medium text-foreground">
-                    <EditableCell value={c.name} editable={isAdmin} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
+                    <EditableCell value={c.name} editable={canEdit} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
                   </td>
                   <td className="px-3 py-2.5">
-                    <EditableCell value={c.notes ?? ''} editable={isAdmin} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
+                    <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
                   </td>
                   <td className="px-3 py-2.5">
-                    {isAdmin ? (
+                    {canEdit ? (
                       <EditableCell value={c.phone ?? ''} editable type="tel" placeholder="Téléphone" onSave={(v) => patch(c.id, 'phone', v)} />
                     ) : c.phone ? (
                       <a href={`tel:${c.phone}`} className="flex items-center gap-1 text-primary hover:underline">
@@ -249,10 +249,10 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                     )}
                   </td>
                   <td className="px-3 py-2.5">
-                    <EditableCell value={c.address ?? ''} editable={isAdmin} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
+                    <EditableCell value={c.address ?? ''} editable={canEdit} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
                   </td>
                   <td className="px-3 py-2.5">
-                    {isAdmin ? (
+                    {canEdit ? (
                       <EditableCell value={c.email ?? ''} editable type="email" placeholder="Email" onSave={(v) => patch(c.id, 'email', v)} />
                     ) : c.email ? (
                       <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-primary hover:underline">
@@ -264,7 +264,7 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                     )}
                   </td>
                   <td className="px-3 py-2.5">
-                    {isAdmin ? (
+                    {canEdit ? (
                       <EditableCell value={c.website ?? ''} editable placeholder="Site web" onSave={(v) => patch(c.id, 'website', v)} />
                     ) : c.website ? (
                       <a href={toHref(c.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
@@ -275,7 +275,7 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
                       <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  {isAdmin && (
+                  {canEdit && (
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
                         {movingId === c.id ? (
@@ -323,7 +323,7 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
         <p className="text-sm text-muted-foreground">Aucun contact dans cette catégorie pour l’instant.</p>
       )}
 
-      {isAdmin && (
+      {canEdit && (
         <button
           type="button"
           onClick={addRow}
@@ -349,11 +349,11 @@ function CategoryPanel({ categoryId, contacts, isAdmin }: { categoryId: string; 
 function ContactCategoryCard({
   category,
   contacts,
-  isAdmin,
+  canEdit,
 }: {
   category: (typeof CONTACT_CATEGORIES)[number]
   contacts: Contact[]
-  isAdmin: boolean
+  canEdit: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
 
@@ -389,14 +389,20 @@ function ContactCategoryCard({
               repartir des données à jour plutôt que de garder l'état
               (lignes, tri) de la dernière fois où cette pastille était
               ouverte — même logique que l'ancien remount par catégorie. */}
-          <CategoryPanel key={category.id} categoryId={category.id} contacts={contacts} isAdmin={isAdmin} />
+          <CategoryPanel key={category.id} categoryId={category.id} contacts={contacts} canEdit={canEdit} />
         </CardContent>
       )}
     </Card>
   )
 }
 
-export function ContactsBoard({ contacts, isAdmin }: { contacts: Contact[]; isAdmin: boolean }) {
+// `canEdit` (ex-`isAdmin`, renomme le 23/10/2026) : ajouter, modifier ou
+// supprimer un contact dans un widget (Services/Restaurants/etc.) est
+// desormais ouvert aux comptes Admin ET Famille -- demande d'Aurelie le
+// 23/10/2026, qui remplace le precedent reglage reserve aux seuls
+// admins. Calcule dans dashboard/contacts/page.tsx a partir du role du
+// profil ; les comptes 'friend' restent en lecture seule (canEdit=false).
+export function ContactsBoard({ contacts, canEdit }: { contacts: Contact[]; canEdit: boolean }) {
   const byCategory = useMemo(() => {
     const map: Record<string, Contact[]> = {}
     for (const c of contacts) {
@@ -413,7 +419,7 @@ export function ContactsBoard({ contacts, isAdmin }: { contacts: Contact[]; isAd
           key={cat.id}
           category={cat}
           contacts={byCategory[cat.id] ?? []}
-          isAdmin={isAdmin}
+          canEdit={canEdit}
         />
       ))}
     </div>

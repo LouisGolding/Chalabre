@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { PlanningBooking } from '@/components/planning/PlanningView'
 import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
@@ -48,15 +48,8 @@ function buildColorResolver(colorByName: Map<string, PaletteRef>) {
 }
 
 export default async function PlanningPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
 
   if (!profile) redirect('/auth/login')
 

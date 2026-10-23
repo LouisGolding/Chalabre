@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { TasksBoard, TaskItem } from '@/components/dashboard/TasksBoard'
 import { TaskContactTag, TaskNote } from '@/types'
@@ -9,11 +9,8 @@ import { TaskContactTag, TaskNote } from '@/types'
 // TasksBoard.tsx pour la refonte complète du fonctionnement (catégories,
 // urgence, période, récurrence jardin, archives...).
 export default async function TachesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   // "friend" exclu, comme Réalisations/Budget (voir TileNav.tsx,
   // hiddenForFriend) -- manquait ici jusqu'au 18/10/2026 (audit
   // pré-lancement, point signalé à Nicolas) : la tuile était bien

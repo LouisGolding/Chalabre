@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,10 +8,12 @@ import { PayButton } from '@/components/payment/PayButton'
 import { CheckCircle, Clock } from 'lucide-react'
 
 export default async function MesPaiementsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
 
+  // Select enrichi (bookings + ts_payments imbriqués), différent du profil
+  // "générique" mis en cache par getCurrentUserAndProfile() -- requête
+  // séparée, mais le getUser() ci-dessus reste partagé avec le layout.
   const { data: profile } = await supabase
     .from('profiles')
     .select('*, bookings(*, ts_payments(*))')

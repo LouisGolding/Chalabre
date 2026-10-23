@@ -1,6 +1,6 @@
 import { PageTitle } from '@/components/layout/PageTitle'
 import type { ReactNode } from 'react'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { EmergencyGuide } from '@/components/guide/EmergencyGuide'
 import { EMERGENCY_CATEGORIES } from '@/lib/emergency-guide'
@@ -134,13 +134,10 @@ const guideContent: { category: string; items: { title: string; content: ReactNo
 ]
 
 export default async function GuidePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
 
   const { data: contacts } = await supabase.from('contacts').select('*')
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
   // "Bouteilles de gaz" : modifiable par tout compte famille ou admin,
   // jamais les amis — demandé par Aurélie le 22/09/2026. Widget masqué
   // pour le moment (voir SHOW_GAS_BOTTLES) mais logique conservée.
