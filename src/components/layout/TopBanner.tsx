@@ -68,13 +68,14 @@ export function TopBanner({ profile }: { profile: Profile }) {
   const pathname = usePathname()
   const hasPhotoBackground = pathname === '/dashboard'
 
-  // Médaillon "Mon profil" (23/10/2026, demande d'Aurélie) : les comptes
-  // famille et amis n'ont plus de bandeau du bas du tout (voir
-  // BottomNav.tsx, qui ne se rend plus pour ces deux rôles) -- leur seul
-  // lien, "Mon profil", vit désormais ici, sous la forme d'un petit
-  // médaillon en haut à droite plutôt qu'un onglet de bandeau. Comptes
-  // admin : inchangé, "Mon profil" reste dans BottomNav avec
-  // Membres/Suivi paiements/etc., pas de médaillon ici pour eux.
+  // Médaillon "Mon profil" (23/10/2026, demande d'Aurélie) : affiché ici
+  // pour TOUS les rôles, admin compris (précisé par Aurélie après un
+  // premier essai limité à famille/amis) -- "Mon profil" a disparu de
+  // BottomNav pour tout le monde (voir BottomNav.tsx). Seule différence
+  // entre rôles : les comptes famille et amis n'ont plus de bandeau du
+  // bas du tout (BottomNav ne s'y rend plus), les comptes admin gardent
+  // ce bandeau pour Membres/Suivi paiements/Documents/Activités, sans
+  // "Mon profil" dedans.
   //
   // Initiale + couleur : même calcul que NextStayCard.tsx (color_hue
   // enregistré en base si connu, sinon repli calculé depuis le nom),
@@ -91,7 +92,6 @@ export function TopBanner({ profile }: { profile: Profile }) {
   // hauteur à max-w-[112px], ratio 652/1897) / 2 ≈ 49px depuis le haut du
   // bandeau. Zone cliquable de 36px centrée sur cette même ligne :
   // top = 49 - 18 = 31px.
-  const showProfileBadge = profile.role !== 'admin'
   const colorIndex =
     typeof profile.color_hue === 'number'
       ? profile.color_hue
@@ -125,21 +125,19 @@ export function TopBanner({ profile }: { profile: Profile }) {
           className="h-auto w-[25.6vw] max-w-[112px]"
         />
       </Link>
-      {showProfileBadge && (
-        <Link
-          href="/dashboard/profil"
-          aria-label="Mon profil"
-          className="absolute right-4 top-[31px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
+      <Link
+        href="/dashboard/profil"
+        aria-label="Mon profil"
+        className="absolute right-4 top-[31px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-[23px] w-[23px] items-center justify-center rounded-full border-[1.4px] text-xs leading-none"
+          style={{ borderColor: badgeColor, color: badgeColor }}
         >
-          <span
-            aria-hidden="true"
-            className="flex h-[23px] w-[23px] items-center justify-center rounded-full border-[1.4px] text-xs leading-none"
-            style={{ borderColor: badgeColor, color: badgeColor }}
-          >
-            {initial}
-          </span>
-        </Link>
-      )}
+          {initial}
+        </span>
+      </Link>
     </header>
   )
 }

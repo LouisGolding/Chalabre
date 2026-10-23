@@ -86,32 +86,35 @@ const SHOW_SUIVI_PAIEMENTS = false
 // onglets (pas seulement l'accueil).
 //
 // "Se déconnecter" devient "Mon profil" (19/10/2026, demande
-// d'Aurélie) : le lien vit toujours à cette même place (voir tout le
-// commentaire ci-dessus sur le positionnement, inchangé), mais mène
-// désormais à une page dédiée (/dashboard/profil) qui reprend les
+// d'Aurélie) : menait à une page dédiée (/dashboard/profil) qui reprend les
 // informations saisies à la première connexion, modifiables, avec un
 // numéro de téléphone en plus -- "Se déconnecter" lui-même n'a pas
 // disparu, il a simplement été déplacé en bas de cette nouvelle page
 // (voir ProfileForm.tsx).
+//
+// "Mon profil" retiré de ce bandeau pour TOUS les rôles, admin compris
+// (23/10/2026, demande d'Aurélie) : vit désormais exclusivement dans le
+// médaillon du bandeau du haut (voir TopBanner.tsx), identique pour tout
+// le monde. Seule différence entre rôles désormais : les comptes famille
+// et amis n'ont plus aucun bandeau du bas du tout (ADMIN_ITEMS est vide
+// pour eux, voir plus haut) ; les comptes admin gardent ce bandeau pour
+// Membres / Suivi paiements / Documents / Activités, simplement sans
+// "Mon profil" dedans. Le split itemsBefore/itemsAfter qui existait pour
+// intercaler "Mon profil" au milieu de la liste n'a donc plus lieu d'être
+// -- ADMIN_ITEMS s'affiche désormais directement, dans l'ordre.
 export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
 
-  // Bandeau retiré entièrement pour les comptes famille et amis (23/10/2026,
-  // demande d'Aurélie) : ces deux rôles n'avaient plus que "Mon profil" ici
-  // (items vide pour eux, voir ADMIN_ITEMS ci-dessus), lien désormais déplacé
-  // dans le bandeau du haut sous forme de médaillon (voir TopBanner.tsx).
-  // Comptes admin : inchangé, ce bandeau reste utile (Membres, Suivi
-  // paiements, Documents, Activités) et garde "Mon profil" avec le reste.
+  // Bandeau retiré entièrement pour les comptes famille et amis
+  // (23/10/2026, demande d'Aurélie) : ces deux rôles n'ont plus rien à y
+  // afficher (ADMIN_ITEMS vide pour eux, "Mon profil" vit désormais dans
+  // TopBanner pour tout le monde, voir plus haut).
   if (role !== 'admin') return null
 
   const items = ADMIN_ITEMS.filter(
     (item) => SHOW_SUIVI_PAIEMENTS || item.href !== '/dashboard/admin/paiements'
   )
   const hasPhotoBackground = pathname === '/dashboard'
-  // Split fixe (pas de calcul générique sur items.length) : voir le
-  // commentaire du 06/10/2026 ci-dessus sur ADMIN_ITEMS.
-  const itemsBefore = items.slice(0, 1)
-  const itemsAfter = items.slice(1)
 
   const linkClass = (active: boolean) =>
     cn(
@@ -139,18 +142,7 @@ export function BottomNav({ role }: { role: UserRole }) {
           "bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
       )}
     >
-      {itemsBefore.map((item) => (
-        <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
-          {item.label}
-        </Link>
-      ))}
-      <Link
-        href="/dashboard/profil"
-        className={linkClass(pathname === '/dashboard/profil')}
-      >
-        Mon profil
-      </Link>
-      {itemsAfter.map((item) => (
+      {items.map((item) => (
         <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
           {item.label}
         </Link>
