@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { stripe } from '@/lib/stripe'
+import { constructWebhookEvent } from '@/lib/stripe'
 import { createAdminClient } from '@/lib/supabase/admin'
 import Stripe from 'stripe'
 
@@ -11,17 +11,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No signature' }, { status: 400 })
   }
 
-  let event: Stripe.Event
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
-    )
-  } catch {
+  // Lalande ou Canat : le secret qui valide la signature désigne le compte
+  // émetteur, et donc le client Stripe à utiliser pour relire le paiement.
+  const verified = constructWebhookEvent(body, signature)
+  if (!verified) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
+  const { event, stripe } = verified
 
   // Stripe sends no session cookie, so the anon-key client would be treated as
   // an unauthenticated user and RLS would silently discard every write below.
