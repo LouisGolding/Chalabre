@@ -203,12 +203,22 @@ export function TileNav({ role }: { role: UserRole }) {
           // d'Aurélie) : seule la croix doit se voir, pas de pastille
           // ni de texture derrière elle. La zone cliquable (h-10 w-14)
           // reste plus grande que l'icône pour un clic confortable.
+          // appearance-none/bg-transparent/border-0/p-0 ajoutés le
+          // 25/10/2026 (Aurélie a vu, sur Safari macOS en local, un cadre
+          // beige avec des coins en accolade autour de la croix, et la
+          // poignée bien plus haute que prévu) : Tailwind v4 ne neutralise
+          // plus l'apparence native des boutons par défaut (contrairement à
+          // v3) -- Safari appliquait donc son bouton système natif (fond,
+          // bordure, padding), qui ignorait la taille h-10/w-14 voulue.
+          // Seul ce bouton-ci était concerné : c'est le seul du site sans
+          // aucune classe de fond/bordure, les autres boutons masquent déjà
+          // ce rendu natif par leur propre fond.
           <button
             type="button"
             onClick={() => setIsOpen((v) => !v)}
             aria-expanded={isOpen}
             aria-label={isOpen ? 'Masquer les onglets' : 'Afficher les onglets'}
-            className="relative flex h-10 w-14 items-center justify-center text-foreground transition-opacity hover:opacity-70"
+            className="relative flex h-10 w-14 appearance-none items-center justify-center border-0 bg-transparent p-0 text-foreground transition-opacity hover:opacity-70"
           >
             {/* Croix occitane a la place du chevron (23/10/2026, demande
                 d'Aurelie, maquette validee), ajustee le meme jour (icone 2x
