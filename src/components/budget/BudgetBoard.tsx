@@ -709,6 +709,12 @@ function DeleteStatementButton({ id }: { id: string }) {
   const [pending, setPending] = useState(false)
 
   const handleDelete = async () => {
+    // Confirmation avant suppression (25/10/2026, demande d'Aurélie :
+    // "lorsqu'on clique du le symbole 'poubelle' pour supprimer une
+    // ligne, il faut que tu demandes confirmation de la suppression
+    // avant") -- même principe que ActivitesBoard.tsx/RealisationsBoard.tsx,
+    // qui l'avaient déjà.
+    if (!confirm('Supprimer ce relevé ?')) return
     setPending(true)
     try {
       const res = await fetch(`/api/budget/statements?id=${id}`, { method: 'DELETE' })

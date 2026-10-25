@@ -98,6 +98,10 @@ export function DeleteDocumentButton({ id }: { id: string }) {
   const [pending, setPending] = useState(false)
 
   const handleDelete = async () => {
+    // Confirmation avant suppression (25/10/2026, demande d'Aurélie, voir
+    // le commentaire équivalent dans BudgetBoard.tsx pour le contexte
+    // complet).
+    if (!confirm('Supprimer ce document ?')) return
     setPending(true)
     try {
       const res = await fetch(`/api/documents?id=${id}`, { method: 'DELETE' })

@@ -160,6 +160,10 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
   }
 
   const remove = async (id: string) => {
+    // Confirmation avant suppression (25/10/2026, demande d'Aurélie, voir
+    // le commentaire équivalent dans BudgetBoard.tsx pour le contexte
+    // complet).
+    if (!confirm('Supprimer ce contact ?')) return
     setRows((prev) => prev.filter((r) => r.id !== id))
     try {
       await fetch(`/api/contacts?id=${id}`, { method: 'DELETE' })

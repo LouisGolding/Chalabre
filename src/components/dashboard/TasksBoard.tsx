@@ -423,6 +423,12 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
   }
 
   const deleteTask = async (id: string) => {
+    // Confirmation avant suppression (25/10/2026, demande d'Aurélie, voir
+    // le commentaire équivalent dans BudgetBoard.tsx pour le contexte
+    // complet). Ne concerne que la poubelle de la tâche elle-même -- pas
+    // le "X" qui supprime une note de suivi (symbole différent, action
+    // plus légère, hors du périmètre de cette demande).
+    if (!confirm('Supprimer cette tâche ?')) return
     const previous = tasks
     setTasks((prev) => prev.filter((t) => t.id !== id))
     try {
