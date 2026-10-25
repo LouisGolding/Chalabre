@@ -132,14 +132,20 @@ export default function LoginPage() {
           un zoom plus fort dégage plus de ciel mais recadre la bâtisse
           sous la carte, un zoom plus faible remonte les montagnes derrière
           le texte. Si la mise en page du haut ou de la carte change, ces
-          valeurs sont à recalculer. */}
+          valeurs sont à recalculer.
+          Remontée de 15px le 25/10/2026 (demande d'Aurélie : "deplace la
+          photo de fond vers le haut de 15 pixels") : ajout d'un terme
+          calc(... - 15px) sur l'axe vertical plutôt qu'un nouveau
+          pourcentage, pour un décalage fixe en pixels identique à
+          n'importe quelle hauteur d'écran (un delta en % varierait avec
+          la hauteur du viewport). */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: "url('/images/login-bg-mobile.jpg')",
             backgroundSize: 'auto 110%',
-            backgroundPosition: '51.6% 87%',
+            backgroundPosition: '51.6% calc(87% - 15px)',
           }}
         />
       </div>
@@ -187,7 +193,7 @@ export default function LoginPage() {
             resserrant encore le padding du cadre (py-2 -> py-[3px]) et de
             chaque champ (py-2 -> py-1), sans toucher à la taille du texte
             (text-lg conservé). */}
-        <div className="mx-9 rounded-2xl bg-card px-6 py-[3px] shadow-lg md:mx-auto md:w-[370px]">
+        <div className="mx-9 rounded-2xl card-canson px-6 py-[3px] shadow-lg md:mx-auto md:w-[370px]">
           <input
             type="email"
             value={email}
@@ -225,11 +231,15 @@ export default function LoginPage() {
             le 07/10/2026 à la demande de Nicolas (48px -> 36px mesurés en
             mobile : py-3 -> py-1.5, text-base conservé), tracking resserré
             de 0,15em à 0,08em au même moment (aligné sur actionPillClass,
-            voir lib/utils.ts). */}
+            voir lib/utils.ts). Taille du texte réduite le 25/10/2026
+            (demande d'Aurélie : "reduit un peu la taille de la police de
+            'se connecter'") : text-base -> text-sm. Graisse mise en
+            semi-gras le même jour (toujours Aurélie : "'se connecter'
+            doit etre en semi bold") : font-semibold ajouté. */}
         <button
           type="submit"
           disabled={loading}
-          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-1.5 text-center font-serif text-base uppercase tracking-[0.08em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:w-[370px]"
+          className="mx-9 mt-4 block w-[calc(100%-4.5rem)] rounded-2xl bg-[#393F2F] py-1.5 text-center font-serif text-sm font-semibold uppercase tracking-[0.08em] text-[#F5F1EF] disabled:opacity-50 md:mx-auto md:w-[370px]"
         >
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
@@ -244,11 +254,17 @@ export default function LoginPage() {
           <div className="h-px flex-1 bg-white/40" />
         </div>
 
+        {/* "CONTINUER AVEC GOOGLE" en majuscules EB Garamond (25/10/2026,
+            demande d'Aurélie) : uppercase ajouté, font-serif déjà = EB
+            Garamond (voir layout.tsx, --font-eb-garamond mappée sur
+            --font-sans ET --font-serif). Même taille que "SE CONNECTER"
+            le même jour (toujours Aurélie : "'continuer avec google' de
+            la meme taille que 'se connecter'") : text-base -> text-sm. */}
         <button
           type="button"
           onClick={handleGoogleLogin}
           disabled={googleLoading}
-          className="mx-9 mt-4 flex w-[calc(100%-4.5rem)] items-center justify-center gap-3 rounded-2xl bg-card py-1.5 text-center font-serif text-base text-card-foreground shadow-lg disabled:opacity-50 md:mx-auto md:w-[370px]"
+          className="mx-9 mt-4 flex w-[calc(100%-4.5rem)] items-center justify-center gap-3 rounded-2xl card-canson py-1.5 text-center font-serif text-sm font-semibold uppercase text-card-foreground shadow-lg disabled:opacity-50 md:mx-auto md:w-[370px]"
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -259,18 +275,21 @@ export default function LoginPage() {
           {googleLoading ? 'Redirection...' : 'Continuer avec Google'}
         </button>
 
-        {/* Liens, en blanc directement sur la photo, sous la pastille. */}
-        <div className="mx-9 mt-4 space-y-0.5 text-sm font-medium text-white md:mx-auto md:max-w-sm">
-          <p>
-            <Link href="/auth/reset-password" className="hover:opacity-80 transition-opacity">
-              Mot de passe oublié
-            </Link>
-          </p>
-          <p>
-            <Link href="/auth/register" className="hover:opacity-80 transition-opacity">
-              S&apos;inscrire
-            </Link>
-          </p>
+        {/* Liens, en blanc directement sur la photo, sous la pastille.
+            En majuscules EB Garamond (25/10/2026, demande d'Aurélie) :
+            font-serif (= EB Garamond) + uppercase ajoutés. Sur une seule
+            ligne (même jour, demande d'Aurélie : "met 'mot de passe
+            oublié' aligné a droite, et mets sur la meme ligne, aligné à
+            gauche 's'inscrire'") : flex justify-between plutôt que les
+            deux <p> empilés d'origine -- "S'inscrire" à gauche, "Mot de
+            passe oublié" à droite. */}
+        <div className="mx-9 mt-4 flex items-center justify-between font-serif text-sm uppercase font-semibold text-white md:mx-auto md:max-w-sm">
+          <Link href="/auth/register" className="hover:opacity-80 transition-opacity">
+            S&apos;inscrire
+          </Link>
+          <Link href="/auth/reset-password" className="hover:opacity-80 transition-opacity">
+            Mot de passe oublié
+          </Link>
         </div>
       </form>
     </div>
