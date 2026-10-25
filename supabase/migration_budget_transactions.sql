@@ -8,7 +8,8 @@
 -- Rejouable sans risque.
 -- ============================================================
 --
--- ⚠️ NE PAS APPLIQUER SANS L'ACCORD DE LOUIS ⚠️
+-- ✅ APPLIQUÉE EN BASE le 25/10/2026, à la demande de Louis (table, RLS,
+-- 3 politiques et 3 index vérifiés en lecture seule ensuite).
 --
 -- Contexte : Nicolas a demandé le 25/10/2026 que le dépôt d'un relevé
 -- catégorise automatiquement les transactions avec une clé API
