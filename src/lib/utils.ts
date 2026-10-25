@@ -134,7 +134,7 @@ export function normalizeName(name: string): string {
 
 // Mois sur 3 lettres, toujours dans cet ordre — demandé par Aurélie le
 // 22/09/2026 pour le libellé bancaire des paiements de taxe de séjour
-// (voir buildTsStatementDescriptor ci-dessous).
+// (voir buildTsStatementDescriptorSuffix ci-dessous).
 export const MONTHS_3 = [
   'JAN', 'FEV', 'MAR', 'AVR', 'MAI', 'JUN',
   'JUL', 'AOU', 'SEP', 'OCT', 'NOV', 'DEC',
@@ -154,25 +154,27 @@ export function tsPeriodFromCheckOut(checkOutISO: string): TsPeriod {
   return { year: d.getUTCFullYear(), monthIndex: d.getUTCMonth() }
 }
 
-// Libellé bancaire ("statement descriptor" Stripe) d'un règlement de taxe
-// de séjour, ex. TS_OSCAR_2026/JUN — ou, si plusieurs séjours impayés
-// d'une même personne sont réglés en un seul paiement groupé,
-// TS_OSCAR_2026/JUN+2025/DEC (demandé par Aurélie le 22/09/2026 : "un seul
-// paiement groupé, mais le libellé affichera les deux mois qui
-// correspondent aux 2 différents séjours").
+// Fin du libellé bancaire d'un règlement de taxe de séjour : le prénom et
+// le mois du dernier jour de chaque séjour, ex. LEA JUN26 (demande
+// d'Aurélie : le libellé affiche le mois du séjour).
 //
-// Stripe limite ce libellé à 22 caractères et interdit certains
-// caractères spéciaux (< > \ ' " *) — le prénom est ici toujours réduit
-// aux lettres non accentuées, et si le résultat dépasse 22 caractères, on
-// raccourcit d'abord le prénom (jusqu'à 3 lettres minimum), puis, en tout
-// dernier recours seulement, on retire les séjours les plus anciens —
-// choix confirmé par Aurélie.
-export function buildTsStatementDescriptor(firstName: string, periods: TsPeriod[]): string {
+// Pour un paiement par carte, Stripe refuse un libellé complet : il accepte
+// seulement un suffixe, affiché après le libellé abrégé du compte
+// (ex. "LABATISSE* OSCAR JUN26"), et les banques coupent le tout à 22
+// caractères. Le libellé abrégé fait au plus 10 caractères, plus "* " :
+// il reste donc 10 caractères pour le suffixe. Au-delà, on raccourcit
+// d'abord le prénom (jusqu'à 3 lettres), puis on retire les séjours les plus
+// anciens : un paiement groupé n'affiche donc que le mois le plus récent.
+// Le détail de chaque séjour reste sur le reçu Stripe (lignes du paiement). Seules les lettres non accentuées sont gardées dans le prénom
+// (Stripe interdit < > \ ' " *).
+const TS_DESCRIPTOR_SUFFIX_MAX = 10
+
+export function buildTsStatementDescriptorSuffix(firstName: string, periods: TsPeriod[]): string {
   const uniqueSorted = Array.from(
     new Map(periods.map((p) => [`${p.year}-${p.monthIndex}`, p])).values()
   ).sort((a, b) => a.year - b.year || a.monthIndex - b.monthIndex)
 
-  let segments = uniqueSorted.map((p) => `${p.year}/${MONTHS_3[p.monthIndex]}`)
+  let segments = uniqueSorted.map((p) => `${MONTHS_3[p.monthIndex]}${String(p.year).slice(-2)}`)
 
   let name = firstName
     .normalize('NFD')
@@ -181,14 +183,14 @@ export function buildTsStatementDescriptor(firstName: string, periods: TsPeriod[
     .toUpperCase()
   if (!name) name = 'X'
 
-  const build = () => `TS_${name}_${segments.join('+')}`
+  const build = () => `${name} ${segments.join('+')}`
   let result = build()
 
-  while (result.length > 22 && name.length > 3) {
+  while (result.length > TS_DESCRIPTOR_SUFFIX_MAX && name.length > 3) {
     name = name.slice(0, -1)
     result = build()
   }
-  while (result.length > 22 && segments.length > 1) {
+  while (result.length > TS_DESCRIPTOR_SUFFIX_MAX && segments.length > 1) {
     segments = segments.slice(1) // retire le séjour le plus ancien en premier
     result = build()
   }

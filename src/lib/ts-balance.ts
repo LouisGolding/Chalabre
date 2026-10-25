@@ -7,7 +7,7 @@ export interface TsBalanceItem {
   amount: number
   checkOut: string
   period: TsPeriod
-  label: string // ex. "2026/JUN", pour affichage/debug — voir buildTsStatementDescriptor pour le libellé bancaire complet
+  label: string // ex. "2026/JUN", pour affichage/debug — voir buildTsStatementDescriptorSuffix pour le libellé bancaire
 }
 
 export interface TsBalanceBucket {
