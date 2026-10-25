@@ -59,6 +59,11 @@ export default async function TachesPage() {
     recurrence: TaskItem['recurrence']
     completed: boolean
     completed_at: string | null
+    // Auteur de la tache (deja selectionne via `*`) -- ajoute le
+    // 25/10/2026 pour permettre a chacun d'editer/corriger la ligne
+    // qu'il a rentree (demande d'Aurelie) : voir TasksBoard.tsx et
+    // migration_tasks_family_access.sql.
+    created_by: string | null
     profiles: { first_name: string; last_name: string } | null
     task_notes:
       | {
@@ -101,6 +106,7 @@ export default async function TachesPage() {
       recurrence: t.recurrence ?? null,
       completed: t.completed,
       completedAt: t.completed_at ?? null,
+      createdBy: t.created_by,
       authorName: t.profiles ? `${t.profiles.first_name} ${t.profiles.last_name}` : null,
       notes,
       contacts,
@@ -128,6 +134,13 @@ export default async function TachesPage() {
         servicesContacts={serviceContacts}
         currentUserId={user.id}
       />
+      {/* `canEdit` ci-dessus garde son sens d'origine ("réservé aux
+          admins") -- utilisé dans TasksBoard pour la suppression et pour
+          autoriser un admin à corriger N'IMPORTE QUELLE ligne. Depuis le
+          25/10/2026, l'ajout et la coche sont ouverts à la famille sans
+          condition (la page elle-même redirige déjà les comptes "friend"
+          plus haut), et chacun peut éditer les lignes qu'il a créées
+          lui-même via `createdBy` (voir TaskItem/TasksBoard.tsx). */}
     </div>
   )
 }

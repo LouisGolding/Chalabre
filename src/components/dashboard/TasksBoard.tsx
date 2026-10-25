@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChevronDown, MessageCircle, Phone, Trash2, X } from 'lucide-react'
+import { ChevronDown, MessageCircle, Pencil, Phone, Trash2, X } from 'lucide-react'
 import { actionPillClass, cn, viewTogglePillClass } from '@/lib/utils'
 import { MONTH_OPTIONS, SEASON_OPTIONS, PERIOD_LABELS, TaskPeriod, isPeriodCurrent } from '@/lib/task-periods'
 import { TaskContactTag, TaskNote } from '@/types'
@@ -69,6 +69,31 @@ import { TaskContactTag, TaskNote } from '@/types'
 //   titre "Entretien et reparations".
 // - Le titre d'une tache n'est plus tronque : il passe a la ligne quand
 //   il est trop long, le reste de la ligne est inchange.
+//
+// Ouverture a la famille du 25/10/2026, demandee par Aurelie : "il faut
+// que le widget 'entretien et reparations' soit accessible aussi aux
+// comptes famille. il faut que dans la liste des taches, chacun puisse
+// editer/corriger la ligne qu'il a rentre. Et il faut que les admins,
+// puisse corriger chaque ligne si ils le souhaitent". La page elle-meme
+// (dashboard/taches/page.tsx) autorisait deja les comptes famille a
+// OUVRIR cette page, mais `canEdit` (reserve aux admins, voir policy
+// "tasks_admin" en base) desactivait le formulaire d'ajout ET la case a
+// cocher pour tout le monde sauf les admins -- en contradiction avec
+// l'intention affichee dans api/tasks/route.ts ("le PATCH (coche) n'a
+// volontairement pas de verification de role"). Changements :
+// - Formulaire d'ajout et case a cocher : desormais toujours actifs des
+//   qu'on peut ouvrir cette page (donc admin OU famille, "friend" etant
+//   deja bloque plus haut) -- `canEdit` n'y intervient plus du tout.
+// - Nouveau : chaque ligne devient editable (crayon a cote de la
+//   poubelle) par son auteur (task.createdBy === currentUserId) OU par
+//   un admin (canEdit) -- voir TaskRow plus bas. Cote serveur, voir
+//   migration_tasks_family_access.sql (policies RLS, pas encore
+//   appliquee) et la verification explicite dans le PATCH de
+//   api/tasks/route.ts.
+// - Inchange : `canEdit` garde son sens d'origine ("est admin") pour la
+//   suppression de tache (poubelle) et pour la suppression de note de
+//   suivi d'un autre auteur -- Aurelie n'a pas demande a changer ces
+//   deux points.
 
 type Category = 'entretien' | 'reparation' | 'plomberie' | 'electricite' | 'jardin' | 'manutention' | 'autre'
 type Priority = 'low' | 'medium' | 'high'
@@ -84,6 +109,11 @@ export interface TaskItem {
   recurrence: Recurrence | null
   completed: boolean
   completedAt: string | null
+  // Auteur de la tache, pour determiner si l'utilisateur courant peut
+  // l'editer sans etre admin (demande d'Aurelie du 25/10/2026, voir le
+  // grand commentaire plus haut dans ce fichier). Distinct de
+  // `authorName` ci-dessous (libelle affiche) : un id, pas un nom.
+  createdBy: string | null
   authorName: string | null
   // Suivi & Contact (19/10/2026, demandé par Aurélie) -- remplacent
   // l'ancien champ unique `comment` : plusieurs notes datées (chacune
@@ -282,6 +312,31 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
     }
   }
 
+  // Édition en place d'une ligne (25/10/2026, demande d'Aurélie) --
+  // réservée côté UI à l'auteur de la tâche ou à un admin (voir
+  // TaskRow : canEditRow), et revérifiée côté serveur (voir le
+  // commentaire en tête de api/tasks/route.ts). `updates` ne contient
+  // que les champs effectivement modifiés par TaskRow.
+  const editTask = async (
+    id: string,
+    updates: Partial<Pick<TaskItem, 'title' | 'category' | 'priority' | 'period' | 'recurrence'>>
+  ) => {
+    const previous = tasks
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
+    try {
+      const res = await fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updates }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? 'Erreur')
+    } catch (err) {
+      setTasks(previous)
+      setError(err instanceof Error ? err.message : 'Impossible de modifier cette tâche.')
+    }
+  }
+
   // --- Suivi : plusieurs notes datées par tâche, chacune pouvant porter
   //     une date de RDV facultative (voir migration_task_notes_contacts.sql
   //     et dashboard/page.tsx pour le widget d'accueil "RDV à venir"). ---
@@ -404,6 +459,10 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
           recurrence: t.recurrence ?? null,
           completed: t.completed,
           completedAt: t.completed_at ?? null,
+          // t.created_by vient de la reponse POST (.select().single())
+          // donc toujours fiable ; currentUserId en repli si jamais
+          // absent (ne devrait pas arriver).
+          createdBy: t.created_by ?? currentUserId,
           authorName: null,
           notes: [],
           contacts: [],
@@ -497,8 +556,10 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
           <CardContent className="space-y-5 pb-[10px]">
             {/* Plus de ligne grise ici -- demande par Nicolas le
                 05/10/2026 : retiree du bas du widget. */}
-            {canEdit && (
-              <div className="space-y-3">
+            {/* Formulaire d'ajout ouvert a tous (admin + famille) depuis
+                le 25/10/2026 -- auparavant reserve aux admins via
+                `canEdit`, voir le grand commentaire en tete de fichier. */}
+            <div className="space-y-3">
                 {/* Encadre traite exactement comme le champ "Titre" de
                     "Partager ce qui a ete fait" (RealisationsBoard.tsx) --
                     demande par Nicolas le 05/10/2026 : remplace le
@@ -590,7 +651,6 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                 {saving ? 'Publication...' : 'Publier'}
               </button>
             </div>
-          )}
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -612,6 +672,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                     currentUserId={currentUserId}
                     onToggle={toggle}
                     onDelete={deleteTask}
+                    onEditTask={editTask}
                     servicesContacts={servicesContacts}
                     suiviOpen={suiviOpen}
                     pickerOpenFor={pickerOpenFor}
@@ -675,6 +736,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                 currentUserId={currentUserId}
                 onToggle={toggle}
                 onDelete={deleteTask}
+                onEditTask={editTask}
                 servicesContacts={servicesContacts}
                 suiviOpen={suiviOpen}
                 pickerOpenFor={pickerOpenFor}
@@ -700,6 +762,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                 currentUserId={currentUserId}
                 onToggle={toggle}
                 onDelete={deleteTask}
+                onEditTask={editTask}
                 servicesContacts={servicesContacts}
                 suiviOpen={suiviOpen}
                 pickerOpenFor={pickerOpenFor}
@@ -725,6 +788,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                 currentUserId={currentUserId}
                 onToggle={toggle}
                 onDelete={deleteTask}
+                onEditTask={editTask}
                 servicesContacts={servicesContacts}
                 suiviOpen={suiviOpen}
                 pickerOpenFor={pickerOpenFor}
@@ -755,6 +819,7 @@ function TaskList({
   currentUserId,
   onToggle,
   onDelete,
+  onEditTask,
   servicesContacts,
   suiviOpen,
   pickerOpenFor,
@@ -776,6 +841,10 @@ function TaskList({
   currentUserId: string
   onToggle: (task: TaskItem) => void
   onDelete: (id: string) => void
+  onEditTask: (
+    taskId: string,
+    updates: Partial<Pick<TaskItem, 'title' | 'category' | 'priority' | 'period' | 'recurrence'>>
+  ) => void
   servicesContacts: ServiceContact[]
   suiviOpen: Record<string, boolean>
   pickerOpenFor: string | null
@@ -810,6 +879,7 @@ function TaskList({
           currentUserId={currentUserId}
           onToggle={() => onToggle(task)}
           onDelete={() => onDelete(task.id)}
+          onEditSave={(updates) => onEditTask(task.id, updates)}
           servicesContacts={servicesContacts}
           suiviOpen={!!suiviOpen[task.id]}
           showPicker={pickerOpenFor === task.id}
@@ -845,13 +915,16 @@ function formatNoteDate(iso: string): string {
 // tâche à un ou plusieurs artisans (Contacts → Services) et tiennent un
 // historique de notes datées, chacune pouvant porter une date de RDV.
 // Ouvert à l'admin ET à la famille (indépendant de `canEdit`, réservé
-// lui à l'ajout/suppression de tâche).
+// lui à la suppression de tâche et à l'édition de n'importe quelle
+// ligne -- voir `canEditRow` ci-dessous pour l'édition "limitée à sa
+// propre ligne", ajoutée le 25/10/2026).
 function TaskRow({
   task,
   canEdit,
   currentUserId,
   onToggle,
   onDelete,
+  onEditSave,
   servicesContacts,
   suiviOpen,
   showPicker,
@@ -872,6 +945,9 @@ function TaskRow({
   currentUserId: string
   onToggle: () => void
   onDelete: () => void
+  onEditSave: (
+    updates: Partial<Pick<TaskItem, 'title' | 'category' | 'priority' | 'period' | 'recurrence'>>
+  ) => void
   servicesContacts: ServiceContact[]
   suiviOpen: boolean
   showPicker: boolean
@@ -896,16 +972,55 @@ function TaskRow({
   // contact du tout pour cette catégorie (demande d'Aurélie).
   const canAddContact = task.category !== 'autre'
 
+  // Édition en place d'une ligne (25/10/2026, demande d'Aurélie) :
+  // l'auteur de la tâche (task.createdBy) peut corriger sa propre ligne,
+  // un admin (canEdit) peut corriger n'importe laquelle. Brouillon
+  // réinitialisé depuis `task` à chaque ouverture du panneau (openEdit),
+  // pas seulement au montage, pour repartir des valeurs à jour si la
+  // tâche a changé entre-temps (ex. coche par quelqu'un d'autre).
+  const canEditRow = canEdit || task.createdBy === currentUserId
+  const [editOpen, setEditOpen] = useState(false)
+  const [draftTitle, setDraftTitle] = useState(task.title)
+  const [draftCategory, setDraftCategory] = useState<Category>(task.category)
+  const [draftPriority, setDraftPriority] = useState<Priority>(task.priority)
+  const [draftPeriod, setDraftPeriod] = useState<TaskPeriod | ''>((task.period as TaskPeriod) ?? '')
+  const [draftRecurrence, setDraftRecurrence] = useState<Recurrence>(task.recurrence ?? 'once')
+
+  const openEdit = () => {
+    setDraftTitle(task.title)
+    setDraftCategory(task.category)
+    setDraftPriority(task.priority)
+    setDraftPeriod((task.period as TaskPeriod) ?? '')
+    setDraftRecurrence(task.recurrence ?? 'once')
+    setEditOpen(true)
+  }
+
+  const saveEdit = () => {
+    if (!draftTitle.trim()) return
+    onEditSave({
+      title: draftTitle.trim(),
+      category: draftCategory,
+      priority: draftPriority,
+      period: draftPeriod || null,
+      // Uniquement pertinent pour la catégorie "jardin", comme à l'ajout
+      // (voir le formulaire plus haut) -- null pour les autres.
+      recurrence: draftCategory === 'jardin' ? draftRecurrence : null,
+    })
+    setEditOpen(false)
+  }
+
   return (
     <div className="py-2 border-b border-border last:border-0">
       {/* Version bureau (md et plus) : une seule ligne, inchangee. */}
       <div className="hidden md:flex items-baseline gap-3">
+        {/* Coche ouverte a tous depuis toujours cote API (voir route.ts) ;
+            desormais aussi cote UI -- n'est plus desactivee pour les
+            comptes famille (25/10/2026, demande d'Aurelie). */}
         <input
           type="checkbox"
           checked={task.completed}
-          onChange={canEdit ? onToggle : undefined}
-          disabled={!canEdit}
-          className="self-center h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
+          onChange={onToggle}
+          className="self-center h-4 w-4 shrink-0 rounded border-input accent-primary"
         />
         {/* Largeur fixe (au lieu d'un simple shrink-0 qui s'ajuste au texte)
             -- demande par Nicolas le 05/10/2026 : "Electricite"/"Manutention"
@@ -928,6 +1043,16 @@ function TaskRow({
         <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
           {PRIORITY_LABEL[task.priority]}
         </span>
+        {canEditRow && (
+          <button
+            type="button"
+            onClick={editOpen ? () => setEditOpen(false) : openEdit}
+            aria-label={editOpen ? 'Fermer l\'édition' : 'Corriger cette tâche'}
+            className="self-center shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
         {canEdit && (
           <button
             type="button"
@@ -952,9 +1077,8 @@ function TaskRow({
           <input
             type="checkbox"
             checked={task.completed}
-            onChange={canEdit ? onToggle : undefined}
-            disabled={!canEdit}
-            className="h-4 w-4 shrink-0 rounded border-input accent-primary disabled:opacity-40"
+            onChange={onToggle}
+            className="h-4 w-4 shrink-0 rounded border-input accent-primary"
           />
           <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">{CATEGORY_LABEL[task.category]}</span>
           <span className="flex-1 text-center text-xs uppercase tracking-wide text-muted-foreground">
@@ -963,6 +1087,16 @@ function TaskRow({
           <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
             {PRIORITY_LABEL[task.priority]}
           </span>
+          {canEditRow && (
+            <button
+              type="button"
+              onClick={editOpen ? () => setEditOpen(false) : openEdit}
+              aria-label={editOpen ? 'Fermer l\'édition' : 'Corriger cette tâche'}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
           {canEdit && (
             <button
               type="button"
@@ -1062,6 +1196,88 @@ function TaskRow({
           </div>
         )}
       </div>
+
+      {/* Panneau d'edition en place (25/10/2026, demande d'Aurelie) --
+          memes pastilles que le formulaire d'ajout en tete de widget,
+          pre-remplies avec les valeurs actuelles de la tache. */}
+      {editOpen && (
+        <div className="pl-0 md:pl-[46px] mt-2 space-y-3 rounded-md border border-border bg-muted/40 p-3">
+          <input
+            type="text"
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            placeholder="Titre de la tâche…"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+          />
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Catégorie</p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {SELECTABLE_CATEGORIES.map((c) => (
+                <button key={c} type="button" onClick={() => setDraftCategory(c)} className={viewTogglePillClass(draftCategory === c)}>
+                  {CATEGORY_LABEL[c]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Urgence</p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              {(Object.keys(PRIORITY_LABEL) as Priority[]).map((pr) => (
+                <button key={pr} type="button" onClick={() => setDraftPriority(pr)} className={viewTogglePillClass(draftPriority === pr)}>
+                  {PRIORITY_LABEL[pr]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Période</p>
+            <select
+              value={draftPeriod}
+              onChange={(e) => setDraftPeriod(e.target.value as TaskPeriod | '')}
+              className={cn(
+                'h-8 rounded-full border border-input bg-background px-3 text-xs uppercase tracking-[0.08em]',
+                draftPeriod === '' ? 'font-normal text-foreground/60' : 'font-semibold text-foreground'
+              )}
+            >
+              <option value="">Pas de période précise</option>
+              <optgroup label="Mois">
+                {MONTH_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </optgroup>
+              <optgroup label="Saisons">
+                {SEASON_OPTIONS.map((s2) => (
+                  <option key={s2.value} value={s2.value}>{s2.label}</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+          {draftCategory === 'jardin' && (
+            <div>
+              <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">Récurrence</p>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {(Object.keys(RECURRENCE_LABEL) as Recurrence[]).map((r) => (
+                  <button key={r} type="button" onClick={() => setDraftRecurrence(r)} className={viewTogglePillClass(draftRecurrence === r)}>
+                    {RECURRENCE_LABEL[r]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={saveEdit} className={actionPillClass}>
+              Enregistrer
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditOpen(false)}
+              className="text-xs uppercase tracking-[0.06em] text-muted-foreground hover:text-foreground"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       {suiviOpen && (
         <div className="pl-0 md:pl-[46px] mt-2 space-y-2 rounded-md border border-border bg-muted/40 p-3">
