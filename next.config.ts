@@ -6,6 +6,13 @@ const nextConfig: NextConfig = {
       { pathname: '/images/**' },
     ],
   },
+  // /bienvenue (manifeste + mode d'emploi, page statique publique) :
+  // sert public/bienvenue/index.html sans avoir à taper le nom du fichier.
+  async rewrites() {
+    return [
+      { source: '/bienvenue', destination: '/bienvenue/index.html' },
+    ];
+  },
 };
 
 export default nextConfig;

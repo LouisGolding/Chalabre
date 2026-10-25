@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="description" content="La Bâtisse : le manifeste et le mode d’emploi du site, en dix vidéos courtes.">
+<link rel="icon" href="/favicon.ico">
+<title>La Bâtisse</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..700;1,400..700&display=swap">
+<style>
+/* Layout: one narrow column on dark ink ("Encre"). Sommaire = framed chapter rows; Lecteur = video view. Single deliberate light look (inverted Encre). */
+:root {
+  --ink-bg: #F4EFE6;
+  --paper: #2B2420;
+  --muted: #6B5E55;
+  --accent: #9C5139;
+  --line: #D3C7B6;
+  --raised: #EDE5D8;
+  --serif: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--ink-bg); color: var(--paper); font-family: var(--serif); font-size: 17px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 44px 64px;
+}
+.wrap { max-width: 640px; margin: 0 auto; }
+#sommaire { display: flex; flex-direction: column; gap: 32px; }
+[hidden] { display: none !important; }
+header { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 20px; }
+.logo { width: min(300px, 72%); height: auto; }
+h1 { font-weight: 400; font-size: clamp(26px, 6vw, 34px); letter-spacing: 0.16em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.intro { color: var(--muted); max-width: 44ch; margin: 0; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.chap {
+  width: 100%; min-height: 60px; display: flex; align-items: center; gap: 14px; padding: 12px 16px;
+  background: transparent; border: 1px solid var(--line); border-radius: 0;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .15s ease, border-color .15s ease;
+}
+.chap.ready { border-color: var(--accent); }
+.chap.ready:hover { background: var(--raised); }
+.chap:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.chap[disabled] { cursor: default; opacity: 0.7; }
+.num { font-size: 22px; color: var(--accent); width: 28px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.t { flex: 1; min-width: 0; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.2; }
+.meta { font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+.meta svg { color: var(--accent); }
+
+/* Lecteur */
+#lecteur { display: flex; flex-direction: column; gap: 18px; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.back, .btn {
+  min-height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid var(--line); border-radius: 0; color: var(--paper);
+  font: 15px var(--serif); letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer;
+}
+.back:hover, .btn:hover { border-color: var(--accent); }
+.btn.primary { border-color: var(--accent); color: var(--accent); }
+.back:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.pnum { font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
+.ptitle { font-size: clamp(22px, 5vw, 28px); font-weight: 400; letter-spacing: 0.1em; text-transform: uppercase; margin: 0; text-wrap: balance; }
+.stage { position: relative; background: #000; aspect-ratio: 16 / 9; max-width: 100%; border: 1px solid var(--line); }
+.stage.portrait { aspect-ratio: 9 / 16; width: min(100%, calc(78vh * 9 / 16)); margin: 0 auto; }
+video { display: block; width: 100%; height: 100%; }
+.end {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: rgba(244, 239, 230, 0.95); text-align: center; padding: 16px;
+}
+.end p { margin: 0; }
+.loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #F4EFE6; font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; pointer-events: none; }
+.loading[hidden] { display: none; }
+.end .big { font-size: clamp(18px, 4vw, 24px); letter-spacing: 0.14em; text-transform: uppercase; }
+.end .small { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+.btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+/* Manifeste */
+#manifeste { display: flex; flex-direction: column; gap: 32px; }
+.eyebrow { margin: 0; font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); }
+.mtitle { font-weight: 400; font-size: clamp(30px, 8vw, 42px); line-height: 1.12; letter-spacing: 0; text-transform: none; margin: 0; text-wrap: balance; }
+.principes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.principes li { display: grid; grid-template-columns: 40px 1fr; gap: 4px 12px; padding: 18px 0; border-top: 1px solid var(--line); }
+.principes li:last-child { border-bottom: 1px solid var(--line); }
+.principes .n { grid-row: span 2; font-size: 24px; line-height: 1.1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.principes h3 { margin: 0; font-size: 21px; font-weight: 600; line-height: 1.2; }
+.principes p { margin: 0; color: var(--muted); font-size: 17px; }
+.sign { margin: 0; text-align: center; font-style: italic; font-size: 22px; color: var(--accent); }
+.cta {
+  width: 100%; min-height: 56px; display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--paper); color: var(--ink-bg); border: 0; border-radius: 0; cursor: pointer;
+  font: 17px var(--serif); letter-spacing: 0.16em; text-transform: uppercase;
+}
+.cta:hover { background: var(--accent); }
+.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .chap { transition: none; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <section id="manifeste" aria-labelledby="mtitre">
+    <header>
+      <img class="logo" src="/bienvenue/logo.png" alt="Dessin de la façade de La Bâtisse" width="900" height="309">
+      <p class="eyebrow">Le manifeste</p>
+      <h1 class="mtitle" id="mtitre">La Bâtisse, on en prend soin ensemble</h1>
+      <p class="intro">La Bâtisse a désormais son site. Il ne remplace pas la vie de la maison : il aide à s’y organiser, ensemble.</p>
+    </header>
+    <ol class="principes">
+      <li><span class="n">01</span><h3>À chacun sa clé</h3><p>Chaque occupant ou invité en âge de le faire a son propre accès. Pour les plus petits, leurs parents peuvent s’en charger depuis leur profil.</p></li>
+      <li><span class="n">02</span><h3>Une même règle pour tous</h3><p>S’inscrire et noter chaque séjour aide beaucoup au bon fonctionnement de la maison : des comptes à jour, une taxe de séjour juste, un planning fiable pour tous.</p></li>
+      <li><span class="n">03</span><h3>Connaître la maison, vraiment</h3><p>Connaître ses placards, bien sûr, mais surtout le fonctionnement technique de la maison, pour savoir réagir en cas de panne, de fuite ou d’incendie.</p></li>
+      <li><span class="n">04</span><h3>Agir d’abord, signaler sinon</h3><p>Une ampoule grillée ? On la change. Une cheminée à faire vérifier, une robinetterie à remplacer, une pelouse à tondre : si on ne peut pas s’en charger tout de suite, on le note dans Entretien. Le suivant saura, et rien ne se perd.</p></li>
+      <li><span class="n">05</span><h3>Tenir chacun informé</h3><p>La maison est à tous : chacun doit pouvoir savoir ce qui s’y fait. Quelques mots et des photos dans Réalisations, et tout le monde est informé, sans malentendu ni sentiment d’être tenu à l’écart.</p></li>
+      <li><span class="n">06</span><h3>Gardiens, chacun à sa mesure</h3><p>On n’est plus de simples occupants : chacun veille au bon fonctionnement du lieu, et le laisse comme il aimerait le trouver.</p></li>
+    </ol>
+    <p class="sign">Bienvenue chez vous.</p>
+    <p class="intro" style="text-align:center; margin: 0 auto -16px">Dix vidéos d’une minute pour prendre le site en main.</p>
+    <button class="cta" id="tomode" type="button">Mode d’emploi <span aria-hidden="true">→</span></button>
+  </section>
+
+  <section id="sommaire" hidden aria-labelledby="titre">
+    <div class="bar"><button class="back" id="tomanif" type="button"><span aria-hidden="true">←</span> Manifeste</button></div>
+    <header>
+      <img class="logo" src="/bienvenue/logo.png" alt="Dessin de la façade de La Bâtisse" width="900" height="309">
+      <h1 id="titre">Mode d’emploi</h1>
+      <p class="intro">Dix chapitres de moins d’une minute pour prendre le site en main. Touchez un chapitre pour voir la vidéo.</p>
+    </header>
+    <ol class="list" id="list"></ol>
+  </section>
+
+  <section id="lecteur" hidden aria-live="polite">
+    <div class="bar">
+      <button class="back" id="back" type="button"><span aria-hidden="true">←</span> Sommaire</button>
+      <span class="pnum" id="pnum"></span>
+    </div>
+    <h2 class="ptitle" id="ptitle"></h2>
+    <div class="stage">
+      <video id="video" controls playsinline preload="auto"></video>
+      <div class="loading" id="loading" hidden>Chargement de la vidéo…</div>
+      <div class="end" id="end" hidden>
+        <p class="big">Chapitre terminé</p>
+        <p class="small" id="countdown"></p>
+        <div class="btns">
+          <button class="btn" id="replay" type="button">Revoir</button>
+          <button class="btn primary" id="tosommaire" type="button">Sommaire</button>
+          <button class="btn" id="next" type="button" hidden>Suivant →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const CHAPTERS = [
+  ['premiers-pas', 'Premiers pas', '45 s'],
+  ['reserver', 'Réserver son séjour', '32 s'],
+  ['accompagnant', 'Inscrire un accompagnant', '25 s'],
+  ['calendrier', 'Lire le calendrier', '24 s'],
+  ['guide', 'Le guide de la maison', '27 s'],
+  ['urgences', 'En cas d’urgence', '45 s'],
+  ['contacts', 'Les contacts', '20 s'],
+  ['realisations', 'Partager une réalisation', '31 s'],
+  ['entretien', 'L’entretien', '27 s'],
+  ['budget', 'Suivre le budget', '25 s'],
+].map(([id, title, dur]) => ({
+  id, title, dur,
+  src: `/bienvenue/videos/${id}.mp4`, poster: `/bienvenue/videos/${id}.jpg`,
+  srcM: `/bienvenue/videos/${id}-mobile.mp4`, posterM: `/bienvenue/videos/${id}-mobile.jpg`,
+}));
+
+const $ = (id) => document.getElementById(id);
+const list = $('list'), sommaire = $('sommaire'), lecteur = $('lecteur'), video = $('video');
+const end = $('end'), countdown = $('countdown'), nextBtn = $('next');
+const stage = document.querySelector('.stage'), loading = $('loading');
+let current = null, timer = null;
+const PLAY = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 1v10l9-5z" fill="currentColor"/></svg>';
+
+CHAPTERS.forEach((c, i) => {
+  const li = document.createElement('li');
+  const b = document.createElement('button');
+  const ready = !!c.src;
+  b.type = 'button'; b.className = 'chap' + (ready ? ' ready' : '');
+  if (!ready) b.disabled = true;
+  b.innerHTML = `<span class="num">${String(i + 1).padStart(2, '0')}</span><span class="t"></span><span class="meta">${ready ? PLAY + c.dur : 'Bientôt'}</span>`;
+  b.querySelector('.t').textContent = c.title;
+  b.setAttribute('aria-label', ready ? `Voir le chapitre ${i + 1} : ${c.title}` : `${c.title}, bientôt disponible`);
+  if (ready) b.addEventListener('click', () => open(i, true));
+  li.appendChild(b); list.appendChild(li);
+});
+
+function nextReady(i) {
+  for (let k = i + 1; k < CHAPTERS.length; k++) if (CHAPTERS[k].src) return k;
+  return -1;
+}
+
+function open(i, autoplay) {
+  clearInterval(timer);
+  current = i;
+  const c = CHAPTERS[i];
+  $('ptitle').textContent = c.title;
+  $('pnum').textContent = `Chapitre ${String(i + 1).padStart(2, '0')}`;
+  const mobile = !!c.srcM && window.matchMedia('(max-width: 700px), (orientation: portrait) and (max-width: 1024px)').matches;
+  const src = mobile ? c.srcM : c.src;
+  stage.classList.toggle('portrait', mobile);
+  video.poster = (mobile ? c.posterM : c.poster) || '';
+  end.hidden = true;
+  manifeste.hidden = true; sommaire.hidden = true; lecteur.hidden = false;
+  try { history.replaceState(null, '', '#' + c.id); } catch (e) {}
+  window.scrollTo({ top: 0 });
+  $('back').focus({ preventScroll: true });
+  load(src, autoplay);
+}
+
+// Charge la vidéo entière en mémoire puis la lit depuis un blob :
+// Safari (iPhone) refuse les vidéos servies sans « Range », d'où le symbole lecture barré.
+const blobs = {};
+let loadingSrc = null;
+async function load(src, autoplay) {
+  loadingSrc = src;
+  loading.hidden = false;
+  let url = blobs[src];
+  if (!url) {
+    try {
+      const r = await fetch(src);
+      if (!r.ok) throw new Error(r.status);
+      const b = await r.blob();
+      url = blobs[src] = URL.createObjectURL(new Blob([b], { type: 'video/mp4' }));
+    } catch (e) { url = src; }
+  }
+  if (loadingSrc !== src) return;
+  loading.hidden = true;
+  if (video.src !== url) video.src = url;
+  if (autoplay) { video.currentTime = 0; video.play().catch(() => {}); }
+}
+
+function close() {
+  clearInterval(timer);
+  video.pause();
+  end.hidden = true;
+  lecteur.hidden = true; sommaire.hidden = false;
+  try { history.replaceState(null, '', '#mode-emploi'); } catch (e) {}
+  const btns = list.querySelectorAll('.chap');
+  if (current != null && btns[current]) btns[current].focus();
+}
+
+video.addEventListener('ended', () => {
+  const n = nextReady(current);
+  nextBtn.hidden = n < 0;
+  end.hidden = false;
+  let left = 5;
+  countdown.textContent = `Retour au sommaire dans ${left} s`;
+  clearInterval(timer);
+  timer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) { clearInterval(timer); close(); }
+    else countdown.textContent = `Retour au sommaire dans ${left} s`;
+  }, 1000);
+});
+video.addEventListener('play', () => { clearInterval(timer); end.hidden = true; });
+
+$('back').addEventListener('click', close);
+$('tosommaire').addEventListener('click', close);
+$('replay').addEventListener('click', () => { clearInterval(timer); end.hidden = true; video.currentTime = 0; video.play().catch(() => {}); });
+nextBtn.addEventListener('click', () => { const n = nextReady(current); if (n >= 0) open(n, true); });
+
+// Manifeste (accueil) <-> Mode d'emploi (sommaire)
+const manifeste = $('manifeste');
+function showManifeste() {
+  manifeste.hidden = false; sommaire.hidden = true; lecteur.hidden = true;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  window.scrollTo({ top: 0 });
+}
+function showSommaire() {
+  manifeste.hidden = true; sommaire.hidden = false; lecteur.hidden = true;
+  try { history.replaceState(null, '', '#mode-emploi'); } catch (e) {}
+  window.scrollTo({ top: 0 });
+  $('tomanif').focus({ preventScroll: true });
+}
+$('tomode').addEventListener('click', showSommaire);
+$('tomanif').addEventListener('click', showManifeste);
+
+const start = CHAPTERS.findIndex(c => c.src && '#' + c.id === location.hash);
+if (start >= 0) open(start, false);
+else if (location.hash === '#mode-emploi') showSommaire();
+</script>
+
+</body>
+</html>
