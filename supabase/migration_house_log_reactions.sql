@@ -1,3 +1,11 @@
+-- ✅ CONFIRMÉE APPLIQUÉE EN BASE (vérifié directement en lecture seule
+-- le 25/10/2026, table/colonne/contrainte/policies déjà présentes --
+-- date d'application réelle inconnue, ni Claude ni ce document ne l'ont
+-- vue passer : appliquée hors du circuit habituel, probablement
+-- directement par Louis). Conservée telle quelle pour l'historique, y
+-- compris la mention "NE PAS APPLIQUER SANS L'ACCORD DE LOUIS"
+-- ci-dessous : ne plus la rejouer.
+
 -- ============================================================
 -- MIGRATION : likes et commentaires sur les posts "Réalisations"
 -- À appliquer dans Supabase → SQL Editor, après schema.sql,
