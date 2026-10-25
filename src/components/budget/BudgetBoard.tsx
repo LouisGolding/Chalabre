@@ -20,8 +20,8 @@ import type { BudgetStatement, BudgetStripeTransaction, BudgetTransaction } from
 // l'intitulé reste toujours affiché à côté de la couleur, jamais la
 // couleur seule comme identifiant.
 //
-// ⚠️ À METTRE À JOUR à chaque nouveau relevé Lalande reçu (tant que la
-// table `budget_transactions` n'existe pas en base), en gardant ces deux
+// ⚠️ À METTRE À JOUR à chaque nouveau relevé Lalande reçu (tant que les
+// tuiles ne sont pas calculées depuis `budget_transactions`), en gardant ces deux
 // listes synchronisées avec celles de la maquette. SOLDE_FIN_2025_LALANDE
 // ne change pas en cours d'année (seulement au 1er janvier suivant, où il
 // devra aussi être renommé "fin 2026"). ENTREES_LALANDE/SORTIES_LALANDE
@@ -123,7 +123,8 @@ function buildBudgetDetailItems(cats: BudgetCategoryBreakdown[], hoverId: string
 //
 // Mise à jour du 16/10/2026 (Nicolas) :
 //   - le dépôt de relevé est un vrai upload de fichier (pas de texte
-//     collé, pas d'extraction automatique pour l'instant) -- même
+//     collé ; extraction IA des transactions ajoutée le 25/10/2026, voir
+//     handleUpload) -- même
 //     pattern de sélection de fichier que "Documents"
 //     (DocumentUploadForm.tsx), mais la sélection ENREGISTRE réellement
 //     le fichier (POST /api/budget/statements) plutôt que de rester
@@ -170,29 +171,27 @@ function buildBudgetDetailItems(cats: BudgetCategoryBreakdown[], hoverId: string
 // (survol/clic pour isoler une catégorie), tableau accessible en
 // alternative, mêmes couleurs et mêmes montants que la maquette Artifact.
 // Le compte Canat n'a pas ce même travail de vérification et reste à
-// blanc partout (tuiles, détail, et la liste des transactions et le
-// bilan annuel restent à blanc pour les deux comptes, faute de table
-// `budget_transactions`, migration distincte pas encore écrite --
-// questions ouvertes du prompt encore en cours avec Nicolas).
+// blanc dans les tuiles et le détail. La liste des transactions vient de
+// `budget_transactions` (extraction IA des relevés, 25/10/2026) ; le
+// bilan annuel reste à blanc pour les deux comptes.
 export function BudgetBoard({
   isAdmin,
-  initialTransactions,
-  initialStatements,
+  transactions,
+  statements,
   stripeTransactions,
 }: {
   isAdmin: boolean
-  initialTransactions: BudgetTransaction[]
-  initialStatements: (BudgetStatement & { downloadUrl: string | null })[]
+  transactions: BudgetTransaction[]
+  statements: (BudgetStatement & { downloadUrl: string | null })[]
   stripeTransactions: BudgetStripeTransaction[]
 }) {
   const router = useRouter()
   const [account, setAccount] = useState<BudgetAccountId>('lalande')
-  const [transactions] = useState(initialTransactions)
-  const [statements] = useState(initialStatements)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [pastStatementsOpen, setPastStatementsOpen] = useState(false)
 
   // Widget dépliable "Transactions Stripe" (cotisations + taxes de
@@ -250,11 +249,28 @@ export function BudgetBoard({
     }
   }, [statements, account, currentYear])
 
+  // Nombre de transactions extraites par relevé, affiché sous chaque
+  // relevé déposé.
+  const transactionCountByStatement = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const t of transactions) {
+      if (t.source_statement) counts.set(t.source_statement, (counts.get(t.source_statement) ?? 0) + 1)
+    }
+    return counts
+  }, [transactions])
+
+  // Dépôt puis extraction IA des transactions (demande de Nicolas,
+  // 25/10/2026) : deux étapes distinctes, pour que le relevé reste
+  // enregistré même si l'extraction échoue (clé API absente, migration
+  // pas appliquée, relevé illisible...) -- l'échec est alors affiché
+  // en clair et l'extraction peut être relancée depuis la ligne du
+  // relevé (bouton "Extraire").
   const handleUpload = async () => {
     const file = fileInputRef.current?.files?.[0]
     if (!file) return
     setUploading(true)
     setError(null)
+    setNotice(null)
     try {
       const formData = new FormData()
       formData.append('file', file)
@@ -264,6 +280,13 @@ export function BudgetBoard({
       if (!res.ok) throw new Error(data.error ?? "Erreur lors de l'envoi")
       setFileName(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      router.refresh()
+
+      try {
+        setNotice(`Relevé déposé. ${await extractStatement(data.statement.id)}`)
+      } catch (err) {
+        setError(`Relevé déposé, mais l'extraction des transactions a échoué : ${err instanceof Error ? err.message : 'erreur inconnue'}`)
+      }
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur lors de l'envoi")
@@ -305,12 +328,11 @@ export function BudgetBoard({
           reste à blanc.
 
           ⚠️ Toujours des constantes codées en dur (voir en tête de
-          fichier), pas une vraie requête sur une table
-          `budget_transactions` (migration pas encore écrite) -- à
-          mettre à jour à la main (les deux listes
+          fichier), pas encore calculées depuis `budget_transactions` --
+          à mettre à jour à la main (les deux listes
           ENTREES_CATS_LALANDE/SORTIES_CATS_LALANDE, et
           SOLDE_FIN_2025_LALANDE au 1er janvier) à chaque nouveau relevé
-          reçu, tant que cette table n'existe pas. */}
+          reçu, tant que les tuiles ne lisent pas cette table. */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <SummaryTile label="Solde fin 2025" value={account === 'lalande' ? formatCurrency(SOLDE_FIN_2025_LALANDE) : '--'} />
         {account === 'lalande' ? (
@@ -489,11 +511,10 @@ export function BudgetBoard({
       </Card>
       )}
 
-      {/* Zone de dépôt du relevé -- upload de fichier (Excel/CSV), pas de
-          texte collé : même pattern de sélection de fichier que
-          "Documents", mais fonctionnel dès maintenant (voir
-          /api/budget/statements) pour que les relevés déposés restent
-          consultables, indépendamment de l'extraction IA. Réservé aux
+      {/* Zone de dépôt du relevé -- upload de fichier, pas de texte
+          collé : même pattern de sélection de fichier que "Documents"
+          (voir /api/budget/statements), suivi de l'extraction IA des
+          transactions (PDF, CSV ou JPEG ; pas Excel). Réservé aux
           admins (isAdmin) -- demandé par Nicolas le 17/10/2026, le reste
           de la page étant désormais ouvert à la famille. */}
       {isAdmin && (
@@ -519,10 +540,11 @@ export function BudgetBoard({
             disabled={!fileName || uploading}
             className={actionPillClass}
           >
-            {uploading ? 'Envoi...' : 'Déposer'}
+            {uploading ? 'Envoi et extraction...' : 'Déposer'}
           </button>
         </div>
         {error && <p className="text-xs text-destructive">{error}</p>}
+        {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
 
         {/* Relevés déjà déposés pour ce compte -- plus récent en premier,
             ceux des années précédentes repliés (même principe que
@@ -532,7 +554,7 @@ export function BudgetBoard({
         ) : (
           <div className="space-y-2 pt-1">
             {currentStatements.map((s) => (
-              <StatementRow key={s.id} statement={s} />
+              <StatementRow key={s.id} statement={s} transactionCount={transactionCountByStatement.get(s.id) ?? 0} />
             ))}
             {pastStatements.length > 0 && (
               <div className="space-y-2">
@@ -553,7 +575,9 @@ export function BudgetBoard({
                   />
                 </button>
                 {pastStatementsOpen &&
-                  pastStatements.map((s) => <StatementRow key={s.id} statement={s} />)}
+                  pastStatements.map((s) => (
+                    <StatementRow key={s.id} statement={s} transactionCount={transactionCountByStatement.get(s.id) ?? 0} />
+                  ))}
               </div>
             )}
           </div>
@@ -668,40 +692,103 @@ function BudgetDetailTile({
 // de téléchargement reste à côté, et un bouton de suppression (admin
 // uniquement -- ce composant n'est de toute façon rendu que dans le bloc
 // {isAdmin && (...)} de BudgetBoard) retire le relevé.
-function StatementRow({ statement }: { statement: BudgetStatement & { downloadUrl: string | null } }) {
+//
+// Mise à jour du 25/10/2026 : sous la date, le nombre de transactions
+// extraites de ce relevé, et un bouton "Extraire" pour lancer (ou
+// relancer) l'extraction IA -- utile pour les relevés déposés avant
+// l'activation de l'extraction, ou après un échec. Relancer remplace les
+// transactions déjà extraites de ce relevé, sans doublon.
+function StatementRow({
+  statement,
+  transactionCount,
+}: {
+  statement: BudgetStatement & { downloadUrl: string | null }
+  transactionCount: number
+}) {
+  const router = useRouter()
+  const [extracting, setExtracting] = useState(false)
+  const [extractError, setExtractError] = useState<string | null>(null)
+
+  const handleExtract = async () => {
+    if (transactionCount > 0 && !confirm('Relancer l’extraction ? Les transactions déjà extraites de ce relevé seront remplacées.')) return
+    setExtracting(true)
+    setExtractError(null)
+    try {
+      await extractStatement(statement.id)
+      router.refresh()
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : "Erreur lors de l'extraction")
+    } finally {
+      setExtracting(false)
+    }
+  }
+
   return (
-    <div className="card-canson flex items-center justify-between gap-3 rounded-lg p-3 ring-1 ring-foreground/10">
-      <div className="min-w-0">
-        {statement.downloadUrl ? (
-          <a
-            href={statement.downloadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="truncate text-sm font-medium text-foreground hover:underline"
+    <div className="card-canson space-y-1 rounded-lg p-3 ring-1 ring-foreground/10">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {statement.downloadUrl ? (
+            <a
+              href={statement.downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="truncate text-sm font-medium text-foreground hover:underline"
+            >
+              {statement.file_name}
+            </a>
+          ) : (
+            <p className="truncate text-sm font-medium text-foreground">{statement.file_name}</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {formatDate(statement.created_at)}
+            {' · '}
+            {transactionCount > 0 ? `${transactionCount} transactions extraites` : 'Transactions non extraites'}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={handleExtract}
+            disabled={extracting}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
-            {statement.file_name}
-          </a>
-        ) : (
-          <p className="truncate text-sm font-medium text-foreground">{statement.file_name}</p>
-        )}
-        <p className="text-xs text-muted-foreground">{formatDate(statement.created_at)}</p>
+            {extracting ? 'Extraction...' : transactionCount > 0 ? 'Relancer' : 'Extraire'}
+          </button>
+          {statement.downloadUrl && (
+            <a
+              href={statement.downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Télécharger ce relevé"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+          )}
+          <DeleteStatementButton id={statement.id} />
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-3">
-        {statement.downloadUrl && (
-          <a
-            href={statement.downloadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-foreground"
-            aria-label="Télécharger ce relevé"
-          >
-            <Download className="h-4 w-4" />
-          </a>
-        )}
-        <DeleteStatementButton id={statement.id} />
-      </div>
+      {extractError && <p className="text-xs text-destructive">{extractError}</p>}
     </div>
   )
+}
+
+// Appelle l'extraction IA d'un relevé déjà déposé et renvoie un message
+// de succès -- lève une erreur avec le message de la route sinon (jamais
+// de résultat vide silencieux : la route renvoie elle-même une erreur
+// quand aucune transaction n'est trouvée).
+async function extractStatement(statementId: string): Promise<string> {
+  const res = await fetch('/api/budget/statements/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ statementId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? "Erreur lors de l'extraction")
+  const count = data.transactions?.length ?? 0
+  return data.skipped > 0
+    ? `${count} transactions extraites (${data.skipped} lignes illisibles ignorées).`
+    : `${count} transactions extraites.`
 }
 
 function DeleteStatementButton({ id }: { id: string }) {

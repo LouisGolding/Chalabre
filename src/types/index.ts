@@ -145,8 +145,9 @@ export interface Document {
 // `budget_transactions` pas encore créée en base (migration écrite mais
 // pas appliquée sans l'accord de Louis, voir points-a-regler-avec-louis.md
 // dans le Projet). Type posé dès la mise en forme de l'onglet (15/10/2026)
-// pour typer les transactions une fois la table créée ; BudgetBoard reçoit
-// un tableau vide en attendant.
+// pour typer les transactions une fois la table créée. Remplie depuis le
+// 25/10/2026 par l'extraction IA des relevés (POST
+// /api/budget/statements/extract, migration_budget_transactions.sql).
 export interface BudgetTransaction {
   id: string
   account: 'lalande' | 'canat'
