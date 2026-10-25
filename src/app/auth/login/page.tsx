@@ -138,14 +138,16 @@ export default function LoginPage() {
           calc(... - 15px) sur l'axe vertical plutôt qu'un nouveau
           pourcentage, pour un décalage fixe en pixels identique à
           n'importe quelle hauteur d'écran (un delta en % varierait avec
-          la hauteur du viewport). */}
+          la hauteur du viewport). Redescendue de 4px le même jour
+          (demande d'Aurélie : "baisse de 4 pixel, l'image de fond") :
+          calc(... - 15px) -> calc(... - 11px). */}
       <div className="fixed inset-0 -z-10 overflow-hidden">
         <div
           className="absolute inset-0"
           style={{
             backgroundImage: "url('/images/login-bg-mobile.jpg')",
             backgroundSize: 'auto 110%',
-            backgroundPosition: '51.6% calc(87% - 15px)',
+            backgroundPosition: '51.6% calc(87% - 11px)',
           }}
         />
       </div>
@@ -180,6 +182,12 @@ export default function LoginPage() {
           <CallbackError />
         </Suspense>
 
+        {/* Carte + pastilles + liens du bas, décalés ensemble de 4px
+            (25/10/2026, demande d'Aurélie : "baisse de 4 pixel [...]
+            toutes les pastilles et textes du bas") : mt-1 = 4px
+            (échelle Tailwind, 1 = 0.25rem), appliqué une seule fois sur
+            ce wrapper plutôt que sur chaque élément individuellement. */}
+        <div className="mt-1">
         {/* Bureau (md+) : largeur des 2 pastilles (carte + bouton) alignée
             au pixel sur la largeur réelle du mot "La Bâtisse" du logo
             (370px mesurés à text-6xl, voir h1 plus haut) plutôt que
@@ -290,6 +298,7 @@ export default function LoginPage() {
           <Link href="/auth/reset-password" className="hover:opacity-80 transition-opacity">
             Mot de passe oublié
           </Link>
+        </div>
         </div>
       </form>
     </div>
