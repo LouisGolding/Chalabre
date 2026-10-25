@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight, ChevronLeft, Heart, MessageCircle } from 'lucide-react'
@@ -650,6 +651,9 @@ function PhotoCarousel({
   onDeletePhoto: (photoId: string) => void
 }) {
   const [index, setIndex] = useState(0)
+  // Plein ecran au clic, comme les plans d'extincteur (25/10/2026,
+  // demande d'Aurelie) -- voir le commentaire au-dessus du composant.
+  const [fullscreen, setFullscreen] = useState(false)
   const safeIndex = Math.min(index, photos.length - 1)
   const photo = photos[safeIndex]
   if (!photo) return null
@@ -660,10 +664,15 @@ function PhotoCarousel({
 
   return (
     <div className="relative mt-3 w-full aspect-[4/3] overflow-hidden rounded-lg bg-muted">
-      <a href={photo.url} target="_blank" rel="noopener noreferrer">
+      <button
+        type="button"
+        onClick={() => setFullscreen(true)}
+        aria-label="Agrandir la photo"
+        className="block h-full w-full"
+      >
         {/* eslint-disable-next-line @next/next/no-img-element -- URLs signées temporaires, next/image n'apporte rien ici */}
         <img src={photo.url} alt="" className="h-full w-full object-cover" />
-      </a>
+      </button>
 
       {photos.length > 1 && (
         <>
@@ -699,6 +708,30 @@ function PhotoCarousel({
           <X className="h-3.5 w-3.5" />
         </button>
       )}
+
+      {/* Rendu via portail dans document.body (25/10/2026) : la carte
+          d'une Réalisation (ARTICLE plus haut dans l'arbre) a
+          `backdrop-blur-sm`, qui crée un nouveau "containing block" pour
+          tout descendant en position fixed (même règle CSS que
+          `transform`/`filter`) -- sans portail, ce plein écran restait
+          coincé dans les limites de la carte au lieu de couvrir tout
+          l'écran (bug constaté en vérifiant cette fonctionnalité). */}
+      {fullscreen &&
+        createPortal(
+          <div className="fixed inset-0 z-50 bg-black/95" onClick={() => setFullscreen(false)}>
+            <button
+              type="button"
+              onClick={() => setFullscreen(false)}
+              aria-label="Réduire la photo"
+              className="absolute right-4 top-4 z-10 text-white/80 hover:text-white"
+            >
+              <X className="h-6 w-6" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element -- URLs signées temporaires, next/image n'apporte rien ici */}
+            <img src={photo.url} alt="" className="h-full w-full object-contain" />
+          </div>,
+          document.body
+        )}
     </div>
   )
 }

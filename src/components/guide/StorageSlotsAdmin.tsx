@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { viewTogglePillClass } from '@/lib/utils'
 import { PlanThumbnail, FullscreenPlanViewer } from '@/components/guide/PlanViewer'
 import {
@@ -53,6 +54,10 @@ interface StorageSlotsAdminProps {
 const PLAN_ASPECT_RATIO = 2.6
 
 export function StorageSlotsAdmin({ initialSlots }: StorageSlotsAdminProps) {
+  // Voir le commentaire en tete de fichier (25/10/2026) : router.refresh()
+  // dans save() ci-dessous recharge les donnees serveur de la page pour
+  // que la recherche (StorageOrganization.tsx) reste synchronisee.
+  const router = useRouter()
   const [slots, setSlots] = useState<Record<string, StorageSlotRow>>(() => {
     const map: Record<string, StorageSlotRow> = {}
     for (const s of initialSlots) map[s.slot_key] = s
@@ -94,6 +99,8 @@ export function StorageSlotsAdmin({ initialSlots }: StorageSlotsAdminProps) {
           content: nextContent || null,
         },
       }))
+      // Resynchronise la recherche (voir le commentaire en tete de fichier).
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur')
     } finally {

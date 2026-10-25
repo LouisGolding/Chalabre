@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { EB_Garamond } from 'next/font/google'
 import './globals.css'
 
@@ -25,6 +25,21 @@ const ebGaramond = EB_Garamond({
 export const metadata: Metadata = {
   title: 'La Bâtisse',
   description: 'Gestion de la maison familiale La Bâtisse à Chalabre',
+}
+
+// Zoom natif du navigateur (pincement, double-tap) desactive sur tout le
+// site (25/10/2026, demande d'Aurelie : "ne permet pas de zoom, il faut
+// que le format reste le meme comme sur une application") -- userScalable
+// a false + maximumScale a 1 genere la meta viewport equivalente a
+// `maximum-scale=1, user-scalable=no`. Sans effet sur le pincement des
+// plans (PlanViewer.tsx/FullscreenPlanViewer), qui est un mecanisme JS
+// maison totalement independant du zoom natif de la page -- voir la
+// demande d'Aurelie, qui precise explicitement de le conserver.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
