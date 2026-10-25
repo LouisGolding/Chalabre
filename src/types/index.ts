@@ -188,9 +188,7 @@ export interface BudgetStatement {
 //   Canat), "petite_maison" étant routé sur le compte Lalande (même
 //   règle que pour la taxe de séjour elle-même, voir
 //   migration_house_side_petite_maison.sql).
-// ⚠️ Un seul compte Stripe existe à ce jour pour tous les paiements
-// (aucun routage bancaire réel par compte) : cette répartition reste
-// donc uniquement comptable/d'affichage.
+// L'encaissement suit la même règle (accountFor, src/lib/stripe.ts).
 export interface BudgetStripeTransaction {
   id: string
   account: 'lalande' | 'canat'

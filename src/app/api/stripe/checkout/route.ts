@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { stripe } from '@/lib/stripe'
+import { accountFor, stripeFor } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
 import { buildTsStatementDescriptor, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
@@ -19,10 +19,17 @@ import { findClosestNameMatch } from '@/lib/fuzzy-name'
 // `id` seul (ancien format, toujours utilisé par mes-paiements/page.tsx et
 // le bouton "Payer" d'un séjour dans NextStayCard.tsx) reste accepté,
 // équivalent à ids: [id].
+//
+// Une session Stripe n'encaisse que sur un seul compte (Lalande ou Canat,
+// voir src/lib/stripe.ts) : si un solde TS mélange des séjours des deux
+// côtés, on ne règle cette fois que ceux du côté du premier paiement
+// demandé. Les autres restent dus et le solde affiché permet de les régler
+// ensuite.
 interface TsRowBooking {
   user_id: string
   guest_name: string | null
   check_out: string
+  house_side: string | null
   profiles: { first_name: string } | { first_name: string }[] | null
 }
 
@@ -73,9 +80,15 @@ export async function POST(request: Request) {
   if (type === 'tm') {
     const { data: payment } = await supabase
       .from('tm_payments')
-      .select('amount, user_id, status, month')
+      .select('amount, user_id, status, month, profiles(family_group)')
       .eq('id', ids[0])
-      .single()
+      .single<{
+        amount: number
+        user_id: string
+        status: string
+        month: string | null
+        profiles: { family_group: string } | { family_group: string }[] | null
+      }>()
 
     if (!payment) {
       return NextResponse.json({ error: 'Paiement introuvable' }, { status: 404 })
@@ -94,7 +107,9 @@ export async function POST(request: Request) {
 
     const label = `Cotisation mensuelle${payment.month ? ` (${payment.month})` : ''} — La Bâtisse`
 
-    const session = await stripe.checkout.sessions.create({
+    const account = accountFor(asSingle(payment.profiles)?.family_group)
+
+    const session = await stripeFor(account).checkout.sessions.create({
       mode: 'payment',
       currency: 'eur',
       line_items: [
@@ -126,17 +141,23 @@ export async function POST(request: Request) {
   // -------------------------------------------------------------
   const { data: rows } = await supabase
     .from('ts_payments')
-    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, profiles(first_name))')
+    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, house_side, profiles(first_name))')
     .in('id', ids)
 
-  const payments = (rows ?? []) as TsRow[]
+  const requested = (rows ?? []) as TsRow[]
 
-  if (payments.length !== ids.length) {
+  if (requested.length !== ids.length) {
     return NextResponse.json({ error: 'Paiement introuvable' }, { status: 404 })
   }
-  if (payments.some((p) => p.status === 'paid')) {
+  if (requested.some((p) => p.status === 'paid')) {
     return NextResponse.json({ error: 'Un de ces paiements est déjà réglé' }, { status: 400 })
   }
+
+  const accountOf = (p: TsRow) => accountFor(asSingle(p.bookings)?.house_side)
+  const first = requested.find((p) => p.id === ids[0]) ?? requested[0]
+  const account = accountOf(first)
+  const payments = requested.filter((p) => accountOf(p) === account)
+  const paidIds = payments.map((p) => p.id)
 
   // Autorisation : le compte qui a saisi le séjour (booking.user_id), la
   // personne elle-même quand le nom de l'accompagnant correspond à son
@@ -193,14 +214,14 @@ export async function POST(request: Request) {
     ? user.id
     : asSingle(payments[0].bookings)!.user_id
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await stripeFor(account).checkout.sessions.create({
     mode: 'payment',
     currency: 'eur',
     line_items: lineItems,
     metadata: {
       payment_type: 'ts',
-      payment_id: ids[0],
-      payment_ids: JSON.stringify(ids),
+      payment_id: paidIds[0],
+      payment_ids: JSON.stringify(paidIds),
       user_id: primaryUserId,
     },
     success_url: `${origin}/dashboard/paiement/succes?session_id={CHECKOUT_SESSION_ID}`,
@@ -210,8 +231,8 @@ export async function POST(request: Request) {
       statement_descriptor: statementDescriptor,
       metadata: {
         payment_type: 'ts',
-        payment_id: ids[0],
-        payment_ids: JSON.stringify(ids),
+        payment_id: paidIds[0],
+        payment_ids: JSON.stringify(paidIds),
         user_id: primaryUserId,
       },
     },
