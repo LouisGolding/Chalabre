@@ -160,14 +160,14 @@ export function TileNav({ role }: { role: UserRole }) {
         // la grille, poignée comprise, de la hauteur de BottomNav (h-12/h-14,
         // 48px/56px) : mêmes écarts que pour les autres rôles, mais mesurés
         // depuis le haut du bandeau plutôt que depuis le bas de l'écran.
-        // Repliée, écart initial calé par Aurélie le même jour sur celui entre
-        // le bas du logo et le bas du bandeau du haut (17px mobile, 12px
-        // bureau), puis réduit de moitié le jour suivant (toujours Aurélie :
-        // "réduit l'espace entre la croix occitane et le bandeau du bas de
-        // moitié") : 8,5px mobile / 6px bureau. Bas de la croix = 26,5px
-        // au-dessus du bas de cette grille, d'où 48 + 8,5 - 26,5 = 30px
-        // (mobile) et 56 + 6 - 26,5 = 35,5px (bureau).
-        isAdmin && (isExpanded ? 'bottom-[76px] md:bottom-[92px]' : 'bottom-[30px] md:bottom-[35.5px]')
+        // Repliée, l'écart est calé sur celui entre le bas du logo et le bas
+        // du bandeau du haut (17px mobile, 12px bureau) -- essayé réduit de
+        // moitié le même jour (8,5px/6px, demande d'Aurélie), mais la version
+        // à 17px/12px lui convenait mieux ("l'ecart de 17px était bien, remet
+        // ça") : remis à l'identique. Bas de la croix = 26,5px au-dessus du
+        // bas de cette grille, d'où 48 + 17 - 26,5 ≈ 39px (mobile) et
+        // 56 + 12 - 26,5 ≈ 41px (bureau).
+        isAdmin && (isExpanded ? 'bottom-[76px] md:bottom-[92px]' : 'bottom-[39px] md:bottom-[41px]')
       )}
     >
       {/* Fond fixe derrière la grille (uniquement quand elle est
