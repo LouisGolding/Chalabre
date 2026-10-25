@@ -145,29 +145,20 @@ export function TileNav({ role }: { role: UserRole }) {
         // invisible. z-50 (> 40) place cette grille, poignée comprise,
         // toujours au-dessus de BottomNav, pour tous les rôles.
         'fixed inset-x-0 z-50 transition-[bottom] duration-[1500ms] ease-in-out',
-        // Repliée, la poignée était initialement collée au bord haut du
-        // bandeau du bas (bottom-12/md:bottom-14, la hauteur exacte de
-        // BottomNav, voir BottomNav.tsx) — rapprochée de moitié du
-        // bandeau le 23/10/2026 (demande d'Aurélie, "rapproche la de
-        // moitié par rapport au bord du bandeau bas") : bottom-6/
-        // md:bottom-7 (24px/28px). Dépliée ou sur l'accueil, la grille
-        // garde son ancrage habituel (bottom-7/md:bottom-9, réglage plus
-        // ancien, accolé à BottomNav sans chevaucher son texte).
-        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-6 md:bottom-7',
-        // Comptes admin (25/10/2026, Aurélie : "la croix occitane doit être
-        // au dessus du bandeau du bas et pas le couvrir") : le z-50 ci-dessus
-        // la rendait visible mais posée SUR BottomNav. On décale donc toute
-        // la grille, poignée comprise, de la hauteur de BottomNav (h-12/h-14,
-        // 48px/56px) : mêmes écarts que pour les autres rôles, mais mesurés
-        // depuis le haut du bandeau plutôt que depuis le bas de l'écran.
-        // Repliée, l'écart est calé sur celui entre le bas du logo et le bas
-        // du bandeau du haut (17px mobile, 12px bureau) -- essayé réduit de
-        // moitié le même jour (8,5px/6px, demande d'Aurélie), mais la version
-        // à 17px/12px lui convenait mieux ("l'ecart de 17px était bien, remet
-        // ça") : remis à l'identique. Bas de la croix = 26,5px au-dessus du
-        // bas de cette grille, d'où 48 + 17 - 26,5 ≈ 39px (mobile) et
-        // 56 + 12 - 26,5 ≈ 41px (bureau).
-        isAdmin && (isExpanded ? 'bottom-[76px] md:bottom-[92px]' : 'bottom-[39px] md:bottom-[41px]')
+        // Position verticale simplifiée le 25/10/2026 (demande d'Aurélie :
+        // "sur les comptes admin, je veux que la grille des onglets soit
+        // collée au bandeau du bas [...] pour les autres comptes, famille
+        // et invités, la grille des onglets doit etre collée en bas"),
+        // maquette validée avant implémentation -- remplace tous les
+        // réglages d'écart précédents (bottom-6/7/9, puis les valeurs
+        // admin-only en pixels). Plus de distinction repliée/dépliée :
+        // "collée" s'applique aux deux. Comptes admin : bottom-12/
+        // md:bottom-14, la hauteur exacte de BottomNav (h-12/h-14, voir
+        // BottomNav.tsx) -- le bord bas de cette grille touche donc
+        // directement le bord haut de BottomNav, sans écart. Comptes
+        // famille/invités (sans BottomNav, voir le rendu de TileNav lui-
+        // même) : bottom-0, collée directement au bas de l'écran.
+        isAdmin ? 'bottom-12 md:bottom-14' : 'bottom-0'
       )}
     >
       {/* Fond fixe derrière la grille (uniquement quand elle est
