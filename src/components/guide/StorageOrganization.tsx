@@ -7,6 +7,7 @@ import {
   STORAGE_FLOORS,
   searchStorageSlots,
   storageFloorLabel,
+  suggestStorageContents,
   type HouseSideFilter,
   type StorageSlotRow,
 } from '@/lib/storage-guide'
@@ -53,8 +54,16 @@ export function StorageOrganization({ slots }: { slots: StorageSlotRow[] }) {
   const [houseSide, setHouseSide] = useState<HouseSideFilter>('canat')
   const [query, setQuery] = useState('')
   const [fullscreenFloorId, setFullscreenFloorId] = useState<string | null>(null)
+  // Suggestions de type Google sous le champ (demande d'Aurelie du
+  // 25/10/2026) : visibles seulement tant que le champ a le focus, pour
+  // disparaitre une fois un choix fait ou le champ quitte.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
 
   const matches = useMemo(() => searchStorageSlots(slots, query, houseSide), [slots, query, houseSide])
+  const suggestions = useMemo(
+    () => suggestStorageContents(slots, query, houseSide),
+    [slots, query, houseSide]
+  )
 
   const fullscreenFloor = fullscreenFloorId
     ? STORAGE_FLOORS.find((f) => f.id === fullscreenFloorId) ?? null
@@ -71,13 +80,38 @@ export function StorageOrganization({ slots }: { slots: StorageSlotRow[] }) {
         </button>
       </div>
 
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Ex: draps blancs"
-        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
-      />
+      <div className="relative">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setSuggestionsOpen(true)}
+          // Delai avant fermeture : sans lui, le blur du champ (declenche
+          // par le clic sur une suggestion) ferme la liste avant que le
+          // clic n'ait ete traite, et onClick ne se declenche jamais.
+          onBlur={() => setTimeout(() => setSuggestionsOpen(false), 150)}
+          placeholder="Ex: draps blancs"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
+        />
+        {suggestionsOpen && suggestions.length > 0 && (
+          <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-card shadow-lg">
+            {suggestions.map((content) => (
+              <li key={content}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuery(content)
+                    setSuggestionsOpen(false)
+                  }}
+                  className="block w-full px-3 py-2 text-left text-sm text-card-foreground hover:bg-muted"
+                >
+                  {content}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {query.trim() !== '' && matches.length === 0 && (
         <p className="text-xs text-muted-foreground">Aucun rangement ne correspond, côté {houseSide === 'canat' ? 'Canat' : 'Lalande'}.</p>
