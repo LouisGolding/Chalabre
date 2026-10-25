@@ -4,6 +4,7 @@ import { TopBanner } from '@/components/layout/TopBanner'
 import { TileNav } from '@/components/layout/TileNav'
 import { BottomNav } from '@/components/layout/BottomNav'
 import { isProfileIncomplete } from '@/lib/profile'
+import { canAccessMembresTab } from '@/lib/members-access'
 
 export default async function DashboardLayout({
   children,
@@ -92,7 +93,7 @@ export default async function DashboardLayout({
           (TopBanner) avec les autres onglets. Rendu pour tout le monde
           depuis le 18/09/2026, d'où le padding-bas du <main> toujours
           actif, plus seulement pour les admins. */}
-      <BottomNav role={profile.role} />
+      <BottomNav role={profile.role} canSeeMembres={canAccessMembresTab(profile)} />
     </div>
   )
 }

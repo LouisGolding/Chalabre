@@ -102,7 +102,15 @@ const SHOW_SUIVI_PAIEMENTS = false
 // "Mon profil" dedans. Le split itemsBefore/itemsAfter qui existait pour
 // intercaler "Mon profil" au milieu de la liste n'a donc plus lieu d'être
 // -- ADMIN_ITEMS s'affiche désormais directement, dans l'ordre.
-export function BottomNav({ role }: { role: UserRole }) {
+// `canSeeMembres` (25/10/2026, demande d'Aurelie) : calcule cote serveur
+// par dashboard/layout.tsx via lib/members-access.ts (seul endroit qui a
+// deja le profil complet sous la main) -- ce composant n'a donc pas besoin
+// de connaitre la logique de la liste des 4 personnes autorisees, juste le
+// resultat. "Membres" est ainsi retire du lot "reserve aux admins"
+// ci-dessus : desormais reserve a ces 4 personnes precises, meme pour un
+// compte admin qui n'en fait pas partie (Suivi paiements/Documents/
+// Activites restent, eux, ouverts a tout admin comme avant).
+export function BottomNav({ role, canSeeMembres }: { role: UserRole; canSeeMembres: boolean }) {
   const pathname = usePathname()
 
   // Bandeau retiré entièrement pour les comptes famille et amis
@@ -111,9 +119,11 @@ export function BottomNav({ role }: { role: UserRole }) {
   // TopBanner pour tout le monde, voir plus haut).
   if (role !== 'admin') return null
 
-  const items = ADMIN_ITEMS.filter(
-    (item) => SHOW_SUIVI_PAIEMENTS || item.href !== '/dashboard/admin/paiements'
-  )
+  const items = ADMIN_ITEMS.filter((item) => {
+    if (item.href === '/dashboard/admin' && !canSeeMembres) return false
+    if (item.href === '/dashboard/admin/paiements' && !SHOW_SUIVI_PAIEMENTS) return false
+    return true
+  })
   const hasPhotoBackground = pathname === '/dashboard'
 
   const linkClass = (active: boolean) =>

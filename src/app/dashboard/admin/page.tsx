@@ -1,4 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
+import { canAccessMembresTab } from '@/lib/members-access'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { MembersTable, MemberRow } from '@/components/admin/MembersTable'
@@ -80,7 +81,9 @@ function aggregateStatus(payments: NestedTsPayment[]): StayRow['status'] {
 export default async function AdminPage() {
   const { supabase, user, profile } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
-  if (profile?.role !== 'admin') redirect('/dashboard')
+  // Reserve a 4 personnes precises (demande d'Aurelie du 25/10/2026),
+  // plus seulement "tout compte admin" -- voir lib/members-access.ts.
+  if (!canAccessMembresTab(profile)) redirect('/dashboard')
 
   const { data: profiles } = await supabase
     .from('profiles')
