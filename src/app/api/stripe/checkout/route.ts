@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { accountFor, stripeFor } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
-import { buildTsStatementDescriptor, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
+import { buildTsStatementDescriptorSuffix, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 // Crée une session Stripe Checkout pour régler un paiement (taxe de séjour ou
@@ -48,7 +48,20 @@ function asSingle<T>(value: T | T[] | null): T | null {
   return Array.isArray(value) ? value[0] ?? null : value
 }
 
+// Une erreur (clé Stripe invalide, compte non activé, paramètre refusé…)
+// remonte au navigateur avec son vrai message : une 500 sans détail ne dit
+// pas à la famille ce qui bloque.
 export async function POST(request: Request) {
+  try {
+    return await handleCheckout(request)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`[stripe/checkout] ${message}`)
+    return NextResponse.json({ error: `Erreur serveur : ${message}` }, { status: 500 })
+  }
+}
+
+async function handleCheckout(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -191,7 +204,7 @@ export async function POST(request: Request) {
   }
 
   const periods = payments.map((p) => tsPeriodFromCheckOut(asSingle(p.bookings)!.check_out))
-  const statementDescriptor = buildTsStatementDescriptor(resolvedFirstName ?? 'Famille', periods)
+  const statementDescriptorSuffix = buildTsStatementDescriptorSuffix(resolvedFirstName ?? 'Famille', periods)
 
   const lineItems = payments.map((payment) => {
     const booking = asSingle(payment.bookings)!
@@ -228,7 +241,7 @@ export async function POST(request: Request) {
     cancel_url: `${origin}/dashboard/paiement/annule`,
     customer_email: user.email,
     payment_intent_data: {
-      statement_descriptor: statementDescriptor,
+      statement_descriptor_suffix: statementDescriptorSuffix,
       metadata: {
         payment_type: 'ts',
         payment_id: paidIds[0],
