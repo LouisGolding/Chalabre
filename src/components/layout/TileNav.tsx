@@ -153,7 +153,19 @@ export function TileNav({ role }: { role: UserRole }) {
         // md:bottom-7 (24px/28px). Dépliée ou sur l'accueil, la grille
         // garde son ancrage habituel (bottom-7/md:bottom-9, réglage plus
         // ancien, accolé à BottomNav sans chevaucher son texte).
-        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-6 md:bottom-7'
+        isExpanded ? 'bottom-7 md:bottom-9' : 'bottom-6 md:bottom-7',
+        // Comptes admin (25/10/2026, Aurélie : "la croix occitane doit être
+        // au dessus du bandeau du bas et pas le couvrir") : le z-50 ci-dessus
+        // la rendait visible mais posée SUR BottomNav. On décale donc toute
+        // la grille, poignée comprise, de la hauteur de BottomNav (h-12/h-14,
+        // 48px/56px) : mêmes écarts que pour les autres rôles, mais mesurés
+        // depuis le haut du bandeau plutôt que depuis le bas de l'écran.
+        // Repliée, précisé par Aurélie le même jour : l'écart entre le haut
+        // du bandeau et le bas de la croix doit être le même qu'entre le bas
+        // du logo et le bas du bandeau du haut (mesuré : 17px mobile, 12px
+        // bureau). Bas de la croix = 26,5px au-dessus du bas de cette grille,
+        // d'où 48 + 17 - 26,5 ≈ 39px (mobile) et 56 + 12 - 26,5 ≈ 41px (bureau).
+        isAdmin && (isExpanded ? 'bottom-[76px] md:bottom-[92px]' : 'bottom-[39px] md:bottom-[41px]')
       )}
     >
       {/* Fond fixe derrière la grille (uniquement quand elle est
