@@ -4,9 +4,9 @@ import { createClient } from '@/lib/supabase/server'
 // Upload des relevés bancaires de l'onglet "Budget" (voir
 // claude/prompt-onglet-budget.md) -- suit uniquement le FICHIER déposé
 // (nom, compte, qui, quand), pour qu'il reste consultable/téléchargeable
-// dans BudgetBoard.tsx, indépendamment de l'extraction IA des
-// transactions (toujours en cours de calibrage dans la conversation,
-// pas encore de route dédiée). Réservé aux admins -- demandé
+// dans BudgetBoard.tsx. L'extraction IA des transactions est une route
+// séparée (POST /api/budget/statements/extract), appelée par
+// BudgetBoard.tsx juste après le dépôt. Réservé aux admins -- demandé
 // explicitement par Nicolas le 16/10/2026, plus restrictif que le bucket
 // "documents" (lecture admin+family) vu la sensibilité des relevés
 // bancaires.

@@ -2,7 +2,7 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { BudgetBoard } from '@/components/budget/BudgetBoard'
-import type { BudgetStatement, BudgetStripeTransaction } from '@/types'
+import type { BudgetStatement, BudgetStripeTransaction, BudgetTransaction } from '@/types'
 
 // Onglet "Budget" (voir claude/prompt-onglet-budget.md) -- mise en forme
 // posée le 15/10/2026 à la demande de Nicolas, avant la création de la
@@ -152,13 +152,22 @@ export default async function BudgetPage() {
 
   stripeTransactions.sort((a, b) => b.paidAt.localeCompare(a.paidAt))
 
+  // Transactions extraites des relevés par l'IA (voir
+  // /api/budget/statements/extract) -- lecture admin ET famille. Tant que
+  // migration_budget_transactions.sql n'est pas appliquée, `data` reste
+  // vide et la page ne plante pas (même principe que budget_statements).
+  const { data: transactions } = await supabase
+    .from('budget_transactions')
+    .select('*')
+    .order('transaction_date', { ascending: false })
+
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <PageTitle>Budget</PageTitle>
       <BudgetBoard
         isAdmin={isAdmin}
-        initialTransactions={[]}
-        initialStatements={statementsWithUrl}
+        transactions={(transactions ?? []).map((t: BudgetTransaction) => ({ ...t, amount: Number(t.amount) }))}
+        statements={statementsWithUrl}
         stripeTransactions={stripeTransactions}
       />
     </div>
