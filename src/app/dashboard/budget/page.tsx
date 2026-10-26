@@ -3,6 +3,7 @@ import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { BudgetBoard } from '@/components/budget/BudgetBoard'
 import type { BudgetStatement, BudgetStripeTransaction, BudgetTransaction } from '@/types'
+import { occupantDisplayName, properCase } from '@/lib/utils'
 
 // Onglet "Budget" (voir claude/prompt-onglet-budget.md) -- mise en forme
 // posée le 15/10/2026 à la demande de Nicolas, avant la création de la
@@ -97,7 +98,7 @@ export default async function BudgetPage() {
     amount: number
     paid_at: string | null
     profiles: { first_name: string; last_name: string } | null
-    bookings: { house_side: string | null } | null
+    bookings: { house_side: string | null; guest_name: string | null } | null
   }
 
   const { data: tmPaymentsRaw } = await supabase
@@ -108,7 +109,7 @@ export default async function BudgetPage() {
 
   const { data: tsPaymentsRaw } = await supabase
     .from('ts_payments')
-    .select('id, amount, paid_at, profiles(first_name, last_name), bookings(house_side)')
+    .select('id, amount, paid_at, profiles(first_name, last_name), bookings(house_side, guest_name)')
     .eq('status', 'paid')
     .order('paid_at', { ascending: false })
 
@@ -125,7 +126,7 @@ export default async function BudgetPage() {
       id: `tm-${p.id}`,
       account,
       kind: 'cotisation',
-      label: `Cotisation ${p.month} — ${p.profiles?.first_name} ${p.profiles?.last_name}`,
+      label: `Cotisation ${p.month} — ${p.profiles ? properCase(p.profiles.first_name) : ''} ${p.profiles ? properCase(p.profiles.last_name) : ''}`.trim(),
       amount: Number(p.amount),
       paidAt: p.paid_at ?? '',
     })
@@ -144,7 +145,10 @@ export default async function BudgetPage() {
       id: `ts-${p.id}`,
       account,
       kind: 'taxe_sejour',
-      label: `Taxe de séjour — ${p.profiles?.first_name} ${p.profiles?.last_name}`,
+      // Nom de l'occupant réel du séjour (ex. "Otto Lalande"), pas
+      // forcément celui du compte qui a payé -- voir occupantDisplayName
+      // (demandé par Aurélie le 26/10/2026).
+      label: `Taxe de séjour — ${occupantDisplayName(p.bookings?.guest_name, p.profiles)}`,
       amount: Number(p.amount),
       paidAt: p.paid_at ?? '',
     })

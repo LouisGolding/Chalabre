@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UNKNOWN_DATE_OF_BIRTH } from '@/lib/profile'
+import { properCase } from '@/lib/utils'
 import type { FamilyGroup, Profile } from '@/types'
 
 export function CompleteProfileForm({ profile }: { profile: Profile }) {
@@ -31,8 +32,11 @@ export function CompleteProfileForm({ profile }: { profile: Profile }) {
     const { error } = await supabase
       .from('profiles')
       .update({
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
+        // Casse normalisee a l'enregistrement (demande par Aurelie le
+        // 26/10/2026 : "Eva" s'affichait "eVA") -- voir properCase dans
+        // src/lib/utils.ts.
+        first_name: properCase(firstName.trim()),
+        last_name: properCase(lastName.trim()),
         date_of_birth: dateOfBirth,
         family_group: familyGroup,
         // role is deliberately absent: the database derives it from

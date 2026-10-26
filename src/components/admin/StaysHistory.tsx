@@ -3,6 +3,7 @@
 import { Fragment, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export interface StayRow {
   id: string
@@ -45,6 +46,13 @@ const STATUS_LABEL: Record<StayRow['status'], { label: string; color: string }> 
 // séjours de l'année précédente" dès qu'une année 2027 apparaît. Clic sur
 // le bandeau : déplie/replie cette année.
 export function StaysHistory({ rows }: { rows: StayRow[] }) {
+  // Widget lui-même dépliable, repliée par défaut, comme tous les autres
+  // widgets de ce type sur le site (ex. "Transactions Stripe" sur
+  // Budget) -- demandé par Aurélie le 26/10/2026 : jusqu'ici c'était la
+  // seule des cartes de cette page affichée en permanence dépliée. Ne pas
+  // confondre avec collapsedYears ci-dessous, qui replie une année à la
+  // fois DANS le widget, une fois celui-ci ouvert.
+  const [isOpen, setIsOpen] = useState(false)
   const years = Array.from(new Set(rows.map((r) => r.year))).sort((a, b) => b - a)
   const [collapsedYears, setCollapsedYears] = useState<Set<number>>(
     () => new Set(years.slice(1)) // toutes sauf la plus récente, repliées au premier affichage
@@ -59,12 +67,27 @@ export function StaysHistory({ rows }: { rows: StayRow[] }) {
     })
   }
 
-  if (rows.length === 0) {
-    return <p className="py-4 text-center text-sm text-muted-foreground">Aucun séjour enregistré.</p>
-  }
-
   return (
-    <div className="overflow-x-auto">
+    <Card className="py-0">
+      <CardHeader>
+        <button
+          type="button"
+          onClick={() => setIsOpen((o) => !o)}
+          aria-expanded={isOpen}
+          className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
+        >
+          <CardTitle className="text-sm md:text-base uppercase tracking-wide">
+            Listes des séjours ({rows.length})
+          </CardTitle>
+          <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
+        </button>
+      </CardHeader>
+      {isOpen && (
+        <CardContent className="pb-4">
+          {rows.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">Aucun séjour enregistré.</p>
+          ) : (
+            <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b text-stone-400 text-left">
@@ -121,6 +144,10 @@ export function StaysHistory({ rows }: { rows: StayRow[] }) {
           })}
         </tbody>
       </table>
-    </div>
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
   )
 }

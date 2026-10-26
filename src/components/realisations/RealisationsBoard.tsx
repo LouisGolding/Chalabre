@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight, ChevronLeft, Heart, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { actionPillClass, cn } from '@/lib/utils'
+import { actionPillClass, cn, properCase } from '@/lib/utils'
 import type { HouseLogEntry, HouseLogComment } from '@/types'
 
 export type RealisationComment = HouseLogComment
@@ -266,7 +266,7 @@ export function RealisationsBoard({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="Ex. : tonte du jardin, réparation d'un carreau, réagencement de la chambre bleue..."
+          placeholder="Ex. : réagencement de la chambre nord"
           rows={3}
           className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground resize-none"
         />
@@ -430,7 +430,7 @@ function RealisationCard({
   const addPhotoInputRef = useRef<HTMLInputElement>(null)
 
   const authorName = entry.profile
-    ? `${entry.profile.first_name} ${entry.profile.last_name}`.trim()
+    ? `${properCase(entry.profile.first_name)} ${properCase(entry.profile.last_name)}`.trim()
     : 'Un membre de la famille'
 
   const handleSave = async () => {
@@ -568,7 +568,7 @@ function RealisationCard({
         <ul className="mt-2 space-y-1.5">
           {entry.comments.map((comment) => {
             const commentAuthor = comment.profile
-              ? `${comment.profile.first_name} ${comment.profile.last_name}`.trim()
+              ? `${properCase(comment.profile.first_name)} ${properCase(comment.profile.last_name)}`.trim()
               : 'Un membre de la famille'
             const canDeleteComment = comment.user_id === currentUserId || isAdmin
             return (

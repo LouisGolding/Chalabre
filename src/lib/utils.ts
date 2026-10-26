@@ -94,13 +94,44 @@ export function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat('fr-FR').format(new Date(date))
 }
 
+// Casse normalisée pour l'affichage d'un prénom/nom (une majuscule au
+// début, le reste en minuscule), quelle que soit la casse telle que
+// saisie en base -- demandé par Aurélie le 26/10/2026 ("Eva" s'affichait
+// "eVA" sur le planning, un champ de saisie libre comme guest_name
+// pouvant contenir n'importe quelle casse). Respecte les mots composés
+// (espace, apostrophe, trait d'union), ex. "jean-pierre" → "Jean-Pierre".
+export function properCase(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase('fr-FR')
+    .replace(/(^|[\s'-])(\p{L})/gu, (_match, sep: string, letter: string) => sep + letter.toLocaleUpperCase('fr-FR'))
+}
+
 // Certains champs de saisie (ex. "Nom Prénom" d'un accompagnant, voir
 // StayEntry dans NextStayCard.tsx) peuvent contenir un nom de famille,
 // mais celui-ci ne doit jamais s'afficher ailleurs sur le site (planning,
 // pastilles de solde TS...) — seul le prénom, comme pour les titulaires de
-// compte (profile.first_name). On ne garde donc que le premier mot saisi.
+// compte (profile.first_name). On ne garde donc que le premier mot saisi,
+// toujours affiché en casse normalisée (voir properCase ci-dessus).
 export function firstNameOnly(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] ?? fullName
+  const first = fullName.trim().split(/\s+/)[0] ?? fullName
+  return properCase(first)
+}
+
+// Nom à afficher pour un séjour/paiement : celui de l'occupant réel
+// (guest_name, ex. "Eva", "Otto") plutôt que celui du compte qui a fait la
+// saisie pour lui (ex. jamais "Guillaume" pour le séjour d'Eva, ni
+// "Nicolas Lalande" pour celui d'Otto) -- demandé par Aurélie le
+// 26/10/2026. Un accompagnant sans compte propre n'a pas de nom de
+// famille enregistré : on reprend par hypothèse celui du titulaire qui a
+// saisi le séjour (même famille), ex. "Otto Lalande".
+export function occupantDisplayName(
+  guestName: string | null | undefined,
+  owner: { first_name: string; last_name: string } | null | undefined
+): string {
+  if (guestName?.trim()) return `${firstNameOnly(guestName)} ${owner ? properCase(owner.last_name) : ''}`.trim()
+  if (!owner) return '—'
+  return `${properCase(owner.first_name)} ${properCase(owner.last_name)}`
 }
 
 // Phase d'un séjour par rapport à aujourd'hui (demandé par Nicolas le
