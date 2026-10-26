@@ -88,6 +88,10 @@ export async function PATCH(request: Request) {
     // réapparition à échéance des tâches jardin récurrentes — voir
     // TasksBoard.tsx.
     update.completed_at = completed ? new Date().toISOString() : null
+    // Qui a coché la tâche (26/10/2026, demande d'Aurélie : widget
+    // "Tâches réalisées", affiche "Fait le ... par ..." à la place de
+    // Contact/Suivi) -- remis à null en décochant, comme completed_at.
+    update.completed_by = completed ? user.id : null
   }
 
   // Édition en place des champs d'une tâche existante (25/10/2026, voir

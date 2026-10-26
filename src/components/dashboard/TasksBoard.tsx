@@ -5,7 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronDown, MessageCircle, Pencil, Phone, Trash2, X } from 'lucide-react'
-import { actionPillClass, cn, viewTogglePillClass } from '@/lib/utils'
+import { actionPillClass, cn, properCase, viewTogglePillClass } from '@/lib/utils'
 import { MONTH_OPTIONS, SEASON_OPTIONS, PERIOD_LABELS, TaskPeriod, isPeriodCurrent } from '@/lib/task-periods'
 import { TaskContactTag, TaskNote } from '@/types'
 
@@ -115,6 +115,12 @@ export interface TaskItem {
   // `authorName` ci-dessous (libelle affiche) : un id, pas un nom.
   createdBy: string | null
   authorName: string | null
+  // Qui a coché la tâche, nom déjà formaté (26/10/2026, demande
+  // d'Aurélie : widget "Tâches réalisées" ci-dessous, affiche "Fait le
+  // ... par ..." à la place de Contact/Suivi quand la tâche est cochée)
+  // -- null si jamais cochée, ou décochée depuis (voir
+  // migration_tasks_completed_by.sql).
+  completedByName: string | null
   // Suivi & Contact (19/10/2026, demandé par Aurélie) -- remplacent
   // l'ancien champ unique `comment` : plusieurs notes datées (chacune
   // pouvant porter une date de RDV), et plusieurs contacts associés
@@ -195,6 +201,38 @@ const RECURRENCE_LABEL: Record<Recurrence, string> = {
   yearly: 'Chaque année',
 }
 
+// Formulaire "Nouvelle tâche" en étapes (26/10/2026, demande d'Aurélie :
+// "au debut, seul s'affiche 'nouvelle tache'... ainsi le choix de
+// catégorie apparait, entrée ou valider, puis le choix de l'urgence,
+// puis entrée ou valider, puis periode si c'est pour le jardin, puis
+// PUBLIER ou entrée"). Chaque étape validée (bouton "Valider"/"Publier"
+// ou touche Entrée -- les deux déclenchent le même onSubmit du <form>
+// ci-dessous) révèle la suivante ; les champs déjà révélés restent
+// affichés (pas de retour en arrière prévu). L'étape "période" n'existe
+// que pour la catégorie "jardin" (regroupe Période + Récurrence) ; pour
+// les autres catégories, on passe directement de "urgence" à "publier".
+type WizardStep = 'title' | 'category' | 'urgency' | 'period' | 'recurrence' | 'ready'
+
+function nextWizardStep(step: WizardStep, category: Category): WizardStep {
+  switch (step) {
+    case 'title':
+      return 'category'
+    case 'category':
+      return 'urgency'
+    case 'urgency':
+      return category === 'jardin' ? 'period' : 'ready'
+    // Periode et Recurrence sont deux etapes distinctes, l'une apres
+    // l'autre (demande d'Aurelie du 26/10/2026 : "fait periode et
+    // recurrence l'un apres l'autre") -- auparavant regroupees sous
+    // une seule etape.
+    case 'period':
+      return 'recurrence'
+    case 'recurrence':
+    case 'ready':
+      return 'ready'
+  }
+}
+
 const DAY_MS = 1000 * 60 * 60 * 24
 
 function daysSince(iso: string | null): number | null {
@@ -231,9 +269,13 @@ interface TasksBoardProps {
   // Sert à savoir si on peut supprimer SA PROPRE note de suivi (en plus
   // d'un admin, qui peut toujours tout supprimer via `canEdit`).
   currentUserId: string
+  // Nom (déjà formaté) du compte connecté -- pour afficher "Fait le ...
+  // par ..." immédiatement à la coche, sans attendre la confirmation
+  // serveur (26/10/2026, voir toggle() ci-dessous).
+  currentUserName: string
 }
 
-export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUserId }: TasksBoardProps) {
+export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUserId, currentUserName }: TasksBoardProps) {
   const [tasks, setTasks] = useState(initialTasks)
   // Widget "déroulant" (demandé par Nicolas le 27/09/2026) : replié par
   // défaut, un clic sur le titre du widget révèle le formulaire d'ajout.
@@ -241,7 +283,11 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
   // cet état.
   const [formOpen, setFormOpen] = useState(false)
   const [archivesOpen, setArchivesOpen] = useState(false)
-  const [sortMode, setSortMode] = useState<SortMode>('urgence')
+  // Widget "Tâches réalisées" (26/10/2026, demande d'Aurélie) : repliée
+  // par défaut, comme Archives et comme les autres widgets dépliables
+  // du site (StaysHistory.tsx, etc.).
+  const [doneOpen, setDoneOpen] = useState(false)
+  const [sortMode] = useState<SortMode>('urgence')
 
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<Category>('reparation')
@@ -250,6 +296,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
   const [recurrence, setRecurrence] = useState<Recurrence>('once')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [wizardStep, setWizardStep] = useState<WizardStep>('title')
 
   // Suivi & Contact (19/10/2026, demandé par Aurélie) : état d'affichage
   // (panneau "Suivi" déplié ou non, sélecteur "Contact" ouvert ou non) et
@@ -293,9 +340,18 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
   const toggle = async (task: TaskItem) => {
     const nextCompleted = !task.completed
     const nextCompletedAt = nextCompleted ? new Date().toISOString() : null
+    // Affiché tout de suite dans "Fait le ... par ..." (26/10/2026) --
+    // c'est forcément SOI qui vient de cocher, pas besoin d'attendre la
+    // réponse serveur pour connaître ce nom. Décoché : repasse à null,
+    // comme completedAt.
+    const nextCompletedByName = nextCompleted ? currentUserName : null
     const previous = task
     setTasks((prev) =>
-      prev.map((t) => (t.id === task.id ? { ...t, completed: nextCompleted, completedAt: nextCompletedAt } : t))
+      prev.map((t) =>
+        t.id === task.id
+          ? { ...t, completed: nextCompleted, completedAt: nextCompletedAt, completedByName: nextCompletedByName }
+          : t
+      )
     )
     try {
       const res = await fetch('/api/tasks', {
@@ -306,7 +362,11 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
       if (!res.ok) throw new Error()
     } catch {
       setTasks((prev) =>
-        prev.map((t) => (t.id === task.id ? { ...t, completed: previous.completed, completedAt: previous.completedAt } : t))
+        prev.map((t) =>
+          t.id === task.id
+            ? { ...t, completed: previous.completed, completedAt: previous.completedAt, completedByName: previous.completedByName }
+            : t
+        )
       )
       setError('Impossible de mettre à jour cette tâche.')
     }
@@ -363,7 +423,9 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
         text: n.text,
         rdv_date: n.rdv_date,
         created_at: n.created_at,
-        profile: n.profile ? { first_name: n.profile.first_name, last_name: n.profile.last_name } : undefined,
+        // Casse normalisee (demande par Aurelie le 26/10/2026) : voir
+        // properCase dans src/lib/utils.ts.
+        profile: n.profile ? { first_name: properCase(n.profile.first_name), last_name: properCase(n.profile.last_name) } : undefined,
       }
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, notes: [...t.notes, note] } : t)))
       setDraftText((prev) => ({ ...prev, [taskId]: '' }))
@@ -464,6 +526,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
           // absent (ne devrait pas arriver).
           createdBy: t.created_by ?? currentUserId,
           authorName: null,
+          completedByName: null,
           notes: [],
           contacts: [],
         },
@@ -474,6 +537,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
       setCategory('reparation')
       setPeriod('')
       setRecurrence('once')
+      setWizardStep('title')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de l’ajout')
     } finally {
@@ -518,8 +582,26 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
   const archivedIds = new Set(archived.map((t) => t.id))
   const nonJardinVisible = nonJardin.filter((t) => !archivedIds.has(t.id))
 
-  const thisMonth = sortTasks(nonJardinVisible.filter((t) => isPeriodCurrent(t.period)), sortMode)
-  const general = sortTasks(nonJardinVisible.filter((t) => !isPeriodCurrent(t.period)), sortMode)
+  // Une tâche cochée bascule dans "Tâches réalisées" (widget à part,
+  // sous "Liste des tâches") au lieu de rester affichée, barrée, dans
+  // "À faire ce mois-ci"/"À faire" -- confirmé par Aurélie le
+  // 26/10/2026 après un aller-retour sur ce point (elle avait d'abord
+  // demandé l'inverse -- garder la tâche dans les deux listes à la
+  // fois -- avant de revenir au comportement d'origine : la tâche ne
+  // doit apparaître QUE dans "Tâches réalisées" une fois cochée). La
+  // décocher la fait revenir ici. Elle ne quitte "Tâches réalisées" que
+  // 30 jours après, pour les Archives (inchangé ci-dessus,
+  // archived/archivedIds).
+  const nonJardinActive = nonJardinVisible.filter((t) => !t.completed)
+  const nonJardinDone = nonJardinVisible.filter((t) => t.completed)
+
+  const thisMonth = sortTasks(nonJardinActive.filter((t) => isPeriodCurrent(t.period)), sortMode)
+  const general = sortTasks(nonJardinActive.filter((t) => !isPeriodCurrent(t.period)), sortMode)
+  // Triée par date de clôture (la plus récente d'abord) plutôt que par
+  // sortMode (urgence/catégorie) : une fois faite, ce qui compte pour
+  // retrouver une tâche ici est surtout "quand", pas sa catégorie ou son
+  // urgence d'origine.
+  const done = [...nonJardinDone].sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''))
   const jardin = sortTasks(jardinVisible, sortMode)
   const archives = sortTasks(archived, sortMode)
 
@@ -544,7 +626,10 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
         <CardHeader>
           <button
             type="button"
-            onClick={() => setFormOpen((v) => !v)}
+            onClick={() => {
+              setFormOpen((v) => !v)
+              setWizardStep('title')
+            }}
             aria-expanded={formOpen}
             className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
           >
@@ -559,21 +644,51 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
             {/* Formulaire d'ajout ouvert a tous (admin + famille) depuis
                 le 25/10/2026 -- auparavant reserve aux admins via
                 `canEdit`, voir le grand commentaire en tete de fichier. */}
-            <div className="space-y-3">
-                {/* Encadre traite exactement comme le champ "Titre" de
-                    "Partager ce qui a ete fait" (RealisationsBoard.tsx) --
-                    demande par Nicolas le 05/10/2026 : remplace le
-                    composant <Input> (shadcn, rounded-md par defaut) par
-                    le meme <input> natif + classes que ce champ. */}
+            {/* Assistant en étapes (26/10/2026, demande d'Aurélie --
+                voir le commentaire sur WizardStep en tête de fichier) :
+                un seul <form>, un seul bouton "Valider"/"Publier" à la
+                fois (celui de l'étape courante), et la touche Entrée
+                déclenche le même onSubmit quel que soit le champ
+                actif -- donc toujours "valider l'étape en cours", pas
+                "publier directement". */}
+            <form
+              className="space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (wizardStep === 'title' && !title.trim()) return
+                if (wizardStep === 'ready') {
+                  addTask()
+                } else {
+                  setWizardStep(nextWizardStep(wizardStep, category))
+                }
+              }}
+            >
+                {/* Un seul champ/groupe de pastilles visible a la fois
+                    (correction d'Aurelie du 26/10/2026 : "il faut que
+                    les elements arrivent les uns apres les autres...
+                    quand on a fait entree ou valider le texte, celui ci
+                    disparait pour laisser place a la categorie, et
+                    ainsi de suite") -- chaque etape remplace la
+                    precedente au lieu de s'accumuler ; la valeur saisie
+                    reste en memoire (title/category/priority/period/
+                    recurrence) meme une fois son champ masque, pour
+                    etre envoyee par addTask() a l'etape finale. */}
+                {wizardStep === 'title' && (
+                /* Encadre traite exactement comme le champ "Titre" de
+                   "Partager ce qui a ete fait" (RealisationsBoard.tsx) --
+                   demande par Nicolas le 05/10/2026 : remplace le
+                   composant <Input> (shadcn, rounded-md par defaut) par
+                   le meme <input> natif + classes que ce champ. */
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Nouvelle tâche…"
-                  onKeyDown={(e) => e.key === 'Enter' && addTask()}
                   className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground"
                 />
+                )}
 
+              {wizardStep === 'category' && (
               <div>
                 <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Catégorie</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -584,7 +699,9 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                   ))}
                 </div>
               </div>
+              )}
 
+              {wizardStep === 'urgency' && (
               <div>
                 <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Urgence</p>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -595,14 +712,17 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                   ))}
                 </div>
               </div>
+              )}
 
-              {/* Periode : convertie en pastilles le 04/10/2026, puis
-                  revenue a un menu deroulant le 05/10/2026 (demande par
-                  Nicolas : "garde l'option de pastille deroulante comme
-                  avant") -- mais avec la typo/esthetique des pastilles
-                  mise en place entre-temps (majuscules, tracking 0,08em,
-                  gras quand une periode est choisie) a la place de
-                  l'ancien style text-xs non majuscule. */}
+              {/* Periode : uniquement pour la catégorie "Jardin"
+                  (demande d'Aurélie le 26/10/2026 : "puis periode si
+                  c'est pour le jardin"), puis Récurrence dans une étape
+                  séparée juste après (demande d'Aurélie : "fait periode
+                  et recurrence l'un apres l'autre", 26/10/2026 --
+                  auparavant regroupées sous une seule étape). Menu
+                  Période déroulant (demande historique de Nicolas, voir
+                  plus haut). */}
+              {category === 'jardin' && wizardStep === 'period' && (
               <div>
                 <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Période</p>
                 <select
@@ -626,12 +746,13 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
                   </optgroup>
                 </select>
               </div>
+              )}
 
               {/* Uniquement pour la catégorie "Jardin", demandé par Nicolas
                   le 27/09/2026 : une tâche jardin a toujours une récurrence
                   (1 fois par défaut), qui pilote sa réapparition après
                   clôture — voir le commentaire en tête de fichier. */}
-              {category === 'jardin' && (
+              {category === 'jardin' && wizardStep === 'recurrence' && (
                 <div>
                   <p className="mb-1.5 text-sm md:text-base font-medium uppercase tracking-wide text-muted-foreground">Récurrence</p>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -646,11 +767,16 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
 
               {/* Traite et nomme comme le bouton "Publier" de "Partager ce
                   qui a ete fait" (RealisationsBoard.tsx) -- demande par
-                  Nicolas le 05/10/2026 : plus d'icone, meme libelle/etat. */}
-              <button type="button" onClick={addTask} disabled={saving} className={actionPillClass}>
-                {saving ? 'Publication...' : 'Publier'}
+                  Nicolas le 05/10/2026 : plus d'icone, meme libelle/etat.
+                  "Valider" sur les étapes intermédiaires, "Publier" sur
+                  la dernière -- un seul bouton affiché à la fois, les
+                  deux soumettent le même <form> (type="submit", voir
+                  onSubmit ci-dessus) donc répondent aussi à la touche
+                  Entrée (demande d'Aurélie du 26/10/2026). */}
+              <button type="submit" disabled={saving} className={actionPillClass}>
+                {wizardStep === 'ready' ? (saving ? 'Publication...' : 'Publier') : 'Valider'}
               </button>
-            </div>
+            </form>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -704,22 +830,15 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
       {(thisMonth.length > 0 || general.length > 0 || jardin.length > 0 || tasks.length === 0) && (
         <Card>
           <CardHeader>
-            {/* Pastilles de tri Urgence/Categorie deplacees ici le
-                05/10/2026 (demande par Nicolas) : elles n'apparaissaient
-                plus qu'une fois, alignees sur la ligne du titre du widget
-                "Liste des taches" (et non plus sur chacune des 3
-                sous-listes), justifiees a droite. */}
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle className="text-sm md:text-base uppercase tracking-wide">Liste des tâches</CardTitle>
-              <div className="flex items-center gap-x-4">
-                <button type="button" onClick={() => setSortMode('urgence')} className={viewTogglePillClass(sortMode === 'urgence')}>
-                  Urgence
-                </button>
-                <button type="button" onClick={() => setSortMode('categorie')} className={viewTogglePillClass(sortMode === 'categorie')}>
-                  Catégorie
-                </button>
-              </div>
-            </div>
+            {/* Pastilles de tri Urgence/Categorie masquees le 26/10/2026
+                (demande d'Aurelie : ce classement n'est plus tres utile
+                a ce stade). sortMode reste cale sur 'urgence' par
+                defaut (voir useState plus haut) -- le tri sous-jacent
+                (sortTasks) continue donc de s'appliquer silencieusement,
+                juste sans les pastilles pour en changer ; faciles a
+                remettre si besoin plus tard (pastilles ci-dessous,
+                inchangees). */}
+            <CardTitle className="text-sm md:text-base uppercase tracking-wide">Liste des tâches</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -806,6 +925,61 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
               />
             )}
           </CardContent>
+        </Card>
+      )}
+
+      {/* Widget "Tâches réalisées" (26/10/2026, demande d'Aurélie) : une
+          tâche cochée (hors Périodique, qui garde son propre
+          fonctionnement -- voir le commentaire sur nonJardinActive/
+          nonJardinDone plus haut) atterrit ici au lieu de rester
+          affichée, barrée, dans "À faire ce mois-ci"/"À faire". La
+          décocher ici la fait revenir dans "Liste des tâches". Repliée
+          par défaut, même gabarit que les autres widgets dépliables du
+          site (StaysHistory.tsx, etc.) -- widget séparé de "Liste des
+          tâches" (pas une simple section dedans, comme Archives dans
+          "Entretien et réparations") pour rester visible même repliée. */}
+      {done.length > 0 && (
+        <Card className="py-0">
+          <CardHeader>
+            <button
+              type="button"
+              onClick={() => setDoneOpen((v) => !v)}
+              aria-expanded={doneOpen}
+              className="flex h-10 w-full items-center justify-between gap-2 text-left hover:opacity-80"
+            >
+              <CardTitle className="text-sm md:text-base uppercase tracking-wide">
+                Tâches réalisées ({done.length})
+              </CardTitle>
+              <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', doneOpen && 'rotate-180')} />
+            </button>
+          </CardHeader>
+          {doneOpen && (
+            <CardContent className="pb-[10px]">
+              <TaskList
+                title={null}
+                tasks={done}
+                canEdit={canEdit}
+                currentUserId={currentUserId}
+                onToggle={toggle}
+                onDelete={deleteTask}
+                onEditTask={editTask}
+                servicesContacts={servicesContacts}
+                suiviOpen={suiviOpen}
+                pickerOpenFor={pickerOpenFor}
+                draftText={draftText}
+                draftDate={draftDate}
+                onToggleSuivi={toggleSuivi}
+                onOpenPicker={setPickerOpenFor}
+                onClosePicker={() => setPickerOpenFor(null)}
+                onDraftTextChange={(taskId, text) => setDraftText((prev) => ({ ...prev, [taskId]: text }))}
+                onDraftDateChange={(taskId, date) => setDraftDate((prev) => ({ ...prev, [taskId]: date }))}
+                onAddNote={addNote}
+                onDeleteNote={deleteNote}
+                onAttachContact={attachContact}
+                onDetachContact={detachContact}
+              />
+            </CardContent>
+          )}
         </Card>
       )}
     </div>
@@ -903,6 +1077,18 @@ function TaskList({
 function formatNoteDate(iso: string): string {
   try {
     return format(parseISO(iso), 'd MMM', { locale: fr })
+  } catch {
+    return ''
+  }
+}
+
+// "Fait le ... par ..." (26/10/2026, voir TaskRow plus bas) -- avec
+// l'année, contrairement à formatNoteDate ci-dessus : une tâche réalisée
+// peut rester affichée longtemps (jusqu'à 30 jours avant Archives), "3
+// nov." tout court deviendrait vite ambigu.
+function formatCompletedDate(iso: string): string {
+  try {
+    return format(parseISO(iso), 'd MMM yyyy', { locale: fr })
   } catch {
     return ''
   }
@@ -1043,26 +1229,6 @@ function TaskRow({
         <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
           {PRIORITY_LABEL[task.priority]}
         </span>
-        {canEditRow && (
-          <button
-            type="button"
-            onClick={editOpen ? () => setEditOpen(false) : openEdit}
-            aria-label={editOpen ? 'Fermer l\'édition' : 'Corriger cette tâche'}
-            className="self-center shrink-0 text-muted-foreground hover:text-foreground"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
-        )}
-        {canEdit && (
-          <button
-            type="button"
-            onClick={onDelete}
-            aria-label="Supprimer cette tâche"
-            className="self-center shrink-0 text-muted-foreground hover:text-destructive"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
       </div>
 
       {/* Version mobile (en dessous de md) : demande par Nicolas le
@@ -1087,26 +1253,6 @@ function TaskRow({
           <span className={`text-xs uppercase tracking-wide shrink-0 ${PRIORITY_STYLE[task.priority]}`}>
             {PRIORITY_LABEL[task.priority]}
           </span>
-          {canEditRow && (
-            <button
-              type="button"
-              onClick={editOpen ? () => setEditOpen(false) : openEdit}
-              aria-label={editOpen ? 'Fermer l\'édition' : 'Corriger cette tâche'}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-          )}
-          {canEdit && (
-            <button
-              type="button"
-              onClick={onDelete}
-              aria-label="Supprimer cette tâche"
-              className="shrink-0 text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
         </div>
         <p className={`pl-7 text-sm font-medium break-words ${task.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
           {task.title}
@@ -1114,7 +1260,11 @@ function TaskRow({
       </div>
 
       {/* Pastilles "Contact" et "Suivi" (19/10/2026) -- voir le grand
-          commentaire au-dessus de TaskRow. */}
+          commentaire au-dessus de TaskRow. Remplacees par "Fait le ...
+          par ..." une fois la tache cochee (26/10/2026, demande
+          d'Aurelie : widget "Taches realisees") -- voir le bloc
+          !task.completed ci-dessous. */}
+      {!task.completed ? (
       <div className="pl-0 md:pl-[46px] mt-2 flex flex-wrap items-center gap-2 relative">
         {task.contacts.map((c) => (
           <div
@@ -1157,6 +1307,36 @@ function TaskRow({
           <ChevronDown className={cn('h-2.5 w-2.5 transition-transform', suiviOpen && 'rotate-180')} />
         </button>
 
+        {/* Editer/Supprimer deplaces ici, sur la ligne Contact/Suivi,
+            alignes a droite (26/10/2026, demande d'Aurelie) -- avant,
+            colonne a part en bout de ligne principale (bureau) ou de la
+            1ere ligne (mobile). Comme tout ce bloc n'est rendu que pour
+            !task.completed (voir plus haut), ces icones disparaissent
+            d'elles-memes une fois la tache basculee dans "Taches
+            realisees", sans condition supplementaire a ecrire. */}
+        <div className="ml-auto flex items-center gap-2">
+          {canEditRow && (
+            <button
+              type="button"
+              onClick={editOpen ? () => setEditOpen(false) : openEdit}
+              aria-label={editOpen ? 'Fermer l\'édition' : 'Corriger cette tâche'}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="Supprimer cette tâche"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
         {showPicker && (
           <div className="absolute left-0 top-7 z-10 min-w-[220px] rounded-md border border-border bg-card p-2 shadow-lg">
             <p className="mb-1.5 px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -1196,6 +1376,12 @@ function TaskRow({
           </div>
         )}
       </div>
+      ) : (
+        <p className="pl-0 md:pl-[46px] mt-2 text-[11px] text-muted-foreground">
+          Fait le {task.completedAt ? formatCompletedDate(task.completedAt) : '—'}
+          {task.completedByName ? ` par ${task.completedByName}` : ''}
+        </p>
+      )}
 
       {/* Panneau d'edition en place (25/10/2026, demande d'Aurelie) --
           memes pastilles que le formulaire d'ajout en tete de widget,
@@ -1279,13 +1465,13 @@ function TaskRow({
         </div>
       )}
 
-      {suiviOpen && (
+      {!task.completed && suiviOpen && (
         <div className="pl-0 md:pl-[46px] mt-2 space-y-2 rounded-md border border-border bg-muted/40 p-3">
           {task.notes.length === 0 ? (
             <p className="text-xs italic text-muted-foreground">Aucune note de suivi pour l&apos;instant.</p>
           ) : (
             task.notes.map((note) => {
-              const authorName = note.profile ? `${note.profile.first_name} ${note.profile.last_name}`.trim() : null
+              const authorName = note.profile ? `${properCase(note.profile.first_name)} ${properCase(note.profile.last_name)}`.trim() : null
               const canDelete = note.user_id === currentUserId || canEdit
               return (
                 <p key={note.id} className="flex items-start justify-between gap-2 text-xs text-foreground/90">

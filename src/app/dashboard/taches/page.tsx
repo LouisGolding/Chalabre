@@ -3,6 +3,7 @@ import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { TasksBoard, TaskItem } from '@/components/dashboard/TasksBoard'
 import { TaskContactTag, TaskNote } from '@/types'
+import { properCase } from '@/lib/utils'
 
 // Onglet renommé "Entretien" le 27/09/2026 à la demande de Nicolas
 // (auparavant "Tâches") — route inchangée (/dashboard/taches), voir
@@ -23,10 +24,16 @@ export default async function TachesPage() {
   // migration_task_notes_contacts.sql (pas encore appliquée) et
   // TasksBoard.tsx. Remplacent l'ancien champ unique `tasks.comment`
   // (colonne gardée en base, juste plus lue ici).
+  // Deux relations distinctes vers `profiles` depuis le 26/10/2026
+  // (created_by -- déjà là -- et le nouveau completed_by, voir
+  // migration_tasks_completed_by.sql) : il faut désormais nommer
+  // explicitement la contrainte de clé étrangère pour chacune
+  // (`profiles!tasks_..._fkey`), sinon PostgREST ne peut plus deviner
+  // laquelle utiliser pour l'embed `profiles(...)` tout court.
   const { data: tasks, error: tasksError } = await supabase
     .from('tasks')
     .select(
-      '*, profiles(first_name, last_name), task_notes(id, text, rdv_date, created_at, user_id, profile:profiles(first_name, last_name)), task_contacts(contact_id, contacts(id, name, role))'
+      '*, profiles:profiles!tasks_created_by_fkey(first_name, last_name), completedByProfile:profiles!tasks_completed_by_fkey(first_name, last_name), task_notes(id, text, rdv_date, created_at, user_id, profile:profiles(first_name, last_name)), task_contacts(contact_id, contacts(id, name, role))'
     )
     .order('completed', { ascending: true })
     .order('created_at', { ascending: false })
@@ -42,7 +49,7 @@ export default async function TachesPage() {
   if (tasksError) {
     const { data: fallbackTasks } = await supabase
       .from('tasks')
-      .select('*, profiles(first_name, last_name)')
+      .select('*, profiles:profiles!tasks_created_by_fkey(first_name, last_name), completedByProfile:profiles!tasks_completed_by_fkey(first_name, last_name)')
       .order('completed', { ascending: true })
       .order('created_at', { ascending: false })
     taskRows = ((fallbackTasks ?? []) as unknown as Omit<RawTaskRow, 'task_notes' | 'task_contacts'>[]).map(
@@ -65,6 +72,10 @@ export default async function TachesPage() {
     // migration_tasks_family_access.sql.
     created_by: string | null
     profiles: { first_name: string; last_name: string } | null
+    // Qui a coché la tâche (26/10/2026, voir migration_tasks_completed_by.sql
+    // et TasksBoard.tsx, "Fait le ... par ...") -- null si jamais cochée ou
+    // décochée depuis.
+    completedByProfile: { first_name: string; last_name: string } | null
     task_notes:
       | {
           id: string
@@ -87,8 +98,10 @@ export default async function TachesPage() {
         text: n.text,
         rdv_date: n.rdv_date,
         created_at: n.created_at,
+        // Casse normalisee (demande par Aurelie le 26/10/2026) : voir
+        // properCase dans src/lib/utils.ts.
         profile: n.profile
-          ? { first_name: n.profile.first_name, last_name: n.profile.last_name }
+          ? { first_name: properCase(n.profile.first_name), last_name: properCase(n.profile.last_name) }
           : undefined,
       }))
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
@@ -107,7 +120,10 @@ export default async function TachesPage() {
       completed: t.completed,
       completedAt: t.completed_at ?? null,
       createdBy: t.created_by,
-      authorName: t.profiles ? `${t.profiles.first_name} ${t.profiles.last_name}` : null,
+      authorName: t.profiles ? `${properCase(t.profiles.first_name)} ${properCase(t.profiles.last_name)}` : null,
+      completedByName: t.completedByProfile
+        ? `${properCase(t.completedByProfile.first_name)} ${properCase(t.completedByProfile.last_name)}`
+        : null,
       notes,
       contacts,
     }
@@ -133,6 +149,10 @@ export default async function TachesPage() {
         canEdit={profile?.role === 'admin'}
         servicesContacts={serviceContacts}
         currentUserId={user.id}
+        // Pour l'affichage optimiste de "Fait le ... par ..." dès la coche,
+        // avant la confirmation serveur (26/10/2026) -- voir toggle() dans
+        // TasksBoard.tsx.
+        currentUserName={profile ? `${properCase(profile.first_name)} ${properCase(profile.last_name)}` : ''}
       />
       {/* `canEdit` ci-dessus garde son sens d'origine ("réservé aux
           admins") -- utilisé dans TasksBoard pour la suppression et pour
