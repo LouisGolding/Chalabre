@@ -56,18 +56,21 @@ export async function computeTsBalance(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string
 ): Promise<TsBalanceResult> {
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('first_name, last_name')
-    .eq('id', userId)
-    .single()
+  // Latence (26/10/2026, demande d'Aurélie) : `profile` et `myBookings`
+  // ne dépendent pas l'un de l'autre (myBookings n'a besoin que de
+  // userId, déjà connu) -- partis jusqu'ici en 2 aller-retours Supabase
+  // successifs, lancés de front ici. Seule `otherBookings` reste une
+  // vraie dépendance séquentielle : elle a besoin de myFullName, donc du
+  // résultat de `profile`.
+  const [{ data: profile }, { data: myBookings }] = await Promise.all([
+    supabase.from('profiles').select('first_name, last_name').eq('id', userId).single(),
+    supabase
+      .from('bookings')
+      .select('id, guest_name, check_out, ts_payments(id, amount, status)')
+      .eq('user_id', userId),
+  ])
 
   const myFullName = profile ? `${profile.first_name} ${profile.last_name}` : null
-
-  const { data: myBookings } = await supabase
-    .from('bookings')
-    .select('id, guest_name, check_out, ts_payments(id, amount, status)')
-    .eq('user_id', userId)
 
   const { data: otherBookings } = myFullName
     ? await supabase

@@ -53,19 +53,56 @@ export default async function PlanningPage() {
 
   if (!profile) redirect('/auth/login')
 
-  // Résolution des couleurs par nom (voir buildColorResolver plus haut) :
-  // remontée ici, avant le calcul de guestFutureBookings, pour pouvoir
-  // attacher une teinte à chaque séjour d'accompagnant — sert à colorer
-  // le fond des bannières "Prochain séjour X" dans NextStayCard.tsx
-  // (demandé par Nicolas le 29/09/2026 : la bannière reprend la couleur
-  // déjà attribuée à la personne, la même que sur le planning).
-  const { data: allProfilesForColor } = await supabase
-    .from('profiles')
-    .select('id, first_name, last_name, family_group, color_hue')
-
-  const { data: guestPeople } = await supabase
-    .from('guest_people')
-    .select('name, family_group, color_hue, created_by')
+  // Requêtes indépendantes de ce rendu, lancées en parallèle plutôt que
+  // séquentiellement (demandé par Aurélie le 26/10/2026 : "il y a toujours
+  // un temps de latence quand on navigue dans le site") — même principe
+  // que dans dashboard/page.tsx et ts-balance.ts.
+  const [
+    { data: allProfilesForColor },
+    { data: guestPeople },
+    { data: myBookings },
+    { data: bookings },
+    { data: events },
+    initialTsBalance,
+  ] = await Promise.all([
+    // Résolution des couleurs par nom (voir buildColorResolver plus haut) :
+    // remontée ici, avant le calcul de guestFutureBookings, pour pouvoir
+    // attacher une teinte à chaque séjour d'accompagnant — sert à colorer
+    // le fond des bannières "Prochain séjour X" dans NextStayCard.tsx
+    // (demandé par Nicolas le 29/09/2026 : la bannière reprend la couleur
+    // déjà attribuée à la personne, la même que sur le planning).
+    supabase
+      .from('profiles')
+      .select('id, first_name, last_name, family_group, color_hue'),
+    supabase
+      .from('guest_people')
+      .select('name, family_group, color_hue, created_by'),
+    // Séjour à venir du titulaire du compte + ceux déjà saisis pour des
+    // accompagnants (bouton "+") : mêmes données que l'ex-widget de
+    // l'accueil, pour alimenter ReserverSejour ci-dessous (widget migré ici
+    // le 21/09/2026, demandé par Nicolas).
+    supabase
+      .from('bookings')
+      .select('*, ts_payments(*)')
+      .eq('user_id', user.id)
+      .order('check_in', { ascending: true }),
+    supabase
+      .from('bookings')
+      .select('*, profiles(first_name, last_name, family_group, color_hue, date_of_birth), rooms(name)')
+      .order('check_in', { ascending: true }),
+    supabase
+      .from('events')
+      .select('*')
+      .order('start_date', { ascending: true }),
+    // Solde de taxe de séjour "à la manière d'un solde bancaire" (demandé
+    // par Aurélie le 22/09/2026) : voir computeTsBalance pour le détail —
+    // reparti entre le solde propre du titulaire ("Votre solde TS", y
+    // compris ses séjours saisis par quelqu'un d'autre sous son nom) et un
+    // solde par accompagnant pour lequel ce compte a saisi un séjour ("TS -
+    // <prénom>"). Rafraîchi ensuite en direct via /api/ts-balance (même
+    // fonction) sans recharger la page.
+    computeTsBalance(supabase, user.id),
+  ])
 
   const colorByName = new Map<string, PaletteRef>()
   // Famille de chaque compte, par id -- sert de repli ci-dessous pour un
@@ -102,16 +139,6 @@ export default async function PlanningPage() {
   const resolvePaletteRef = (guestName: string): PaletteRef =>
     colorByName.get(guestName.trim().toLowerCase()) ?? { family: 'friend', index: fallbackIndexForName(guestName) }
 
-  // Séjour à venir du titulaire du compte + ceux déjà saisis pour des
-  // accompagnants (bouton "+") : mêmes données que l'ex-widget de
-  // l'accueil, pour alimenter ReserverSejour ci-dessous (widget migré ici
-  // le 21/09/2026, demandé par Nicolas).
-  const { data: myBookings } = await supabase
-    .from('bookings')
-    .select('*, ts_payments(*)')
-    .eq('user_id', user.id)
-    .order('check_in', { ascending: true })
-
   // "check_out >= aujourd'hui" plutôt que "check_in >= aujourd'hui" : un
   // séjour en cours (déjà commencé, pas encore terminé) doit rester ici
   // pour afficher la bannière "... EN COURS" (demandé par Nicolas le
@@ -119,7 +146,13 @@ export default async function PlanningPage() {
   // d'arrivée.
   const todayISOForReserver = new Date().toISOString().slice(0, 10)
   const myFutureBookings = (myBookings ?? []).filter((b) => b.check_out >= todayISOForReserver)
-  const nextBooking = myFutureBookings.find((b) => !b.guest_name) ?? null
+  // Tous les séjours à venir (ou en cours) du titulaire lui-même, pas
+  // seulement le premier (demandé par Aurélie le 26/10/2026 : cliquer sur
+  // la bande colorée d'un de ses autres séjours, ex. celui de décembre,
+  // doit faire basculer le widget sur celui-ci -- voir
+  // PlanningPageClient.tsx, selectedOwnBookingId). Déjà triés par
+  // check_in croissant (ordre de la requête myBookings plus haut).
+  const myOwnBookings = myFutureBookings.filter((b) => !b.guest_name)
   const guestFutureBookings = myFutureBookings
     .filter((b) => b.guest_name)
     .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
@@ -127,25 +160,6 @@ export default async function PlanningPage() {
       const ref = b.guest_name ? resolvePaletteRef(b.guest_name) : null
       return { ...b, color_hue: ref?.index ?? null, color_family: ref?.family ?? null }
     })
-
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select('*, profiles(first_name, last_name, family_group, color_hue, date_of_birth), rooms(name)')
-    .order('check_in', { ascending: true })
-
-  const { data: events } = await supabase
-    .from('events')
-    .select('*')
-    .order('start_date', { ascending: true })
-
-  // Solde de taxe de séjour "à la manière d'un solde bancaire" (demandé
-  // par Aurélie le 22/09/2026) : voir computeTsBalance pour le détail —
-  // reparti entre le solde propre du titulaire ("Votre solde TS", y
-  // compris ses séjours saisis par quelqu'un d'autre sous son nom) et un
-  // solde par accompagnant pour lequel ce compte a saisi un séjour ("TS -
-  // <prénom>"). Rafraîchi ensuite en direct via /api/ts-balance (même
-  // fonction) sans recharger la page.
-  const initialTsBalance = await computeTsBalance(supabase, user.id)
 
   const realBookings: PlanningBooking[] = (bookings ?? []).map((b) => {
     const roomsField = (b as { rooms?: { name: string } | { name: string }[] | null }).rooms
@@ -174,6 +188,10 @@ export default async function PlanningPage() {
       // Affichée au clic sur un séjour qui n'est pas le tien (demandé par
       // Nicolas le 27/09/2026) — voir PlanningView.tsx, revealedBookingId.
       notes: b.notes ?? null,
+      // Tranche d'age memorisee (26/10/2026, voir
+      // migration_booking_age_bracket.sql) -- lue directement depuis la
+      // colonne (select('*', ...) ci-dessus l'inclut deja).
+      age_bracket: (b as { age_bracket?: 'child' | 'adult' | null }).age_bracket ?? null,
       profiles: profileObj
         ? {
             first_name: profileObj.first_name,
@@ -203,7 +221,7 @@ export default async function PlanningPage() {
           l'arrivée sur l'onglet, sans étape intermédiaire. */}
       <PlanningPageClient
         profile={profile}
-        nextBooking={nextBooking}
+        myOwnBookings={myOwnBookings}
         guestFutureBookings={guestFutureBookings}
         initialTsBalance={initialTsBalance}
         initialPlanningBookings={planningBookings}
