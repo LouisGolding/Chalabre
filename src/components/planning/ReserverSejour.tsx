@@ -21,6 +21,10 @@ interface BookingData {
   // (demande le 29/09/2026).
   color_hue?: number | null
   color_family?: FamilyGroup | null
+  // Tranche d'age memorisee sur le sejour depuis le 26/10/2026 (voir
+  // migration_booking_age_bracket.sql et NextStayCard.tsx) -- simple
+  // passe-plat ici, cette page ne lit pas le champ elle-meme.
+  age_bracket?: 'child' | 'adult' | null
 }
 
 interface ReserverSejourProps {

@@ -7,6 +7,17 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  /* Ligne fine du bas du bandeau du haut (TopBanner.tsx) -- gris foncé
+     plutot que noir (border-foreground), demande par Aurelie le
+     26/10/2026. Teinte distincte de --foreground pour ne pas changer la
+     couleur du texte ailleurs sur le site. */
+  --color-banner-border: var(--banner-border);
+  /* Couleurs fixes du widget "Historique des pannes" (onglet Gestion,
+     ex-Membres), une par categorie -- identite, jamais generees -- demande
+     par Aurelie le 26/10/2026. */
+  --color-incident-electrique: var(--incident-electrique);
+  --color-incident-eau: var(--incident-eau);
+  --color-incident-eau-chaude: var(--incident-eau-chaude);
   --font-sans: var(--font-eb-garamond);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-eb-garamond);
@@ -52,6 +63,10 @@
 :root {
   --background: oklch(0.98 0.007 75);
   --foreground: oklch(0.24 0.017 45);
+  --banner-border: oklch(0.45 0.015 50);
+  --incident-electrique: oklch(0.62 0.14 75);
+  --incident-eau: oklch(0.55 0.09 235);
+  --incident-eau-chaude: oklch(0.53 0.14 20);
   --card: oklch(0.995 0.004 75);
   --card-foreground: oklch(0.24 0.017 45);
   --popover: oklch(0.995 0.004 75);
@@ -87,6 +102,10 @@
 .dark {
   --background: oklch(0.19 0.014 45);
   --foreground: oklch(0.96 0.008 70);
+  --banner-border: oklch(0.6 0.015 55);
+  --incident-electrique: oklch(0.72 0.13 75);
+  --incident-eau: oklch(0.68 0.08 235);
+  --incident-eau-chaude: oklch(0.65 0.13 20);
   --card: oklch(0.24 0.016 45);
   --card-foreground: oklch(0.96 0.008 70);
   --popover: oklch(0.24 0.016 45);
@@ -193,6 +212,29 @@
      (webkit) pour Safari/iOS, comme la texture papier du corps de page
      plus haut dans ce fichier.
   */
+  /* Pastille "Payer ici ses taxes de sejour" (accueil, TaxeSejourPill.tsx)
+     : anime en boucle entre "texte blanc sur fond transparent" et
+     "texte fonce sur fond blanc casse" (var(--background)/var(--foreground)),
+     demande par Aurelie le 26/10/2026 pour qu'on la remarque sans
+     attendre un survol -- remplace l'ancien effet "texte creuse dans la
+     photo" qui ne se voyait qu'au survol. alternate + 1,5s (reduit de 5s
+     a 2,5s puis a 1,5s le 26/10/2026, meme demande) : l'aller (vers
+     l'etat plein) et le retour (vers transparent) prennent chacun 1,5
+     seconde, en boucle infinie. */
+  @keyframes ts-pill-pulse {
+    0% {
+      color: #fff;
+      background-color: transparent;
+    }
+    100% {
+      color: var(--foreground);
+      background-color: var(--background);
+    }
+  }
+  .ts-pill-pulse {
+    animation: ts-pill-pulse 1.5s ease-in-out infinite alternate;
+  }
+
   .icon-croix-occitane {
     background-color: currentColor;
     -webkit-mask-image: url('/images/croix-occitane.png');

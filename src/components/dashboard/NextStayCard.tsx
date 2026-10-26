@@ -44,6 +44,11 @@ interface BookingData {
   // cote serveur -- sert a colorer le fond de sa banniere ci-dessous.
   color_hue?: number | null
   color_family?: FamilyGroup | null
+  // Tranche d'age choisie pour ce sejour (0-16/17+), memorisee en base
+  // depuis le 26/10/2026 (voir migration_booking_age_bracket.sql) -- sert
+  // a pre-remplir fieldsSnapshot ci-dessous sans deviner "adulte" par
+  // defaut pour un accompagnant a chaque reouverture.
+  age_bracket?: 'child' | 'adult' | null
 }
 
 export interface SavedStayInfo {
@@ -52,6 +57,7 @@ export interface SavedStayInfo {
   check_out: string
   guest_name: string | null
   house_side: HouseSide | null
+  age_bracket: 'child' | 'adult'
   colorHue: number | null
   colorFamily: FamilyGroup | null
 }
@@ -399,6 +405,7 @@ export function NextStayCard({
           check_out: saved.check_out,
           guest_name: saved.guest_name,
           house_side: saved.house_side,
+          age_bracket: saved.age_bracket,
         },
         colorHue: saved.colorHue,
         colorFamily: saved.colorFamily,
@@ -518,7 +525,11 @@ function fieldsSnapshot(booking: BookingData | null, defaultAgeBracket: AgeBrack
     checkIn: booking?.check_in ?? '',
     checkOut: booking?.check_out ?? '',
     notes: booking?.notes ?? '',
-    ageBracket: defaultAgeBracket,
+    // Tranche d'age memorisee sur le sejour (26/10/2026) prioritaire sur
+    // le defaut calcule par l'appelant -- celui-ci ne reste un repli que
+    // pour un sejour jamais enregistre avec cette colonne (anterieur a la
+    // migration) ou pas encore enregistre du tout (booking === null).
+    ageBracket: booking?.age_bracket ?? defaultAgeBracket,
     houseSide: booking?.house_side ?? defaultHouseSide ?? null,
     guestName: booking?.guest_name ?? '',
   }
@@ -633,6 +644,7 @@ function StayEntry({
           guestName: showNameField ? guestName.trim() : undefined,
           houseSide,
           notes: notes.trim() || null,
+          ageBracket,
         }),
       })
       const data = await res.json()
@@ -648,6 +660,7 @@ function StayEntry({
         check_out: checkOut,
         guest_name: showNameField ? guestName.trim() || null : null,
         house_side: houseSide,
+        age_bracket: ageBracket,
         colorHue: typeof data.colorHue === 'number' ? data.colorHue : null,
         colorFamily: data.colorFamily ?? null,
       })

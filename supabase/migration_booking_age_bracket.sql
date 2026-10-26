@@ -1,0 +1,26 @@
+-- ============================================================
+-- MIGRATION : mémoire de la tranche d'âge d'un séjour (bookings.age_bracket)
+-- Appliquée directement en production le 26/10/2026 (Supabase MCP) --
+-- ce fichier n'est qu'une trace dans le dépôt, déjà en place en base.
+-- ============================================================
+--
+-- Contexte (demandé par Aurélie le 26/10/2026) : "j'ai modifié le
+-- séjour d'Otto, il ne faut pas que je sois obligé de repréciser qu'il
+-- a moins de 16 ans". Jusqu'ici, la tranche d'âge (0-16 ans / 17 ans
+-- et +) choisie dans le widget "Prochain séjour" (NextStayCard.tsx) ou
+-- la modale d'édition du planning (BookingEditModal.tsx) ne servait
+-- qu'à calculer le montant de taxe de séjour au moment de
+-- l'enregistrement (voir calculateTotalTS) -- jamais mémorisée
+-- elle-même. À la réouverture pour modifier un séjour déjà saisi, le
+-- titulaire du compte voyait sa tranche redéduite de sa date de
+-- naissance (correcte), mais un accompagnant sans compte (ex. Otto)
+-- retombait systématiquement sur "adulte" par défaut (aucune date de
+-- naissance à consulter pour lui), obligeant à re-cocher "0-16 ans" à
+-- chaque modification.
+--
+-- NULL pour tous les séjours déjà existants au moment de la migration
+-- (comportement de repli inchangé pour eux : déduit de la date de
+-- naissance pour le titulaire, "adulte" par défaut pour un
+-- accompagnant -- voir inferAgeRate dans PlanningView.tsx).
+alter table public.bookings
+  add column if not exists age_bracket text check (age_bracket in ('child', 'adult'));

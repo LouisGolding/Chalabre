@@ -180,7 +180,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const { checkIn, checkOut, amount, bookingId, guestName, houseSide, notes } = await request.json()
+  const { checkIn, checkOut, amount, bookingId, guestName, houseSide, notes, ageBracket } = await request.json()
 
   if (!checkIn || !checkOut || typeof amount !== 'number' || amount < 0) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
@@ -202,6 +202,14 @@ export async function POST(request: Request) {
 
   const normalizedGuestName: string | null =
     typeof guestName === 'string' && guestName.trim() ? guestName.trim() : null
+
+  // Tranche d'âge choisie pour ce séjour ('child' = 0-16 ans, 'adult' =
+  // 17 ans et +), mémorisée depuis le 26/10/2026 (demande d'Aurélie :
+  // ne plus avoir à la re-préciser à chaque modification -- voir
+  // supabase/migration_booking_age_bracket.sql). 'adult' par défaut si
+  // absent, comme le comportement précédent (widget non mis à jour, ou
+  // ancien client).
+  const normalizedAgeBracket: 'child' | 'adult' = ageBracket === 'child' ? 'child' : 'adult'
 
   // Note libre (ex. "Gare de Pamiers 14h45", demandé par Nicolas le
   // 23/09/2026, pour coordonner les arrivées) — réutilise la colonne
@@ -265,7 +273,14 @@ export async function POST(request: Request) {
     // le 15-24 ne doit pas comptabiliser 2 taxes de séjour sur le 15-20).
     const { error: updateError } = await supabase
       .from('bookings')
-      .update({ check_in: checkIn, check_out: checkOut, guest_name: resolvedGuestName, house_side: houseSide, notes: normalizedNotes })
+      .update({
+        check_in: checkIn,
+        check_out: checkOut,
+        guest_name: resolvedGuestName,
+        house_side: houseSide,
+        notes: normalizedNotes,
+        age_bracket: normalizedAgeBracket,
+      })
       .eq('id', bookingId)
 
     if (updateError) {
@@ -283,6 +298,7 @@ export async function POST(request: Request) {
         guest_name: resolvedGuestName,
         house_side: houseSide,
         notes: normalizedNotes,
+        age_bracket: normalizedAgeBracket,
       })
       .select()
       .single()
