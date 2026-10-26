@@ -1,10 +1,11 @@
 import { PageTitle } from '@/components/layout/PageTitle'
+import { occupantDisplayName, properCase } from '@/lib/utils'
 import { canAccessMembresTab } from '@/lib/members-access'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { MembersTable, MemberRow } from '@/components/admin/MembersTable'
 import { StaysHistory, StayRow } from '@/components/admin/StaysHistory'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { IncidentsHistory, IncidentRow } from '@/components/admin/IncidentsHistory'
 
 // Forme d'un paiement TS imbriqué dans une ligne `bookings` (voir la
 // requête bookingsRaw plus bas) -- pas de typage Supabase genere dans ce
@@ -21,6 +22,7 @@ type BookingRow = {
   user_id: string
   check_in: string
   check_out: string
+  guest_name: string | null
   profiles: { first_name: string; last_name: string; family_group: string } | null
   ts_payments: NestedTsPayment[]
 }
@@ -85,29 +87,48 @@ export default async function AdminPage() {
   // plus seulement "tout compte admin" -- voir lib/members-access.ts.
   if (!canAccessMembresTab(profile)) redirect('/dashboard')
 
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('last_name')
-
-  // Un séjour = une ligne (avec ses paiements TS imbriqués, 0 à N) --
-  // sert à la fois à afficher "Listes des séjours" en bas de page et à
-  // calculer les totaux TS par membre de l'année en cours (tsByUser).
-  const { data: bookingsRaw } = await supabase
-    .from('bookings')
-    .select('id, user_id, check_in, check_out, profiles(first_name, last_name, family_group), ts_payments(amount, status, paid_at, stripe_payment_intent_id)')
-    .order('check_in', { ascending: false })
-  const bookings = (bookingsRaw ?? []) as unknown as BookingRow[]
-
   const currentYear = new Date().getFullYear()
+  const currentYearStart = `${currentYear}-01-01`
+  const nextYearStart = `${currentYear + 1}-01-01`
+
+  // Latence (26/10/2026, demande d'Aurélie : "énorme temps de latence...
+  // Membres") : les 2 requêtes ci-dessous ne dépendent ni l'une de
+  // l'autre ni du résultat de l'autre -- parties en parallèle plutôt
+  // qu'en série. La seconde est en plus désormais filtrée à l'année en
+  // cours : elle ne sert qu'à calculer tsByUser (totaux de l'année),
+  // inutile de faire remonter tout l'historique des séjours pour ça --
+  // seule stayRows, plus bas, a besoin de l'historique complet (et
+  // alimente un widget replié par défaut depuis le 26/10/2026, voir
+  // StaysHistory.tsx).
+  const [{ data: profiles }, { data: currentYearBookingsRaw }, { data: bookingsRaw }, { data: incidentsRaw }] = await Promise.all([
+    supabase.from('profiles').select('*').order('last_name'),
+    supabase
+      .from('bookings')
+      .select('user_id, ts_payments(amount, status)')
+      .gte('check_in', currentYearStart)
+      .lt('check_in', nextYearStart),
+    // Un séjour = une ligne (avec ses paiements TS imbriqués, 0 à N) --
+    // sert à afficher "Listes des séjours" en bas de page (tout
+    // l'historique, voir StaysHistory.tsx).
+    supabase
+      .from('bookings')
+      .select('id, user_id, check_in, check_out, guest_name, profiles(first_name, last_name, family_group), ts_payments(amount, status, paid_at, stripe_payment_intent_id)')
+      .order('check_in', { ascending: false }),
+    // Nouveau widget "Historique des pannes" (26/10/2026, demande
+    // d'Aurélie) -- voir IncidentsHistory.tsx. Table déjà en place
+    // (utilisée par /api/incidents, voir EmergencyGuide.tsx), jusqu'ici
+    // sans aucun affichage admin.
+    supabase.from('incident_reports').select('category, zone_label'),
+  ])
+  const bookings = (bookingsRaw ?? []) as unknown as BookingRow[]
+  const incidentRows: IncidentRow[] = (incidentsRaw ?? []).map((i) => ({ category: i.category, zoneLabel: i.zone_label }))
 
   // Totaux TS par membre, année en cours uniquement (année du check-in du
   // séjour, pas de la date de paiement) -- recalculé à chaque chargement
   // de page, jamais stocké (même principe que les tâches récurrentes de
   // l'onglet Entretien, point 18 de points-a-regler-avec-louis.md).
   const tsByUser = new Map<string, { total: number; paid: number }>()
-  for (const b of bookings) {
-    if (new Date(b.check_in).getFullYear() !== currentYear) continue
+  for (const b of currentYearBookingsRaw ?? []) {
     if (b.ts_payments.length === 0) continue
     const agg = tsByUser.get(b.user_id) ?? { total: 0, paid: 0 }
     for (const p of b.ts_payments) {
@@ -124,8 +145,10 @@ export default async function AdminPage() {
         const ts = tsByUser.get(p.id) ?? { total: 0, paid: 0 }
         return {
           id: p.id,
-          firstName: p.first_name,
-          lastName: p.last_name,
+          // Casse normalisee (demande par Aurelie le 26/10/2026) : voir
+          // properCase dans src/lib/utils.ts.
+          firstName: properCase(p.first_name),
+          lastName: properCase(p.last_name),
           email: p.email,
           role: p.role,
           createdAt: p.created_at,
@@ -151,7 +174,10 @@ export default async function AdminPage() {
       .sort((a, c) => (a.paid_at! < c.paid_at! ? 1 : -1))[0]
     return {
       id: b.id,
-      memberName: b.profiles ? `${b.profiles.first_name} ${b.profiles.last_name}` : '—',
+      // Nom de l'occupant réel du séjour (guest_name, ex. "Eva" ou "Otto"),
+      // pas forcément celui du compte qui l'a saisi -- voir
+      // occupantDisplayName (demandé par Aurélie le 26/10/2026).
+      memberName: occupantDisplayName(b.guest_name, b.profiles),
       checkIn: b.check_in,
       checkOut: b.check_out,
       amount,
@@ -164,7 +190,11 @@ export default async function AdminPage() {
 
   return (
     <div className="space-y-8">
-      <PageTitle>Membres</PageTitle>
+      {/* Titre affiche renomme 'Membres' -> 'Gestion' le 26/10/2026
+          (demande d'Aurelie), comme le libelle du bandeau du bas
+          (BottomNav.tsx) -- route /dashboard/admin et acces
+          (canAccessMembresTab) inchanges. */}
+      <PageTitle>Gestion</PageTitle>
 
       <div className="space-y-6">
         {groups.map(({ key, label }) => (
@@ -178,13 +208,14 @@ export default async function AdminPage() {
       </div>
 
       {/* Listes des séjours -- affichée en dernier sur cette page, voir
-          le commentaire du 07/10/2026 en tête de fichier. */}
-      <Card>
-        <CardHeader><CardTitle className="text-sm md:text-base uppercase tracking-wide">Listes des séjours</CardTitle></CardHeader>
-        <CardContent>
-          <StaysHistory rows={stayRows} />
-        </CardContent>
-      </Card>
+          le commentaire du 07/10/2026 en tête de fichier. Widget
+          lui-même dépliable depuis le 26/10/2026 (voir StaysHistory.tsx,
+          qui porte désormais sa propre Card/CardHeader). */}
+      <StaysHistory rows={stayRows} />
+
+      {/* Nouveau widget "Historique des pannes" (26/10/2026, demande
+          d'Aurélie) -- voir IncidentsHistory.tsx. */}
+      <IncidentsHistory rows={incidentRows} />
     </div>
   )
 }

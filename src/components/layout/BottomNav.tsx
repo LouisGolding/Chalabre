@@ -1,12 +1,16 @@
 'use client'
 
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
 
 const ADMIN_ITEMS = [
-  { href: '/dashboard/admin', label: 'Membres' },
+  // Libelle affiche renomme 'Membres' -> 'Gestion' le 26/10/2026
+  // (demande d'Aurelie) -- route et logique d'acces (canSeeMembres,
+  // canAccessMembresTab) inchangees, seul le texte visible change.
+  { href: '/dashboard/admin', label: 'Gestion' },
   { href: '/dashboard/admin/paiements', label: 'Suivi paiements' },
   { href: '/dashboard/documents', label: 'Documents' },
   { href: '/dashboard/activites', label: 'Activités' },
@@ -152,10 +156,26 @@ export function BottomNav({ role, canSeeMembres }: { role: UserRole; canSeeMembr
           "bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none"
       )}
     >
-      {items.map((item) => (
-        <Link key={item.href} href={item.href} className={linkClass(pathname === item.href)}>
-          {item.label}
-        </Link>
+      {items.map((item, i) => (
+        <Fragment key={item.href}>
+          <Link href={item.href} className={linkClass(pathname === item.href)}>
+            {item.label}
+          </Link>
+          {/* Tirets verticaux fins entre les onglets (26/10/2026, demande
+              d'Aurélie) : ce bandeau n'existe que pour les comptes admin
+              (role !== 'admin' sort plus haut), donc ces séparateurs y
+              sont de fait réservés sans condition supplémentaire. Pas
+              après le dernier onglet. Même logique de couleur que
+              linkClass (blanc cassé sur l'accueil, texture papier
+              ailleurs), en plus discret (opacité réduite) qu'un libellé
+              actif. */}
+          {i < items.length - 1 && (
+            <span
+              aria-hidden="true"
+              className={cn('h-3 w-px shrink-0 md:h-4', hasPhotoBackground ? 'bg-background/40' : 'bg-foreground/30')}
+            />
+          )}
+        </Fragment>
       ))}
     </nav>
   )

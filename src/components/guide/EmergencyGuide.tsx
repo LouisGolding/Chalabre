@@ -20,13 +20,13 @@ const CATEGORY_ICONS: Record<string, React.ElementType> = {
   'eau-chaude': Droplet,
 }
 
-// Le suivi d'incident (enregistrement en base via /api/incidents, utilise
-// par DiagnosticCard pour "Fuite d'eau") est masque a la demande de
-// Nicolas le 06/10/2026 -- coherent avec l'abandon du meme principe sur
-// "Plus d'eau chaude" et "Panne electrique" (voir points 38). Le code et
-// la route /api/incidents restent en place, juste desactives : repasser
-// ce drapeau a `true` suffira a reactiver l'enregistrement.
-const TRACK_INCIDENTS = false
+// Le suivi d'incident (enregistrement en base via /api/incidents) avait
+// ete desactive le 06/10/2026 a la demande de Nicolas (pas d'ecran admin
+// pour le consulter a l'epoque). Reactive le 26/10/2026, demande
+// d'Aurelie, en meme temps que le nouveau widget "Historique des
+// pannes" (onglet Gestion, ex-Membres -- voir IncidentsHistory.tsx) qui
+// en affiche desormais le contenu.
+const TRACK_INCIDENTS = true
 
 function PlanImage({ src, alt }: { src?: string; alt: string }) {
   if (!src) {
