@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -113,6 +113,33 @@ export function TileNav({ role }: { role: UserRole }) {
     setLastPathname(pathname)
     setIsOpen(hasPhotoBackground)
   }
+
+  // Rouvre la grille sur l'accueil en revenant dessus SANS navigation
+  // (demande d'Aurélie le 26/10/2026 : "des que tu arrives sur cette
+  // page, peu importe d'ou tu viens, [...] un autre onglet, ou si tu
+  // raffraichis la page") -- le rafraîchissement est déjà couvert par
+  // useState(hasPhotoBackground) ci-dessus (remontage complet du
+  // composant), et une navigation interne (Planning -> accueil via un
+  // <Link>) par le diff de pathname ci-dessus, mais ni l'un ni l'autre
+  // ne se déclenche quand on revient sur l'onglet du NAVIGATEUR où
+  // l'accueil était déjà affiché (ex. on avait replié la grille à la
+  // main, puis changé d'onglet navigateur) : aucun événement de
+  // navigation ne se produit alors, donc rien ne force la réouverture
+  // sans ce listener dédié. setIsOpen vit ici dans le callback de
+  // l'événement, jamais appelé de façon synchrone dans le corps de
+  // l'effet (règle eslint react-hooks/set-state-in-effect du projet).
+  useEffect(() => {
+    if (!hasPhotoBackground) return
+    const reopen = () => {
+      if (document.visibilityState === 'visible') setIsOpen(true)
+    }
+    document.addEventListener('visibilitychange', reopen)
+    window.addEventListener('focus', reopen)
+    return () => {
+      document.removeEventListener('visibilitychange', reopen)
+      window.removeEventListener('focus', reopen)
+    }
+  }, [hasPhotoBackground])
   // Poignée affichée sur toutes les pages, accueil compris depuis le
   // 23/10/2026 (showToggle valait auparavant !hasPhotoBackground, donc
   // false sur l'accueil -- plus de différence de système entre les
