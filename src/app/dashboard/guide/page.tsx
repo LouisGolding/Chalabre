@@ -192,11 +192,24 @@ export default async function GuidePage() {
       {/* Adresse de la maison — reprise ici depuis l'ancien onglet "Adresse"
           (retiré le 19/09/2026, jugé redondant par Nicolas une fois cette
           info replacée juste sous le titre du Guide). Contenu statique :
-          l'adresse ne change pas, pas besoin d'aller la chercher en base. */}
-      <div>
+          l'adresse ne change pas, pas besoin d'aller la chercher en base.
+          Cliquable depuis le 26/10/2026 (demande d'Aurélie) : ouvre
+          Google Maps sur l'adresse postale SEULE ("15 route de Lavelanet,
+          11230, Chalabre") -- "La Bâtisse" n'est volontairement pas
+          inclus dans la requête, Maps ne connaissant pas ce nom et
+          risquant de chercher autre chose à la place d'une recherche
+          d'adresse exacte. Lien universel google.com/maps/search (marche
+          aussi bien sans l'app Google Maps installée) plutôt qu'un lien
+          maps:// propre à une plateforme. */}
+      <a
+        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('15 route de Lavelanet, 11230, Chalabre')}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block hover:opacity-70 transition-opacity"
+      >
         <p className="text-lg font-semibold text-foreground">La Bâtisse</p>
-        <p className="text-sm text-muted-foreground">15, route de Lavelanet · Chalabre, 11230</p>
-      </div>
+        <p className="text-sm text-muted-foreground underline">15, route de Lavelanet · Chalabre, 11230</p>
+      </a>
 
       {SHOW_ARRIVEE_SECTION && (
         <div>
