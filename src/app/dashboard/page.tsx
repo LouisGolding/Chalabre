@@ -10,9 +10,11 @@ import { fr } from 'date-fns/locale'
 // ici (retirée de l'accueil le 27/09/2026 à la demande de Nicolas, voir
 // plus bas) mais reste utilisée ailleurs — composant non supprimé.
 import { TaxeSejourPill } from '@/components/dashboard/TaxeSejourPill'
+import { TachesUrgentesPill } from '@/components/dashboard/TachesUrgentesPill'
 import { computeTsBalance } from '@/lib/ts-balance'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isPeriodCurrent } from '@/lib/task-periods'
+import { firstNameOnly, properCase, stayPhase } from '@/lib/utils'
 
 // "25 décembre 2026" -> "25 DÉCEMBRE 2026", comme sur le visuel Photoshop
 // de Nicolas (27/09/2026) pour les dates du prochain séjour.
@@ -28,30 +30,15 @@ export default async function DashboardPage() {
 
   if (!profile) redirect('/auth/login')
 
-  // Get user's past bookings (le widget "Prochain séjour" et le calcul de
-  // taxe de séjour ont migré vers l'onglet Planning le 21/09/2026 — voir
-  // ReserverSejour.tsx — donc seuls les séjours PASSÉS du titulaire du
-  // compte sont encore utiles ici, pour "Vous n'êtes pas venu depuis...").
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select('check_out, check_in, guest_name')
-    .eq('user_id', user.id)
-    .order('check_in', { ascending: true })
-
   const today = new Date()
   const todayISO = today.toISOString().slice(0, 10)
 
-  // Widget "Aujourd'hui"/"Demain" de l'onglet "Activités" (08/10/2026,
-  // voir migration_local_events.sql) : la RLS de local_events restreint
-  // la lecture aux comptes admin (le reste de l'onglet leur est
-  // intégralement réservé), mais ce widget doit rester visible de tous
-  // les comptes connectés -- client service-role ici, comme pour le
-  // webhook Stripe (src/lib/supabase/admin.ts), plutôt que le client de
-  // session qui serait bloqué par la RLS pour un compte family/friend.
-  // Fenêtre bornée à 30 jours en arrière (plutôt qu'un historique complet)
-  // pour couvrir le cas d'un événement sur plusieurs jours déjà commencé,
-  // sans scanner toute la table -- 30 jours est une marge large, à
-  // ajuster si un événement dure plus longtemps.
+  // Fenêtre "Aujourd'hui"/"Demain"/"À suivre" (08/10/2026, voir
+  // migration_local_events.sql) : bornée à 30 jours en arrière (plutôt
+  // qu'un historique complet) pour couvrir le cas d'un événement sur
+  // plusieurs jours déjà commencé, sans scanner toute la table -- 30
+  // jours est une marge large, à ajuster si un événement dure plus
+  // longtemps.
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowISO = tomorrow.toISOString().slice(0, 10)
@@ -67,11 +54,63 @@ export default async function DashboardPage() {
   const weekEndISO = weekEnd.toISOString().slice(0, 10)
 
   const supabaseAdmin = createAdminClient()
-  const { data: upcomingEvents } = await supabaseAdmin
-    .from('local_events')
-    .select('title, event_date, event_end_date, location')
-    .gte('event_date', windowStartISO)
-    .lte('event_date', weekEndISO)
+
+  // Latence (26/10/2026, demande d'Aurélie : "il y a toujours un temps
+  // de latence [...] a revérifier pour que tout soit tres tres
+  // rapide") : ces 4 requêtes sont toutes indépendantes les unes des
+  // autres (aucune n'a besoin du résultat d'une autre) mais partaient
+  // jusqu'ici en 4 aller-retours réseau successifs vers Supabase, l'un
+  // après l'autre -- un Promise.all les lance de front, donc le total
+  // ne coûte plus que le temps de la plus lente d'entre elles au lieu
+  // de leur somme. Seuls tsBalance plus bas (a besoin de nextBooking,
+  // donc de `bookings`) et la requête task_contacts dans le bloc RDV
+  // ci-dessous (a besoin de rdvNotes) restent de vraies dépendances
+  // séquentielles.
+  const [
+    { data: bookings },
+    { data: upcomingEvents },
+    { data: openTasks },
+    { data: currentBookings },
+  ] = await Promise.all([
+    // Get user's past bookings (le widget "Prochain séjour" et le calcul
+    // de taxe de séjour ont migré vers l'onglet Planning le 21/09/2026 —
+    // voir ReserverSejour.tsx — donc seuls les séjours PASSÉS du
+    // titulaire du compte sont encore utiles ici, pour "Vous n'êtes pas
+    // venu depuis...").
+    supabase
+      .from('bookings')
+      .select('check_out, check_in, guest_name')
+      .eq('user_id', user.id)
+      .order('check_in', { ascending: true }),
+    // Widget "Aujourd'hui"/"Demain" de l'onglet "Activités" : la RLS de
+    // local_events restreint la lecture aux comptes admin (le reste de
+    // l'onglet leur est intégralement réservé), mais ce widget doit
+    // rester visible de tous les comptes connectés -- client
+    // service-role ici, comme pour le webhook Stripe
+    // (src/lib/supabase/admin.ts), plutôt que le client de session qui
+    // serait bloqué par la RLS pour un compte family/friend.
+    supabaseAdmin
+      .from('local_events')
+      .select('title, event_date, event_end_date, location')
+      .gte('event_date', windowStartISO)
+      .lte('event_date', weekEndISO),
+    // "Tâche ce mois-ci" / "Tâches urgentes" : policy "tasks_select"
+    // ouverte à tout compte connecté (voir schema.sql) -- pas besoin du
+    // client admin ici, contrairement à local_events.
+    supabase
+      .from('tasks')
+      .select('id, title, period, completed, priority')
+      .eq('completed', false),
+    // "Présents en ce moment" (widget plus bas) : indépendante de tout
+    // le reste, déplacée ici depuis sa place d'origine (juste avant son
+    // utilisation) pour profiter du même Promise.all.
+    supabase
+      .from('bookings')
+      .select('*, profiles(first_name, last_name)')
+      .lte('check_in', todayISO)
+      .gte('check_out', todayISO)
+      .order('check_in', { ascending: true }),
+  ])
 
   const coversDay = (ev: { event_date: string; event_end_date: string | null }, dayISO: string) =>
     ev.event_date <= dayISO && (ev.event_end_date ?? ev.event_date) >= dayISO
@@ -93,16 +132,8 @@ export default async function DashboardPage() {
   // "Tâche ce mois-ci" (câblée aux vraies tâches le 15/10/2026, à la
   // demande de Nicolas -- jusque-là simple placeholder "-"). Même
   // définition de "ce mois-ci" que l'onglet Entretien (mois ou saison en
-  // cours, voir isPeriodCurrent dans task-periods.ts), limitée aux tâches
-  // pas encore cochées. Policy "tasks_select" ouverte à tout compte
-  // connecté (voir schema.sql) -- pas besoin du client admin ici,
-  // contrairement à local_events.
-  const { data: openTasks } = await supabase
-    .from('tasks')
-    .select('id, title, period, completed, priority')
-    .eq('completed', false)
+  // cours, voir isPeriodCurrent dans task-periods.ts).
   const tasksThisMonth = (openTasks ?? []).filter((t) => isPeriodCurrent(t.period))
-  const tasksThisMonthLabel = eventsLabel(tasksThisMonth)
 
   // "Tâches urgentes" (23/10/2026, demandé par Aurélie : "si elles sont
   // urgentes, affiches les d'office dans la page d'accueil, et laisse la
@@ -113,6 +144,14 @@ export default async function DashboardPage() {
   // qu'elle n'est pas cochée dans l'onglet Entretien, quelle que soit sa
   // période.
   const urgentTasks = (openTasks ?? []).filter((t) => t.priority === 'high')
+
+  // Fusion des pastilles "Taches urgentes" et "Tache ce mois ci" en une
+  // seule (26/10/2026, demande d'Aurelie : "beaucoup plus simple") --
+  // l'urgence prime toujours sur la periode (meme principe qu'avant la
+  // fusion), donc urgentTasks passe en premier et tasksThisMonth ne
+  // complete qu'avec les taches pas deja comptees comme urgentes.
+  const urgentTaskIds = new Set(urgentTasks.map((t) => t.id))
+  const mergedTasks = [...urgentTasks, ...tasksThisMonth.filter((t) => !urgentTaskIds.has(t.id))]
 
   // "RDV à venir" (19/10/2026, demandé par Aurélie) : dès qu'une note de
   // suivi d'une tâche d'Entretien porte une date de RDV à moins de 30
@@ -199,13 +238,8 @@ export default async function DashboardPage() {
   // ne pas ajouter cette requête à chaque chargement de l'accueil sinon.
   const tsBalance = nextBooking ? await computeTsBalance(supabase, user.id) : null
 
-  // Get current occupants
-  const { data: currentBookings } = await supabase
-    .from('bookings')
-    .select('*, profiles(first_name, last_name)')
-    .lte('check_in', today.toISOString().split('T')[0])
-    .gte('check_out', today.toISOString().split('T')[0])
-    .order('check_in', { ascending: true })
+  // currentBookings vient désormais du Promise.all plus haut (même
+  // requête, juste déplacée pour partir en parallèle avec les 3 autres).
 
   // Prénoms des personnes actuellement à la Bâtisse, pour la phrase du
   // widget "Présents en ce moment" ci-dessous. On utilise guest_name quand
@@ -213,7 +247,10 @@ export default async function DashboardPage() {
   // que le nom du titulaire du compte qui a saisi ce séjour, pas celui de
   // l'accompagnant réellement présent).
   const presentNames = (currentBookings ?? []).map((b) =>
-    b.guest_name ? b.guest_name : (b.profiles?.first_name ?? null)
+    // Casse normalisee (demande par Aurelie le 26/10/2026 : "Eva"
+    // s'affichait "eVA") -- voir properCase/firstNameOnly dans
+    // src/lib/utils.ts.
+    b.guest_name ? firstNameOnly(b.guest_name) : (b.profiles?.first_name ? properCase(b.profiles.first_name) : null)
   ).filter((name): name is string => !!name)
 
   const presentSentence =
@@ -286,7 +323,7 @@ export default async function DashboardPage() {
             de l'accueil (toujours utilisée ailleurs, composant non
             supprimé). */}
         <h1 className="text-2xl font-normal text-background md:text-3xl">
-          Bonjour {profile.first_name}
+          Bonjour {properCase(profile.first_name)}
         </h1>
 
         {/* "Votre prochain séjour" + dates + pastille "Total taxe de
@@ -295,7 +332,18 @@ export default async function DashboardPage() {
             demandé par Nicolas). */}
         {nextBooking ? (
           <div className="mt-6">
-            <p className="text-lg font-normal text-background md:text-xl">Votre prochain séjour</p>
+            {/* "Votre séjour en cours" si le séjour a déjà commencé
+                (demandé par Aurélie le 26/10/2026 : "mon séjour indique
+                que je suis à Chalabre, donc il faut [...] que soit
+                affiché 'votre séjour en cours'") -- même distinction
+                que dans NextStayCard.tsx (stayPhase), simplement jamais
+                reprise ici où le titre était resté figé en "Votre
+                prochain séjour" quelle que soit la phase du séjour. */}
+            <p className="text-lg font-normal text-background md:text-xl">
+              {stayPhase(nextBooking.check_in, nextBooking.check_out) === 'ongoing'
+                ? 'Votre séjour en cours'
+                : 'Votre prochain séjour'}
+            </p>
             <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.12em] text-background md:text-base">
               {formatDateLong(nextBooking.check_in)} - {formatDateLong(nextBooking.check_out)}
             </p>
@@ -388,62 +436,27 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* "Tâches urgentes" (23/10/2026, demandé par Aurélie) : toute
-            tâche d'Entretien marquée "Urgente" et pas encore cochée,
-            affichée ici d'office, sans lien avec sa période -- disparaît
-            dès qu'elle est cochée dans l'onglet Entretien (voir
-            urgentTasks plus haut). Même traitement visuel/gating par
-            rôle que "RDV à venir" juste en dessous (liste de lignes,
-            masqué pour un compte "friend" -- Entretien ne lui est de
-            toute façon pas accessible, voir TileNav.tsx). Placée avant
-            "Tâche ce mois ci" : l'urgence prime sur la période.
-            Taille de texte alignée sur "Tâche ce mois ci" juste en
-            dessous (23/10/2026, demande d'Aurélie) : text-[10px]/md:text-xs
-            -> text-xs/md:text-sm, et même tracking (0,08em au lieu de
-            0,06em), pour que les deux listes se lisent à la même
-            échelle. */}
-        {urgentTasks.length > 0 && profile.role !== 'friend' && (
-          <Link href="/dashboard/taches" className="mt-12 block w-fit">
-            <p className="text-lg font-normal text-background md:text-xl">Tâches urgentes</p>
-            <div className="mt-2 space-y-1">
-              {urgentTasks.slice(0, 4).map((task) => (
-                <p key={task.id} className="text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
-                  {task.title}
-                </p>
-              ))}
-              {urgentTasks.length > 4 && (
-                <p className="text-xs font-extrabold uppercase tracking-[0.08em] text-background/70 md:text-sm">
-                  +{urgentTasks.length - 4}
-                </p>
-              )}
-            </div>
-          </Link>
+        {/* "Tâches urgentes" -- fusion le 26/10/2026 (demande d'Aurélie,
+            "beaucoup plus simple") des anciennes pastilles "Tâches
+            urgentes" et "Tâche ce mois ci" en une seule sous ce titre
+            (voir mergedTasks plus haut : urgence d'abord, puis le reste
+            de "ce mois-ci"). Même gating que l'ancienne pastille
+            "Tâches urgentes" -- masqué pour un compte "friend", Entretien
+            ne lui étant de toute façon pas accessible (TileNav.tsx) ; à
+            confirmer avec Aurélie si elle préfère que "ce mois-ci" reste
+            visible en lecture pour les amis comme avant la fusion.
+            Rendu par un composant client (TachesUrgentesPill.tsx)
+            uniquement pour l'effet "tapé à la machine" demandé par
+            Aurélie à l'arrivée sur l'accueil (depuis un autre onglet ou
+            depuis la page de connexion) -- un Server Component ne peut
+            pas animer sa propre apparition au montage. */}
+        {mergedTasks.length > 0 && profile.role !== 'friend' && (
+          <TachesUrgentesPill
+            title="Tâches urgentes"
+            lines={mergedTasks.slice(0, 4).map((task) => task.title)}
+            overflowLabel={mergedTasks.length > 4 ? `+${mergedTasks.length - 4}` : null}
+          />
         )}
-
-        {/* "Tâche ce mois ci" — relié aux vraies tâches d'Entretien le
-            15/10/2026 (tâches non cochées dont la période est le mois ou
-            la saison en cours, voir tasksThisMonth plus haut). Masqué
-            entièrement s'il n'y en a aucune (demande de Nicolas, même
-            principe que la ligne Aujourd'hui/Demain/À suivre ci-dessus).
-            Lien cliquable réservé à admin/family (comme l'onglet Entretien
-            lui-même, voir TileNav.tsx -- masqué pour les amis), simple
-            <div> pour un ami qui verrait quand même ce texte. */}
-        {tasksThisMonth.length > 0 &&
-          (profile.role !== 'friend' ? (
-            <Link href="/dashboard/taches" className="mt-12 block w-fit">
-              <p className="text-lg font-normal text-background md:text-xl">Tâche ce mois ci</p>
-              <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
-                {tasksThisMonthLabel}
-              </p>
-            </Link>
-          ) : (
-            <div className="mt-12 w-fit">
-              <p className="text-lg font-normal text-background md:text-xl">Tâche ce mois ci</p>
-              <p className="mt-2 text-xs font-extrabold uppercase tracking-[0.08em] text-background md:text-sm">
-                {tasksThisMonthLabel}
-              </p>
-            </div>
-          ))}
 
         {/* "RDV à venir" (19/10/2026, demandé par Aurélie) : notes de
             suivi des tâches d'Entretien portant une date de RDV à moins
