@@ -53,6 +53,33 @@ export function constructWebhookEvent(
   return null
 }
 
+// Commission Stripe (~1,5 % prélevés par Stripe sur chaque paiement par
+// carte, demandé par Aurélie le 26/10/2026) : "lorsque quelqu'un verse
+// 10€, le compte ne perçoit que 9,85€". Pour que le compte bancaire
+// reçoive bien le montant officiel (taxe de séjour ou cotisation,
+// toujours un chiffre rond, jamais modifié dans l'app ni en base), on
+// facture systématiquement ce montant + 1,5 % — calculé automatiquement,
+// jamais saisi à la main — en tant que ligne séparée sur la session
+// Stripe Checkout, explicitement nommée et expliquée : la personne qui
+// paie voit toujours "<montant> + 1,5 %" avant de confirmer, jamais un
+// montant gonflé caché dans une seule ligne.
+export const TRANSACTION_FEE_RATE = 0.015
+
+export function transactionFeeLineItem(baseAmountCents: number) {
+  return {
+    price_data: {
+      currency: 'eur',
+      product_data: {
+        name: 'Frais de transaction (1,5 %)',
+        description:
+          "Coût de la transaction bancaire, prélevé par Stripe sur chaque paiement par carte — La Bâtisse",
+      },
+      unit_amount: Math.round(baseAmountCents * TRANSACTION_FEE_RATE),
+    },
+    quantity: 1,
+  }
+}
+
 let stripePromise: ReturnType<typeof loadStripe>
 export const getStripe = () => {
   if (!stripePromise) {

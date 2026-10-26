@@ -107,7 +107,20 @@ export async function POST(request: Request) {
         }).then(check('payment_events.insert'))
       }
     } else if (payment_type === 'tm') {
-      await supabase.from('tm_payments').update(updateData).eq('id', payment_id)
+      // stripe_amount_received doit rester le montant officiel de la
+      // cotisation (payment.amount), jamais session.amount_total : ce
+      // dernier inclut désormais les frais de transaction de 1,5 %
+      // (voir transactionFeeLineItem dans src/lib/stripe.ts et
+      // /api/stripe/checkout/route.ts), qui ne doivent jamais apparaître
+      // dans les montants enregistrés en base — même principe que
+      // ts_payments ci-dessus.
+      const { data: tmRow } = await supabase.from('tm_payments').select('amount').eq('id', payment_id).single()
+      const officialAmountCents = tmRow ? Math.round(Number(tmRow.amount) * 100) : amountReceived
+
+      await supabase.from('tm_payments').update({
+        ...updateData,
+        stripe_amount_received: officialAmountCents,
+      }).eq('id', payment_id)
         .then(check('tm_payments.update'))
 
       await supabase.from('payment_events').insert({
@@ -116,7 +129,7 @@ export async function POST(request: Request) {
         payment_type,
         payment_id,
         user_id: user_id ?? null,
-        amount: amountReceived ? amountReceived / 100 : null,
+        amount: tmRow ? Number(tmRow.amount) : amountReceived ? amountReceived / 100 : null,
         stripe_session_id: sessionId,
         stripe_payment_intent_id: paymentIntentId,
         status: 'success',

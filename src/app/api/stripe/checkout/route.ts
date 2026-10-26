@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { accountFor, stripeFor } from '@/lib/stripe'
+import { accountFor, stripeFor, transactionFeeLineItem } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
 import { buildTsStatementDescriptorSuffix, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
@@ -122,6 +122,11 @@ async function handleCheckout(request: Request) {
 
     const account = accountFor(asSingle(payment.profiles)?.family_group)
 
+    // Frais de transaction (1,5 %, voir transactionFeeLineItem dans
+    // src/lib/stripe.ts) : ligne séparée, jamais mélangée au montant
+    // officiel de la cotisation ci-dessus.
+    const tmBaseAmountCents = Math.round(amount * 100)
+
     const session = await stripeFor(account).checkout.sessions.create({
       mode: 'payment',
       currency: 'eur',
@@ -130,10 +135,11 @@ async function handleCheckout(request: Request) {
           price_data: {
             currency: 'eur',
             product_data: { name: label, description: 'La Bâtisse — Chalabre' },
-            unit_amount: Math.round(amount * 100),
+            unit_amount: tmBaseAmountCents,
           },
           quantity: 1,
         },
+        transactionFeeLineItem(tmBaseAmountCents),
       ],
       metadata: { payment_type: type, payment_id: ids[0], user_id: payment.user_id },
       success_url: `${origin}/dashboard/paiement/succes?session_id={CHECKOUT_SESSION_ID}`,
@@ -227,10 +233,18 @@ async function handleCheckout(request: Request) {
     ? user.id
     : asSingle(payments[0].bookings)!.user_id
 
+  // Frais de transaction (1,5 %, voir transactionFeeLineItem dans
+  // src/lib/stripe.ts) : une seule ligne séparée pour tout le groupe,
+  // basée sur la somme exacte des lignes de taxe de séjour ci-dessus
+  // (jamais sur un arrondi recalculé depuis totalAmount) -- les
+  // montants officiels de ts_payments.amount restent inchangés, en base
+  // comme à l'écran.
+  const tsBaseAmountCents = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount, 0)
+
   const session = await stripeFor(account).checkout.sessions.create({
     mode: 'payment',
     currency: 'eur',
-    line_items: lineItems,
+    line_items: [...lineItems, transactionFeeLineItem(tsBaseAmountCents)],
     metadata: {
       payment_type: 'ts',
       payment_id: paidIds[0],
