@@ -61,10 +61,11 @@ import type { Profile } from '@/types'
 // (planning, entretien, réalisations, etc. — tous sauf l'accueil, seule
 // page avec la photo de dashboard/page.tsx) : sur ces pages au fond clair
 // uni, le bandeau (même bg-background) se fondait sans démarcation avec
-// le contenu en dessous. Couleur demandée : la même que la typo de ces
-// pages, donc border-foreground (text-foreground, voir par ex. le <h1>
-// de taches/page.tsx) — pas de bordure du tout sur l'accueil, où la
-// photo plein écran crée déjà une séparation nette.
+// le contenu en dessous. Couleur à l'origine la même que la typo de ces
+// pages (border-foreground) — changée en gris foncé (border-banner-border,
+// voir globals.css) le 26/10/2026 à la demande d'Aurélie, qui trouvait le
+// noir trop appuyé — pas de bordure du tout sur l'accueil, où la photo
+// plein écran crée déjà une séparation nette.
 export function TopBanner({ profile }: { profile: Profile }) {
   const pathname = usePathname()
   const hasPhotoBackground = pathname === '/dashboard'
@@ -153,7 +154,7 @@ export function TopBanner({ profile }: { profile: Profile }) {
         // que dark:bg-none puisse bien la neutraliser en mode sombre,
         // comme pour body.
         "fixed inset-x-0 top-0 z-40 flex h-20 items-start justify-center bg-background bg-[url('/images/texture-papier.jpg')] bg-repeat bg-[length:307px_205px] dark:bg-none",
-        !hasPhotoBackground && 'border-b border-foreground'
+        !hasPhotoBackground && 'border-b border-banner-border'
       )}
     >
       <Link href="/dashboard" aria-label="Retour à l'accueil" className="mt-[29.75px] flex items-start justify-center">
