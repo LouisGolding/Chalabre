@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   format,
   startOfDay,
@@ -28,7 +28,7 @@ import {
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn, calculateTotalTS, firstNameOnly } from '@/lib/utils'
+import { cn, calculateTotalTS, firstNameOnly, properCase } from '@/lib/utils'
 import { colorForName, coloredTextureStyle, shouldUseWhiteText } from '@/lib/colors'
 import { BookingEditModal } from '@/components/planning/BookingEditModal'
 import type { HouseSide } from '@/types'
@@ -70,6 +70,11 @@ export interface PlanningBooking {
     // séjour déjà saisi — voir inferAgeRate plus bas.
     date_of_birth?: string | null
   } | null
+  // Tranche d'âge mémorisée sur ce séjour (26/10/2026, voir
+  // migration_booking_age_bracket.sql) — prioritaire sur la déduction
+  // par date de naissance dans inferAgeRate ci-dessous. Absente (null)
+  // pour un séjour antérieur à cette migration.
+  age_bracket?: 'child' | 'adult' | null
   // Couleur de la personne, déjà résolue côté serveur (compte ou
   // accompagnant mémorisé — voir src/app/dashboard/planning/page.tsx et
   // src/lib/colors.ts). Toujours la même pour une personne donnée, quelle
@@ -109,6 +114,15 @@ interface PlanningViewProps {
   // modification faite depuis la modale (désactivée pour le moment, voir
   // SHOW_BOOKING_EDIT_MODAL_ON_CLICK), uniquement pour le glisser direct.
   onDatesPersisted?: (bookingId: string, checkIn: string, checkOut: string) => void
+  // Clic sur une des bandes colorées DU TITULAIRE lui-même (ownedByViewer),
+  // hors accompagnant (guest_name vide) : fait basculer le widget "Prochain
+  // séjour" au-dessus sur CE séjour-ci, pour pouvoir l'éditer depuis le
+  // widget -- demandé par Aurélie le 26/10/2026 ("j'ai un séjour en cours et
+  // un séjour en décembre, si je clique sur celui de décembre le widget doit
+  // l'afficher pour que je puisse le modifier aussi"). Le widget ne porte
+  // jusqu'ici qu'UN SEUL séjour "titulaire" à la fois (voir
+  // PlanningPageClient.tsx, myOwnBookingsState/selectedOwnBookingId).
+  onSelectOwnBooking?: (bookingId: string) => void
 }
 
 type ViewMode = 'week' | 'fortnight' | 'month' | 'year'
@@ -214,6 +228,7 @@ function canEditBooking(booking: PlanningBooking, currentUserId: string, isAdmin
 // recalcul systématique plutôt qu'une valeur mémorisée qui pourrait dater
 // de l'ancienne période du séjour.
 function inferAgeRate(booking: PlanningBooking): number {
+  if (booking.age_bracket) return booking.age_bracket === 'child' ? 10 : 20
   if (booking.guest_name) return 20
   const dob = booking.profiles?.date_of_birth
   if (!dob) return 20
@@ -236,7 +251,7 @@ interface DragState {
   moved: boolean
 }
 
-export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin, onDatesPersisted }: PlanningViewProps) {
+export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin, onDatesPersisted, onSelectOwnBooking }: PlanningViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   // Vue par défaut : "semaine" au premier rendu (valeur neutre, identique
   // cote serveur et cote client, pour eviter tout flash d'hydratation),
@@ -255,6 +270,24 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return
     setViewMode(window.innerWidth >= 768 ? 'month' : 'fortnight')
+  }, [])
+  // Revenir sur aujourd'hui en revenant sur cet onglet après un changement
+  // d'onglet navigateur/application (le composant ne démonte pas dans ce
+  // cas-là, contrairement à une navigation vers un autre onglet du site,
+  // qui redémarre déjà `currentDate` à `new Date()` au montage) -- demandé
+  // par Aurélie le 26/10/2026 ("le planning doit s'afficher à partir
+  // d'aujourd'hui, d'où qu'on vienne"). Même principe que la réouverture
+  // automatique de la grille des onglets, voir TileNav.tsx.
+  useEffect(() => {
+    const resetToToday = () => {
+      if (document.visibilityState === 'visible') setCurrentDate(new Date())
+    }
+    document.addEventListener('visibilitychange', resetToToday)
+    window.addEventListener('focus', resetToToday)
+    return () => {
+      document.removeEventListener('visibilitychange', resetToToday)
+      window.removeEventListener('focus', resetToToday)
+    }
   }, [])
   // Direction du dernier changement de période, pour l'animation de
   // glissement (slide) — appliquée aussi bien depuis les flèches que
@@ -501,7 +534,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
       // Nicolas le 19/09/2026. Le choix de chambre (room_label) n'est pas
       // affiché sur le planning pour l'instant : cette fonctionnalité n'est
       // pas encore développée (voir points-a-regler-avec-louis.md).
-      const label = (booking.guest_name?.trim() && firstNameOnly(booking.guest_name)) || booking.profiles?.first_name || 'Séjour'
+      const label = (booking.guest_name?.trim() && firstNameOnly(booking.guest_name)) || (booking.profiles?.first_name && properCase(booking.profiles.first_name)) || 'Séjour'
       const rowKey = `${side}::${label}`
       const sectionRows = bySection.get(side)!
 
@@ -677,6 +710,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
           bookingId,
           guestName: booking.guest_name ?? undefined,
           houseSide: booking.house_side,
+          ageBracket: ageRate === 10 ? 'child' : 'adult',
         }),
       })
       const data = await res.json()
@@ -717,12 +751,17 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
           bookingId,
           guestName: booking.guest_name ?? undefined,
           houseSide,
+          ageBracket,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Erreur lors de l’enregistrement')
       setBookings((prev) =>
-        prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkIn, check_out: checkOut, house_side: houseSide } : b))
+        prev.map((b) =>
+          b.id === bookingId
+            ? { ...b, check_in: checkIn, check_out: checkOut, house_side: houseSide, age_bracket: ageBracket }
+            : b
+        )
       )
       setEditingBookingId(null)
     } catch (err) {
@@ -749,7 +788,11 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   }
 
   const handlePointerDownOnSegment = (e: React.PointerEvent, bookingId: string, mode: DragMode) => {
-    if (e.pointerType === 'touch') return // pas de glisser tactile : voir onClick, qui reste disponible
+    // Glisser tactile réactivé (demandé par Aurélie le 26/10/2026 : la
+    // modification manuelle de la bande colorée ne fonctionnait pas sur
+    // mobile) — nécessite touchAction:'none' sur les éléments concernés
+    // ci-dessous pour que le défilement horizontal de la grille (geste
+    // natif du navigateur) ne vole pas le glisser avant handlePointerMove.
     if (viewMode === 'year') return
     const booking = bookingsById.get(bookingId)
     if (!booking || !canEditBooking(booking, currentUserId, isAdmin)) return
@@ -1150,6 +1193,13 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                           onPointerDown={(e) => handlePointerDownOnSegment(e, seg.id, 'move')}
                           onPointerMove={handlePointerMoveOnSegment}
                           onPointerUp={handlePointerUpOnSegment}
+                          // En vue mois/année, le conteneur gère aussi un glisser
+                          // tactile de navigation entre périodes (handleTouchStart/
+                          // handleTouchEnd) : on l'empêche de recevoir ce toucher-ci
+                          // quand la ligne est elle-même glissable, sous peine de
+                          // déclencher les deux à la fois (voir canDrag plus haut).
+                          onTouchStart={canDrag ? (e) => e.stopPropagation() : undefined}
+                          onTouchEnd={canDrag ? (e) => e.stopPropagation() : undefined}
                           onClick={() => {
                             if (justDraggedRef.current) return
                             if (!ownedByViewer) {
@@ -1159,6 +1209,11 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               setRevealedBookingId((prev) => (prev === seg.id ? null : seg.id))
                               return
                             }
+                            // Séjour du titulaire lui-même (pas un accompagnant) :
+                            // fait basculer le widget "Prochain séjour" sur ce
+                            // séjour-ci plutôt que d'ouvrir une modale (voir
+                            // onSelectOwnBooking ci-dessus).
+                            if (!booking?.guest_name) onSelectOwnBooking?.(seg.id)
                             if (!SHOW_BOOKING_EDIT_MODAL_ON_CLICK) return
                             setModalError(null)
                             setEditingBookingId(seg.id)
@@ -1171,6 +1226,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                                 setRevealedBookingId((prev) => (prev === seg.id ? null : seg.id))
                                 return
                               }
+                              if (!booking?.guest_name) onSelectOwnBooking?.(seg.id)
                               if (!SHOW_BOOKING_EDIT_MODAL_ON_CLICK) return
                               setModalError(null)
                               setEditingBookingId(seg.id)
@@ -1180,7 +1236,14 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                             'relative flex h-full min-w-0 items-center outline-none',
                             canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
                           )}
-                          style={{ gridColumn: `${displaySeg.start + 2} / ${displaySeg.end + 3}`, gridRow }}
+                          style={{
+                            gridColumn: `${displaySeg.start + 2} / ${displaySeg.end + 3}`,
+                            gridRow,
+                            // touchAction:'none' uniquement si glissable : sinon on
+                            // garde le défilement tactile normal de la grille pour les
+                            // lignes non modifiables par ce compte.
+                            touchAction: canDrag ? 'none' : undefined,
+                          }}
                           title={`${row.label} · du ${format(tooltipCheckIn, 'd MMM', { locale: fr })} au ${format(
                             tooltipCheckOut,
                             'd MMM',
@@ -1200,7 +1263,10 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               onPointerDown={(e) => handlePointerDownOnSegment(e, seg.id, 'resize-left')}
                               onPointerMove={handlePointerMoveOnSegment}
                               onPointerUp={handlePointerUpOnSegment}
-                              className="absolute inset-y-0 left-0 w-2 cursor-ew-resize"
+                              onTouchStart={(e) => e.stopPropagation()}
+                              onTouchEnd={(e) => e.stopPropagation()}
+                              className="absolute inset-y-0 left-0 w-3 cursor-ew-resize"
+                              style={{ touchAction: 'none' }}
                               aria-hidden="true"
                             />
                           )}
@@ -1209,7 +1275,10 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                               onPointerDown={(e) => handlePointerDownOnSegment(e, seg.id, 'resize-right')}
                               onPointerMove={handlePointerMoveOnSegment}
                               onPointerUp={handlePointerUpOnSegment}
-                              className="absolute inset-y-0 right-0 w-2 cursor-ew-resize"
+                              onTouchStart={(e) => e.stopPropagation()}
+                              onTouchEnd={(e) => e.stopPropagation()}
+                              className="absolute inset-y-0 right-0 w-3 cursor-ew-resize"
+                              style={{ touchAction: 'none' }}
                               aria-hidden="true"
                             />
                           )}
@@ -1253,7 +1322,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
             check_in: editingBooking.check_in,
             check_out: editingBooking.check_out,
             house_side: editingBooking.house_side,
-            label: (editingBooking.guest_name?.trim() && firstNameOnly(editingBooking.guest_name)) || editingBooking.profiles?.first_name || 'Séjour',
+            label: (editingBooking.guest_name?.trim() && firstNameOnly(editingBooking.guest_name)) || (editingBooking.profiles?.first_name && properCase(editingBooking.profiles.first_name)) || 'Séjour',
             ageRateHint: inferAgeRate(editingBooking),
           }}
           editable={canEditBooking(editingBooking, currentUserId, isAdmin)}

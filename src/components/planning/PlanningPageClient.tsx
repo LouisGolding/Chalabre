@@ -22,11 +22,15 @@ interface BookingData {
   // (demande le 29/09/2026).
   color_hue?: number | null
   color_family?: FamilyGroup | null
+  // Tranche d'age memorisee sur le sejour depuis le 26/10/2026 (voir
+  // migration_booking_age_bracket.sql et NextStayCard.tsx) -- simple
+  // passe-plat ici, cette page ne lit pas le champ elle-meme.
+  age_bracket?: 'child' | 'adult' | null
 }
 
 interface PlanningPageClientProps {
   profile: Profile
-  nextBooking: BookingData | null
+  myOwnBookings: BookingData[]
   guestFutureBookings: BookingData[]
   initialTsBalance: TsBalanceResult
   initialPlanningBookings: PlanningBooking[]
@@ -46,7 +50,7 @@ interface PlanningPageClientProps {
 // pour que les deux façons de modifier un séjour restent synchronisées.
 export function PlanningPageClient({
   profile,
-  nextBooking,
+  myOwnBookings,
   guestFutureBookings,
   initialTsBalance,
   initialPlanningBookings,
@@ -56,16 +60,28 @@ export function PlanningPageClient({
 }: PlanningPageClientProps) {
   const [planningBookings, setPlanningBookings] = useState(initialPlanningBookings)
 
-  // Copie locale de "nextBooking"/"guestFutureBookings" (sejour du
-  // titulaire + ceux déjà saisis pour des accompagnants, ex. Otto) : ces
-  // props ne servent normalement qu'à initialiser NextStayCard (qui gère
-  // ensuite ses propres séjours enregistrés/modifiés depuis le widget lui-
-  // même) -- mais depuis le 02/10/2026, un glisser fait directement sur une
-  // bande colorée du planning (PlanningView.tsx, persistDates) doit aussi
-  // mettre à jour la bannière correspondante dans ce widget, sans qu'on soit
-  // passé par lui. Voir handleDatesPersistedFromCalendar ci-dessous.
-  const [nextBookingState, setNextBookingState] = useState(nextBooking)
+  // Copie locale de "myOwnBookings"/"guestFutureBookings" (séjours du
+  // titulaire lui-même + ceux déjà saisis pour des accompagnants, ex.
+  // Otto) : ces props ne servent normalement qu'à initialiser NextStayCard
+  // (qui gère ensuite ses propres séjours enregistrés/modifiés depuis le
+  // widget lui-même) -- mais depuis le 02/10/2026, un glisser fait
+  // directement sur une bande colorée du planning (PlanningView.tsx,
+  // persistDates) doit aussi mettre à jour la bannière correspondante dans
+  // ce widget, sans qu'on soit passé par lui. Voir
+  // handleDatesPersistedFromCalendar ci-dessous.
+  const [myOwnBookingsState, setMyOwnBookingsState] = useState(myOwnBookings)
   const [guestFutureBookingsState, setGuestFutureBookingsState] = useState(guestFutureBookings)
+  // Lequel des séjours du titulaire (myOwnBookingsState) le widget "Prochain
+  // séjour" affiche actuellement -- par défaut le premier (le plus proche,
+  // même comportement qu'avant ce changement). Cliquer sur la bande colorée
+  // d'un AUTRE de ses propres séjours sur le planning fait basculer cette
+  // sélection (voir handleSelectOwnBooking) -- demandé par Aurélie le
+  // 26/10/2026.
+  const [selectedOwnBookingId, setSelectedOwnBookingId] = useState<string | null>(myOwnBookings[0]?.id ?? null)
+  const nextBookingState = useMemo(
+    () => myOwnBookingsState.find((b) => b.id === selectedOwnBookingId) ?? myOwnBookingsState[0] ?? null,
+    [myOwnBookingsState, selectedOwnBookingId]
+  )
   // Incrémenté à chaque glisser persisté sur le planning : signale à
   // ReserverSejour qu'il doit rappeler /api/ts-balance, puisque le montant de
   // taxe de séjour a pu changer sans passer par le widget "Prochain séjour".
@@ -143,9 +159,17 @@ export function PlanningPageClient({
   // par Nicolas le 02/10/2026 ("si je réduis la bande d'Otto ... son widget
   // doit automatiquement changer, sa taxe de séjour aussi").
   const handleDatesPersistedFromCalendar = (bookingId: string, checkIn: string, checkOut: string) => {
-    setNextBookingState((prev) => (prev && prev.id === bookingId ? { ...prev, check_in: checkIn, check_out: checkOut } : prev))
+    setMyOwnBookingsState((prev) => prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkIn, check_out: checkOut } : b)))
     setGuestFutureBookingsState((prev) => prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkIn, check_out: checkOut } : b)))
     setCalendarSyncSignal((n) => n + 1)
+  }
+
+  // Clic sur la bande colorée d'un AUTRE de ses propres séjours (voir
+  // PlanningView.tsx, onSelectOwnBooking) : ignore tout id qui ne
+  // correspondrait à aucun séjour connu du titulaire (garde-fou, ne devrait
+  // normalement pas arriver).
+  const handleSelectOwnBooking = (bookingId: string) => {
+    if (myOwnBookingsState.some((b) => b.id === bookingId)) setSelectedOwnBookingId(bookingId)
   }
 
   return (
@@ -164,6 +188,7 @@ export function PlanningPageClient({
         bookings={visiblePlanningBookings}
         onBookingsChange={handlePlanningBookingsChange}
         onDatesPersisted={handleDatesPersistedFromCalendar}
+        onSelectOwnBooking={handleSelectOwnBooking}
         events={planningEvents}
         currentUserId={currentUserId}
         isAdmin={isAdmin}
