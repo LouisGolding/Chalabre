@@ -3,14 +3,18 @@ import { loadStripe } from '@stripe/stripe-js'
 
 // Un compte Stripe par côté de la maison, pour que l'argent arrive
 // directement sur le bon compte bancaire :
-// - Lalande : STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET ;
+// - Lalande : STRIPE_SECRET_KEY_LALANDE / STRIPE_WEBHOOK_SECRET_LALANDE
+//   (à défaut, les anciennes STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET) ;
 // - Canat : STRIPE_SECRET_KEY_CANAT / STRIPE_WEBHOOK_SECRET_CANAT.
 // Sans les variables Canat, tout passe par le compte Lalande.
 export type StripeAccount = 'lalande' | 'canat'
 
 const API_VERSION = '2025-02-24.acacia'
 
-const lalande = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: API_VERSION })
+const lalande = new Stripe(
+  (process.env.STRIPE_SECRET_KEY_LALANDE || process.env.STRIPE_SECRET_KEY)!,
+  { apiVersion: API_VERSION }
+)
 const canat = process.env.STRIPE_SECRET_KEY_CANAT
   ? new Stripe(process.env.STRIPE_SECRET_KEY_CANAT, { apiVersion: API_VERSION })
   : null
@@ -35,7 +39,7 @@ export function constructWebhookEvent(
   signature: string
 ): { event: Stripe.Event; stripe: Stripe } | null {
   const candidates: [string | undefined, Stripe | null][] = [
-    [process.env.STRIPE_WEBHOOK_SECRET, lalande],
+    [process.env.STRIPE_WEBHOOK_SECRET_LALANDE || process.env.STRIPE_WEBHOOK_SECRET, lalande],
     [process.env.STRIPE_WEBHOOK_SECRET_CANAT, canat],
   ]
   for (const [secret, client] of candidates) {
