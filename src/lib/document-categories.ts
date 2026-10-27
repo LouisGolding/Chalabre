@@ -17,6 +17,9 @@ export const DOCUMENT_CATEGORIES = [
   { id: 'edf', label: 'Contrat EDF' },
   { id: 'devis_factures', label: 'Devis / Factures' },
   { id: 'releves_bancaires_lalande', label: 'Relevés bancaires (Lalande)' },
+  // Ajoutée le 27/10/2026 (demande d'Aurélie), en dernier -- pour tout
+  // document qui ne rentre dans aucun des dossiers ci-dessus.
+  { id: 'autres', label: 'Autres' },
 ] as const
 
 export type DocumentCategoryId = (typeof DOCUMENT_CATEGORIES)[number]['id']

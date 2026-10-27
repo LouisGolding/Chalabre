@@ -1,9 +1,9 @@
 import { PageTitle } from '@/components/layout/PageTitle'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
-import { formatDate } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
-import { FileText, Download } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { DocumentUploadForm, DeleteDocumentButton } from '@/components/documents/DocumentsAdmin'
 import { Document } from '@/types'
 import { DOCUMENT_CATEGORIES } from '@/lib/document-categories'
@@ -68,35 +68,43 @@ export default async function DocumentsPage() {
             <h2 className="text-base font-medium text-muted-foreground mb-3">{label}</h2>
             {docs.length > 0 ? (
               <div className="space-y-2">
-                {docs.map((doc) => (
-                  <Card key={doc.id}>
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-                          <div className="min-w-0">
-                            <p className="font-medium text-foreground truncate">{doc.title}</p>
-                            <p className="text-xs text-muted-foreground">{formatDate(doc.created_at)}</p>
+                {docs.map((doc) => {
+                  const url = downloadUrl(doc)
+                  return (
+                    <Card key={doc.id}>
+                      <CardContent className="pt-4">
+                        <div className="flex items-center justify-between gap-3">
+                          {/* Consultable d'un clic (27/10/2026, demande d'Aurelie :
+                              "il faut qu'on puisse les consulter en cliquant
+                              dessus") -- toute la ligne titre/icone ouvre
+                              desormais le document dans un nouvel onglet,
+                              plus seulement la petite icone de telechargement
+                              (retiree, devenue redondante). Bouton Supprimer
+                              reste a part, en dehors de ce lien. */}
+                          <a
+                            href={url ?? undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Consulter ${doc.title}`}
+                            className={cn(
+                              'flex min-w-0 flex-1 items-center gap-3 rounded-md -m-1 p-1',
+                              url ? 'hover:bg-muted' : 'pointer-events-none opacity-60'
+                            )}
+                          >
+                            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground truncate">{doc.title}</p>
+                              <p className="text-xs text-muted-foreground">{formatDate(doc.created_at)}</p>
+                            </div>
+                          </a>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {isAdmin && <DeleteDocumentButton id={doc.id} />}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {downloadUrl(doc) && (
-                            <a
-                              href={downloadUrl(doc)!}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary hover:text-primary/80"
-                              aria-label="Télécharger ce document"
-                            >
-                              <Download className="h-5 w-5" />
-                            </a>
-                          )}
-                          {isAdmin && <DeleteDocumentButton id={doc.id} />}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground/70">Aucun document pour l’instant.</p>
