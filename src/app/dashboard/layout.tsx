@@ -53,7 +53,12 @@ export default async function DashboardLayout({
   // avant d'avoir ete valide. Verifiee ici, au seul endroit commun a
   // toutes les pages de /dashboard/*, plutot que dans le proxy (qui ne
   // lit pas la table profiles aujourd'hui, voir lib/supabase/proxy.ts).
-  if (profile.status !== 'active') {
+  // Tant que la migration n'est pas appliquee, `status` n'existe pas en
+  // base et vaut donc undefined pour tout le monde -- ne JAMAIS bloquer
+  // dans ce cas (sinon toute la famille se retrouve bloquee tant que la
+  // colonne n'existe pas). On ne bloque que sur une valeur explicite
+  // 'pending' ou 'rejected', jamais sur l'absence de valeur.
+  if (profile.status === 'pending' || profile.status === 'rejected') {
     const isRejected = profile.status === 'rejected'
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4">
