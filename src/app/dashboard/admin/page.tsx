@@ -1,5 +1,6 @@
 import { PageTitle } from '@/components/layout/PageTitle'
 import { occupantDisplayName, properCase, firstNameOnly } from '@/lib/utils'
+import { findClosestNameMatch } from '@/lib/fuzzy-name'
 import { canAccessMembresTab } from '@/lib/members-access'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
@@ -109,8 +110,10 @@ export default async function AdminPage() {
       // guest_name ajouté le 27/10/2026 (voir tsByGuest plus bas, demande
       // d'Aurélie : "les lignes de paiements soient claires pour tout le
       // monde") -- distinguer le séjour propre du titulaire de celui d'un
-      // accompagnant sans compte.
-      .select('user_id, guest_name, ts_payments(amount, status)')
+      // accompagnant sans compte. age_bracket ajouté le même jour (voir
+      // rectification plus bas : seuls les enfants obtiennent leur propre
+      // ligne "invité").
+      .select('user_id, guest_name, age_bracket, ts_payments(amount, status)')
       .gte('check_in', currentYearStart)
       .lt('check_in', nextYearStart),
     // Un séjour = une ligne (avec ses paiements TS imbriqués, 0 à N) --
@@ -144,8 +147,33 @@ export default async function AdminPage() {
   // il va dans tsByGuest ci-dessous et ressort sur sa PROPRE ligne dans
   // le tableau (voir toRows plus bas), même si c'est toujours payable
   // depuis le compte d'un parent (voir /api/stripe/checkout, inchangé).
+  //
+  // Seconde rectification, le même jour (Aurélie a vu le résultat en
+  // ligne) : deux bugs corrigés ci-dessous.
+  // 1/ Homonymes : "il n'y a pas d'homonyme dans la famille" -- si le
+  //    guest_name saisi correspond (au prénom, accents/casse/fautes de
+  //    frappe près -- voir findClosestNameMatch) à un compte existant,
+  //    ce n'est PAS un accompagnant distinct mais le titulaire de ce
+  //    compte lui-même qui a saisi son propre séjour via le champ
+  //    "accompagnant" (ex. Aurélie se saisissant elle-même comme
+  //    "Aurelie", ou Guillaume comme "Guillaume") : fusionné dans
+  //    tsByUser de ce compte plutôt que de créer une ligne fantôme en
+  //    double.
+  // 2/ "ne rajoute que des lignes pour les enfants" : un accompagnant
+  //    sans compte ET sans homonyme (ex. Eva, l'épouse de Guillaume, qui
+  //    n'a simplement pas encore créé de compte) n'est pas pour autant un
+  //    enfant -- il n'obtient PAS de ligne "invité" tant qu'il n'a pas de
+  //    compte propre ; seul age_bracket === 'child' (choix explicite à la
+  //    saisie du séjour, voir BookingEditModal.tsx) donne droit à une
+  //    ligne "invité". Le jour où Eva crée son compte (EVA DEKANY), le
+  //    cas 1/ ci-dessus la détectera automatiquement -- aucune ligne
+  //    fantôme ne réapparaîtra.
   const familyGroupById = new Map((profiles ?? []).map((p) => [p.id, p.family_group]))
   const lastNameById = new Map((profiles ?? []).map((p) => [p.id, p.last_name]))
+  const profileIdByFirstName: { id: string; firstName: string }[] = (profiles ?? []).map((p) => ({
+    id: p.id,
+    firstName: p.first_name,
+  }))
 
   const tsByUser = new Map<string, { total: number; paid: number }>()
   const tsByGuest = new Map<string, { guestName: string; familyGroup: string; lastName: string; total: number; paid: number }>()
@@ -161,6 +189,27 @@ export default async function AdminPage() {
       tsByUser.set(b.user_id, agg)
       continue
     }
+    // Cas 1/ ci-dessus : homonyme d'un compte existant -- fusionné dans
+    // ce compte, jamais dans tsByGuest.
+    const homonymIndex = findClosestNameMatch(
+      guestName,
+      profileIdByFirstName.map((p) => p.firstName)
+    )
+    if (homonymIndex !== -1) {
+      const matchedId = profileIdByFirstName[homonymIndex].id
+      const agg = tsByUser.get(matchedId) ?? { total: 0, paid: 0 }
+      for (const p of b.ts_payments) {
+        agg.total += Number(p.amount)
+        if (p.status === 'paid') agg.paid += Number(p.amount)
+      }
+      tsByUser.set(matchedId, agg)
+      continue
+    }
+    // Cas 2/ ci-dessus : pas de compte correspondant -- seuls les
+    // enfants (age_bracket === 'child') obtiennent leur propre ligne
+    // "invité" ; un adulte sans compte (ex. Eva) n'apparaît nulle part
+    // tant qu'il n'a pas créé le sien.
+    if (b.age_bracket !== 'child') continue
     // Regroupé par (famille du titulaire qui a saisi + nom exact de
     // l'accompagnant) -- même convention de regroupement que les
     // pastilles "TS - <prénom>" du Planning (voir computeTsBalance dans
