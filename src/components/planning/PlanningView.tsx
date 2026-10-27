@@ -101,12 +101,15 @@ interface PlanningViewProps {
   onBookingsChange: (updater: PlanningBooking[] | ((prev: PlanningBooking[]) => PlanningBooking[])) => void
   events: PlanningEvent[]
   // Pour savoir quelles lignes colorées l'utilisateur courant peut éditer
-  // depuis le planning (cliquer/glisser) : les siennes, ou toutes si admin
-  // — même règle que la RLS bookings_update/delete (voir schema.sql) et que
-  // /api/bookings/quick, qui la vérifie aussi côté serveur. Demandé par
-  // Nicolas le 21/09/2026.
+  // depuis le planning (cliquer/glisser) : uniquement les siennes, c'est-à-
+  // dire les séjours qu'il a lui-même saisis (son propre séjour, ou celui
+  // d'un accompagnant sans compte comme Otto — voir le commentaire plus bas
+  // sur canEditBooking). Pas d'exception pour les admins ici : glisser sur
+  // la ligne colorée de quelqu'un d'autre ne doit rien faire, même pour un
+  // compte admin — demandé par Aurélie le 27/10/2026. La règle côté serveur
+  // (RLS bookings_update/delete, /api/bookings/quick) reste elle inchangée
+  // (passe-droit admin conservé là, à la demande d'Aurélie).
   currentUserId: string
-  isAdmin: boolean
   // Remonte un changement de dates fait directement sur la bande colorée
   // (glisser) au parent (PlanningPageClient.tsx), pour qu'il resynchronise le
   // widget "Prochain séjour" correspondant (NextStayCard) et sa taxe de séjour
@@ -210,13 +213,19 @@ function segmentFromDates(checkIn: Date, checkOut: Date, rangeStart: Date, range
   }
 }
 
-// Un séjour est modifiable depuis le planning par son titulaire, ou par un
-// admin — même règle que la RLS bookings_update/delete (voir schema.sql).
-// Les données de test (isDev, voir planning/page.tsx) n'ont pas de user_id
-// : jamais modifiables, cohérent avec le commentaire qui les accompagne
-// ("à retirer une fois la mise en forme validée").
-function canEditBooking(booking: PlanningBooking, currentUserId: string, isAdmin: boolean): boolean {
-  return !!booking.user_id && (isAdmin || booking.user_id === currentUserId)
+// Un séjour n'est modifiable depuis le planning (glisser sur la barre
+// colorée) que par celui qui l'a saisi lui-même — son propre séjour, ou
+// celui d'un accompagnant sans compte (ex. Otto) qu'il a entré pour lui.
+// Plus d'exception pour les admins depuis le 27/10/2026 (demandé par
+// Aurélie : glisser sur la ligne d'un autre compte, y compris d'une autre
+// famille, ne doit rien faire) — cette exception reste en revanche active
+// côté serveur (RLS bookings_update/delete, voir schema.sql, et
+// /api/bookings/quick), à sa demande. Les données de test (isDev, voir
+// planning/page.tsx) n'ont pas de user_id : jamais modifiables, cohérent
+// avec le commentaire qui les accompagne ("à retirer une fois la mise en
+// forme validée").
+function canEditBooking(booking: PlanningBooking, currentUserId: string): boolean {
+  return !!booking.user_id && booking.user_id === currentUserId
 }
 
 // Tranche d'âge par défaut pour recalculer la taxe de séjour d'un séjour
@@ -251,7 +260,7 @@ interface DragState {
   moved: boolean
 }
 
-export function PlanningView({ bookings, onBookingsChange, events, currentUserId, isAdmin, onDatesPersisted, onSelectOwnBooking }: PlanningViewProps) {
+export function PlanningView({ bookings, onBookingsChange, events, currentUserId, onDatesPersisted, onSelectOwnBooking }: PlanningViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   // Vue par défaut : "semaine" au premier rendu (valeur neutre, identique
   // cote serveur et cote client, pour eviter tout flash d'hydratation),
@@ -795,7 +804,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     // natif du navigateur) ne vole pas le glisser avant handlePointerMove.
     if (viewMode === 'year') return
     const booking = bookingsById.get(bookingId)
-    if (!booking || !canEditBooking(booking, currentUserId, isAdmin)) return
+    if (!booking || !canEditBooking(booking, currentUserId)) return
     const pxPerDay = firstDayCellRef.current?.getBoundingClientRect().width || 0
     if (!pxPerDay) return
 
@@ -1164,11 +1173,12 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                       }
 
                       const booking = bookingsById.get(seg.id)
-                      const editable = !!booking && canEditBooking(booking, currentUserId, isAdmin)
-                      // "Pas le tien" au sens de ce nouveau clic = pas ton
-                      // propre compte titulaire, même si tu es admin et donc
-                      // techniquement autorisé à l'éditer (canEditBooking) —
-                      // voir la note sur revealedBookingId plus haut.
+                      const editable = !!booking && canEditBooking(booking, currentUserId)
+                      // Équivalent à "editable" ci-dessus depuis que
+                      // canEditBooking n'a plus d'exception admin
+                      // (27/10/2026) — gardé comme variable distincte pour
+                      // le sens du clic ("pas le tien" au sens de ce clic-ci,
+                      // voir la note sur revealedBookingId plus haut).
                       const ownedByViewer = !!booking && booking.user_id === currentUserId
                       const isRevealed = revealedBookingId === seg.id
                       const isDragging = drag?.bookingId === seg.id
@@ -1325,7 +1335,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
             label: (editingBooking.guest_name?.trim() && firstNameOnly(editingBooking.guest_name)) || (editingBooking.profiles?.first_name && properCase(editingBooking.profiles.first_name)) || 'Séjour',
             ageRateHint: inferAgeRate(editingBooking),
           }}
-          editable={canEditBooking(editingBooking, currentUserId, isAdmin)}
+          editable={canEditBooking(editingBooking, currentUserId)}
           saving={savingBookingId === editingBooking.id}
           error={modalError}
           onClose={() => {

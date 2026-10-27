@@ -227,7 +227,6 @@ export default async function PlanningPage() {
         initialPlanningBookings={planningBookings}
         planningEvents={planningEvents}
         currentUserId={user.id}
-        isAdmin={profile.role === 'admin'}
       />
     </div>
   )

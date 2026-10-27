@@ -36,7 +36,6 @@ interface PlanningPageClientProps {
   initialPlanningBookings: PlanningBooking[]
   planningEvents: PlanningEvent[]
   currentUserId: string
-  isAdmin: boolean
 }
 
 // Pont côté client entre le widget "Prochain séjour" (ReserverSejour /
@@ -56,7 +55,6 @@ export function PlanningPageClient({
   initialPlanningBookings,
   planningEvents,
   currentUserId,
-  isAdmin,
 }: PlanningPageClientProps) {
   const [planningBookings, setPlanningBookings] = useState(initialPlanningBookings)
 
@@ -191,7 +189,6 @@ export function PlanningPageClient({
         onSelectOwnBooking={handleSelectOwnBooking}
         events={planningEvents}
         currentUserId={currentUserId}
-        isAdmin={isAdmin}
       />
     </>
   )
