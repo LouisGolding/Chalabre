@@ -45,6 +45,40 @@ export default async function DashboardLayout({
     )
   }
 
+  // Validation manuelle des inscriptions (27/10/2026, demande d'Aurelie :
+  // "soit je valide chaque inscription" -- voir
+  // supabase/migration_registration_approval.sql, PAS encore appliquee).
+  // Place avant isProfileIncomplete ci-dessous : un compte Google en
+  // attente de validation n'a pas a voir l'ecran "completer mon profil"
+  // avant d'avoir ete valide. Verifiee ici, au seul endroit commun a
+  // toutes les pages de /dashboard/*, plutot que dans le proxy (qui ne
+  // lit pas la table profiles aujourd'hui, voir lib/supabase/proxy.ts).
+  if (profile.status !== 'active') {
+    const isRejected = profile.status === 'rejected'
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md text-center space-y-4">
+          <h1 className="text-2xl font-bold text-stone-800">
+            {isRejected ? 'Inscription non validée' : 'Inscription en attente de validation'}
+          </h1>
+          <p className="text-stone-500 text-sm">
+            {isRejected
+              ? "Votre demande d'inscription n'a pas été validée. Si vous pensez qu'il s'agit d'une erreur, contactez un administrateur de La Bâtisse."
+              : 'Votre compte a bien été créé, mais un administrateur de La Bâtisse doit encore valider votre inscription avant que vous puissiez accéder au site. Vous aurez accès dès que ce sera fait.'}
+          </p>
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center w-full rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              Se déconnecter
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
   // Google supplies no birth date or family group, so an OAuth signup lands
   // here with placeholder data that feeds the booking rate. Collect it first.
   if (isProfileIncomplete(profile)) redirect('/auth/completer-profil')

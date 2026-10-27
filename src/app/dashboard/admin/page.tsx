@@ -7,6 +7,7 @@ import { MembersTable, MemberRow } from '@/components/admin/MembersTable'
 import { StaysHistory, StayRow } from '@/components/admin/StaysHistory'
 import { IncidentsHistory, IncidentRow } from '@/components/admin/IncidentsHistory'
 import { TutorialViewsHistory, TutorialViewRow } from '@/components/admin/TutorialViewsHistory'
+import { PendingRegistrations, PendingRegistrationRow } from '@/components/admin/PendingRegistrations'
 
 // Forme d'un paiement TS imbriqué dans une ligne `bookings` (voir la
 // requête bookingsRaw plus bas) -- pas de typage Supabase genere dans ce
@@ -143,9 +144,26 @@ export default async function AdminPage() {
     tsByUser.set(b.user_id, agg)
   }
 
+  // Inscriptions en attente de validation (27/10/2026, voir
+  // PendingRegistrations.tsx) -- exclues des 3 tableaux Canat/Lalande/
+  // Invités ci-dessous (toRows filtre désormais sur status === 'active'),
+  // affichées à part dans leur propre widget. Un compte 'rejected' n'est
+  // affiché nulle part (refus déjà traité), ni dans les tableaux ni dans
+  // ce widget.
+  const pendingRows: PendingRegistrationRow[] = (profiles ?? [])
+    .filter((p) => p.status === 'pending')
+    .map((p) => ({
+      id: p.id,
+      firstName: p.first_name,
+      lastName: p.last_name,
+      email: p.email,
+      familyGroup: p.family_group,
+      createdAt: p.created_at,
+    }))
+
   const toRows = (familyGroup: 'canat' | 'lalande' | 'friend'): MemberRow[] =>
     (profiles ?? [])
-      .filter((p) => p.family_group === familyGroup)
+      .filter((p) => p.family_group === familyGroup && p.status === 'active')
       .map((p) => {
         const ts = tsByUser.get(p.id) ?? { total: 0, paid: 0 }
         return {
@@ -200,6 +218,11 @@ export default async function AdminPage() {
           (BottomNav.tsx) -- route /dashboard/admin et acces
           (canAccessMembresTab) inchanges. */}
       <PageTitle>Gestion</PageTitle>
+
+      {/* Nouveau widget "Inscriptions en attente" (27/10/2026, demande
+          d'Aurélie) -- en premier sur la page, c'est une action à
+          traiter plutôt qu'un historique à consulter. */}
+      <PendingRegistrations rows={pendingRows} />
 
       <div className="space-y-6">
         {groups.map(({ key, label }) => (

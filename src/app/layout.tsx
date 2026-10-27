@@ -25,6 +25,12 @@ const ebGaramond = EB_Garamond({
 export const metadata: Metadata = {
   title: 'La Bâtisse',
   description: 'Gestion de la maison familiale La Bâtisse à Chalabre',
+  // Site privé familial, jamais destiné à apparaître dans un moteur de
+  // recherche (27/10/2026, demande d'Aurélie) -- voir aussi
+  // src/app/robots.ts (fichier robots.txt, même intention), qui couvre
+  // en plus l'exploration (pas seulement l'indexation) par les robots
+  // qui le respectent.
+  robots: { index: false, follow: false },
 }
 
 // Zoom natif du navigateur (pincement, double-tap) desactive sur tout le

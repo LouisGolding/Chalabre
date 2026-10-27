@@ -21,6 +21,16 @@ export interface Profile {
   date_of_birth: string
   family_group: FamilyGroup
   role: UserRole
+  // Validation manuelle des inscriptions (demande d'Aurelie le 27/10/2026,
+  // voir supabase/migration_registration_approval.sql, PAS encore
+  // appliquee). 'pending' par defaut a l'inscription (valeur par defaut de
+  // la colonne) -- bloque l'acces au tableau de bord (voir dashboard/layout.tsx)
+  // jusqu'a validation par un admin (voir PendingRegistrations.tsx /
+  // /api/admin/registrations). 'rejected' : demande refusee, meme blocage.
+  // Tous les comptes deja existants au moment de la migration sont passes
+  // a 'active' par la migration elle-meme, aucun compte existant n'est
+  // concerne.
+  status: 'pending' | 'active' | 'rejected'
   tm_tier: number | null // montant libre depuis migration_tm_amount_libre.sql
   rib: string | null
   avatar_url: string | null
