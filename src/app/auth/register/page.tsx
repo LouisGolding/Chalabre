@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Eye, EyeOff } from 'lucide-react'
+import { parseFrenchDate } from '@/lib/utils'
 
 type FamilyGroup = 'lalande' | 'canat' | 'friend'
 
@@ -74,6 +75,14 @@ export default function RegisterPage() {
       setError('Le mot de passe doit contenir au moins 8 caractères.')
       return
     }
+    // Date de naissance saisie en texte libre (27/10/2026, voir
+    // parseFrenchDate dans src/lib/utils.ts) -- convertie en ISO ici,
+    // juste avant l'envoi, plutôt qu'à chaque frappe.
+    const isoDateOfBirth = parseFrenchDate(formData.dateOfBirth)
+    if (!isoDateOfBirth) {
+      setError('Date de naissance invalide. Format attendu : JJ/MM/AAAA.')
+      return
+    }
 
     setLoading(true)
 
@@ -85,7 +94,7 @@ export default function RegisterPage() {
         data: {
           first_name: formData.firstName,
           last_name: formData.lastName,
-          date_of_birth: formData.dateOfBirth,
+          date_of_birth: isoDateOfBirth,
           family_group: formData.familyGroup,
         },
       },
@@ -221,9 +230,17 @@ export default function RegisterPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="dateOfBirth">Date de naissance</Label>
+                {/* Champ texte libre plutôt qu'un calendrier (27/10/2026,
+                    demande d'Aurélie) -- le format attendu est juste
+                    suggéré par le placeholder, converti en ISO à la
+                    soumission (voir parseFrenchDate, handleSubmit
+                    plus haut). */}
                 <Input
                   id="dateOfBirth"
-                  type="date"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="JJ/MM/AAAA"
+                  autoComplete="bday"
                   value={formData.dateOfBirth}
                   onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                   required

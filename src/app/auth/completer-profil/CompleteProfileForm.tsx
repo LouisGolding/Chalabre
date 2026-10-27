@@ -9,14 +9,17 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UNKNOWN_DATE_OF_BIRTH } from '@/lib/profile'
-import { properCase } from '@/lib/utils'
+import { properCase, parseFrenchDate, formatFrenchDateInput } from '@/lib/utils'
 import type { FamilyGroup, Profile } from '@/types'
 
 export function CompleteProfileForm({ profile }: { profile: Profile }) {
   const [firstName, setFirstName] = useState(profile.first_name ?? '')
   const [lastName, setLastName] = useState(profile.last_name ?? '')
+  // Texte libre "JJ/MM/AAAA" plutôt qu'un calendrier (27/10/2026, voir
+  // parseFrenchDate/formatFrenchDateInput dans src/lib/utils.ts) --
+  // pré-rempli à partir de l'ISO déjà connu, le cas échéant.
   const [dateOfBirth, setDateOfBirth] = useState(
-    profile.date_of_birth === UNKNOWN_DATE_OF_BIRTH ? '' : profile.date_of_birth
+    profile.date_of_birth === UNKNOWN_DATE_OF_BIRTH ? '' : formatFrenchDateInput(profile.date_of_birth)
   )
   const [familyGroup, setFamilyGroup] = useState<FamilyGroup>(profile.family_group)
   const [loading, setLoading] = useState(false)
@@ -27,6 +30,13 @@ export function CompleteProfileForm({ profile }: { profile: Profile }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+
+    const isoDateOfBirth = parseFrenchDate(dateOfBirth)
+    if (!isoDateOfBirth) {
+      setError('Date de naissance invalide. Format attendu : JJ/MM/AAAA.')
+      return
+    }
+
     setLoading(true)
 
     const { error } = await supabase
@@ -37,7 +47,7 @@ export function CompleteProfileForm({ profile }: { profile: Profile }) {
         // src/lib/utils.ts.
         first_name: properCase(firstName.trim()),
         last_name: properCase(lastName.trim()),
-        date_of_birth: dateOfBirth,
+        date_of_birth: isoDateOfBirth,
         family_group: familyGroup,
         // role is deliberately absent: the database derives it from
         // family_group. Sending it here would demote an admin who completes
@@ -98,12 +108,17 @@ export function CompleteProfileForm({ profile }: { profile: Profile }) {
 
               <div className="space-y-2">
                 <Label htmlFor="dateOfBirth">Date de naissance</Label>
+                {/* Champ texte libre plutôt qu'un calendrier (27/10/2026,
+                    demande d'Aurélie) -- converti en ISO à la soumission
+                    (voir parseFrenchDate, handleSubmit plus haut). */}
                 <Input
                   id="dateOfBirth"
-                  type="date"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="JJ/MM/AAAA"
+                  autoComplete="bday"
                   value={dateOfBirth}
                   onChange={(e) => setDateOfBirth(e.target.value)}
-                  max={new Date().toISOString().slice(0, 10)}
                   required
                 />
               </div>

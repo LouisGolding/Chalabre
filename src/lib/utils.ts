@@ -94,6 +94,40 @@ export function formatDate(date: Date | string): string {
   return new Intl.DateTimeFormat('fr-FR').format(new Date(date))
 }
 
+// Date de naissance saisie en texte libre "JJ/MM/AAAA" plutôt que via un
+// calendrier -- demandé par Aurélie le 27/10/2026 ("ne fait pas de
+// proposition par calendrier, suggère juste un format JJ/MM/AAAA, et
+// laisse les gens taper leur date"). Utilisé par le formulaire
+// d'inscription et celui de complétion de profil.
+//
+// Convertit "JJ/MM/AAAA" en ISO ("AAAA-MM-JJ"), ou renvoie null si le
+// texte ne correspond pas à une date réellement valide (plausibilité :
+// pas dans le futur, pas avant 1900) -- y compris une date qui "déborde"
+// sur le mois suivant (ex. 31/02) silencieusement acceptée par le
+// constructeur Date natif.
+export function parseFrenchDate(input: string): string | null {
+  const match = input.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (!match) return null
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  const date = new Date(year, month - 1, day)
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null
+  if (year < 1900 || date > new Date()) return null
+  return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+}
+
+/** Inverse de parseFrenchDate : ISO ("AAAA-MM-JJ") -> "JJ/MM/AAAA", pour
+ * pré-remplir le champ texte à partir d'une date déjà connue (profil en
+ * cours de complétion). Chaîne vide si la valeur n'est pas de la forme
+ * attendue (ex. UNKNOWN_DATE_OF_BIRTH). */
+export function formatFrenchDateInput(iso: string): string {
+  const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return ''
+  return `${match[3]}/${match[2]}/${match[1]}`
+}
+
 // Casse normalisée pour l'affichage d'un prénom/nom (une majuscule au
 // début, le reste en minuscule), quelle que soit la casse telle que
 // saisie en base -- demandé par Aurélie le 26/10/2026 ("Eva" s'affichait
