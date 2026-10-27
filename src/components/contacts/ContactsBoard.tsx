@@ -135,11 +135,26 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
     const dir = sortDir === 'asc' ? 1 : -1
     const copy = [...rows]
     copy.sort((a, b) => {
-      const primary = sortValue(a, sortKey).localeCompare(sortValue(b, sortKey))
-      if (primary !== 0) return dir * primary
-      // Égalité (ex. même type de service, ou champ vide des deux
-      // côtés) : on retombe toujours sur Nom puis Type de service pour
-      // un ordre stable et prévisible.
+      const aVal = sortValue(a, sortKey)
+      const bVal = sortValue(b, sortKey)
+      // Une ligne sans valeur sur la colonne triee reste toujours en bas
+      // du tableau, quel que soit le sens du tri (demande d'Aurelie le
+      // 27/10/2026) : une ligne juste ajoutee via "Ajouter une ligne" a
+      // un nom (et tout le reste) vide, donc sans ce cas particulier
+      // elle remontait en tete de tableau en tri alphabetique croissant
+      // (chaine vide < n'importe quel nom).
+      const aEmpty = aVal === ''
+      const bEmpty = bVal === ''
+      if (aEmpty !== bEmpty) return aEmpty ? 1 : -1
+      if (!aEmpty) {
+        const primary = aVal.localeCompare(bVal)
+        if (primary !== 0) return dir * primary
+      }
+      // Egalite (ex. meme type de service, valeurs vides des deux
+      // cotes, ou deux lignes vides nouvellement ajoutees) : on retombe
+      // toujours sur Nom puis Type de service pour un ordre stable et
+      // previsible (deux lignes vides restent alors dans leur ordre
+      // d'ajout, la plus recente en dernier).
       return dir * (a.name.localeCompare(b.name) || a.role.localeCompare(b.role))
     })
     return copy
