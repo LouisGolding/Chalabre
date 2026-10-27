@@ -3,6 +3,7 @@ import { accountFor, stripeFor, transactionFeeLineItem } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
 import { buildTsStatementDescriptorSuffix, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
+import { otherNuclearFamilyMemberIds } from '@/lib/nuclear-family'
 
 // Crée une session Stripe Checkout pour régler un paiement (taxe de séjour ou
 // cotisation mensuelle).
@@ -81,7 +82,7 @@ async function handleCheckout(request: Request) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
 
-  const { data: caller } = await supabase.from('profiles').select('role, first_name, last_name').eq('id', user.id).single()
+  const { data: caller } = await supabase.from('profiles').select('role, first_name, last_name, nuclear_family').eq('id', user.id).single()
   const isAdmin = caller?.role === 'admin'
   const myFullName = caller ? `${caller.first_name} ${caller.last_name}` : null
 
@@ -185,6 +186,15 @@ async function handleCheckout(request: Request) {
   // harmonisé avec computeTsBalance qui avait la même incohérence),
   // ou un admin — demandé par Aurélie le 22/09/2026 (ex. Emmanuelle règle
   // la taxe d'Oscar qu'elle a saisie, ou Oscar la règle lui-même).
+  // Familles nucléaires (27/10/2026, demande d'Aurélie : "si un des deux
+  // parents rentre le sejour de son enfant [...] l'un des deux parents
+  // puisse payer") : un compte qui partage la même profiles.nuclear_family
+  // que celui qui a saisi un séjour D'ACCOMPAGNANT (jamais pour le séjour
+  // PROPRE de l'autre, voir isFamilyMember plus bas) peut aussi le régler
+  // -- voir src/lib/nuclear-family.ts et le commentaire de computeTsBalance
+  // dans src/lib/ts-balance.ts, même mécanisme.
+  const familyMemberIds = new Set(await otherNuclearFamilyMemberIds(supabase, user.id, caller?.nuclear_family ?? null))
+
   let resolvedFirstName: string | null = null
   for (const payment of payments) {
     const booking = asSingle(payment.bookings)
@@ -194,7 +204,12 @@ async function handleCheckout(request: Request) {
     const guestName = booking.guest_name?.trim()
     const isRegistrant = booking.user_id === user.id
     const isBeneficiary = !!guestName && !!myFullName && findClosestNameMatch(guestName, [myFullName]) !== -1
-    if (!isRegistrant && !isBeneficiary && !isAdmin) {
+    // Uniquement pour un séjour d'accompagnant (guestName non vide) --
+    // le séjour PROPRE d'un autre membre de la famille nucléaire reste
+    // réservé à son titulaire (ou à un admin), jamais payable par les
+    // autres.
+    const isFamilyMember = !!guestName && familyMemberIds.has(booking.user_id)
+    if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isAdmin) {
       return NextResponse.json({ error: 'Ce paiement ne vous appartient pas' }, { status: 403 })
     }
     if (!resolvedFirstName) {

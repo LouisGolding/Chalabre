@@ -236,7 +236,7 @@ export default async function DashboardPage() {
   // pour la pastille "TOTAL TAXE DE SÉJOUR" à côté du prochain séjour —
   // calculé uniquement quand il y a un prochain séjour à afficher, pour
   // ne pas ajouter cette requête à chaque chargement de l'accueil sinon.
-  const tsBalance = nextBooking ? await computeTsBalance(supabase, user.id) : null
+  const tsBalance = nextBooking ? await computeTsBalance(supabase, user.id, profile.nuclear_family) : null
 
   // currentBookings vient désormais du Promise.all plus haut (même
   // requête, juste déplacée pour partir en parallèle avec les 3 autres).
@@ -349,9 +349,25 @@ export default async function DashboardPage() {
             </p>
             {tsBalance && (
               <div className="mt-6">
+                {/* Pastille unique qui règle TOUT d'un coup (27/10/2026,
+                    demande d'Aurélie : "la pastille 'payer vos ts'
+                    additionne toutes ces taxes de séjour pour les payer
+                    en une seule fois") -- additionne le solde propre du
+                    titulaire ET celui de tous ses accompagnants (enfants
+                    saisis par lui, ou par l'autre parent si même famille
+                    nucléaire, voir computeTsBalance) en un seul montant
+                    et une seule session Stripe. Côté "gestion" comme sur
+                    la page Stripe elle-même, chaque personne garde sa
+                    propre ligne (voir /api/stripe/checkout/route.ts :
+                    un libellé par accompagnant, un ts_payments.update
+                    distinct par personne) -- rien ne change de ce
+                    côté-là, seul le geste de paiement est unifié ici. */}
                 <TaxeSejourPill
-                  amount={tsBalance.own.pending}
-                  ids={tsBalance.own.items.map((item) => item.id)}
+                  amount={tsBalance.own.pending + tsBalance.guests.reduce((sum, g) => sum + g.pending, 0)}
+                  ids={[
+                    ...tsBalance.own.items.map((item) => item.id),
+                    ...tsBalance.guests.flatMap((g) => g.items.map((item) => item.id)),
+                  ]}
                 />
               </div>
             )}

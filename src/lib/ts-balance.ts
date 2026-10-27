@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { tsPeriodFromCheckOut, MONTHS_3, type TsPeriod } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
+import { otherNuclearFamilyMemberIds } from '@/lib/nuclear-family'
 
 export interface TsBalanceItem {
   id: string
@@ -32,8 +33,9 @@ type RawBooking = { id: string; guest_name: string | null; check_out: string; ts
 // personne (tous ses séjours, passés ou à venir) et retire celles déjà
 // réglées — jamais remis à zéro d'un séjour à l'autre. "own" est le solde
 // du titulaire du compte connecté ; "guests" un solde par accompagnant
-// pour lequel CE compte a saisi un séjour (ex. Emmanuelle voit un solde
-// pour Oscar, Agathe, Zoé).
+// pour lequel CE compte, OU un membre de sa famille nucléaire (voir plus
+// bas), a saisi un séjour (ex. Emmanuelle voit un solde pour Oscar,
+// Agathe, Zoé).
 //
 // Un accompagnant saisi par quelqu'un d'autre (guest_name en texte libre)
 // mais qui correspond en réalité à un compte existant (même nom complet,
@@ -48,22 +50,45 @@ type RawBooking = { id: string; guest_name: string | null; check_out: string; ts
 // /api/ts-balance, pas de synchronisation instantanée entre deux comptes
 // ouverts en même temps, non demandée).
 //
+// Familles nucléaires (27/10/2026, demande d'Aurélie : "si un des deux
+// parents rentre le sejour de son enfant, ce sejour apparait aussi sur le
+// profil de l'autre parent [...] de sorte à ce que l'un des deux parents
+// puisse payer") : un séjour D'ACCOMPAGNANT (enfant...) saisi par un
+// AUTRE compte qui partage la même colonne profiles.nuclear_family (voir
+// src/lib/colors.ts et src/lib/nuclear-family.ts — ex. Nicolas et Aurélie
+// partagent 'lal-nicolas-aurelie') est traité ici exactement comme si le
+// titulaire du compte l'avait saisi lui-même : même bucket "guests", même
+// somme, payable depuis les deux comptes (voir l'autorisation
+// correspondante dans /api/stripe/checkout/route.ts). Volontairement
+// exclu de ce partage : le séjour PROPRE d'un autre membre de la famille
+// nucléaire (sans accompagnant) ne devient pas payable par les autres
+// pour autant — seuls les séjours d'accompagnants sont partagés. Et tout
+// séjour d'accompagnant dont le nom correspond en réalité au titulaire
+// lui-même reste compté dans "own" (via la correspondance de nom
+// ci-dessus), jamais dans "guests" en plus — pas de double comptage.
+//
 // "pending" désigne ici tout ce qui n'est pas encore réglé (status
 // 'pending' OU 'overdue', ex. un paiement Stripe qui a échoué) — même
 // convention que la vue admin public.user_balances (status != 'paid'),
 // voir migration_payment_tracking.sql.
 export async function computeTsBalance(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string
+  userId: string,
+  // Évite un aller-retour Supabase supplémentaire quand l'appelant a déjà
+  // ce champ sous la main (ex. dashboard/page.tsx, planning/page.tsx — le
+  // profil du titulaire est déjà chargé par getCurrentUserAndProfile()).
+  // undefined (valeur par défaut) : on va la chercher nous-mêmes.
+  knownNuclearFamily?: string | null
 ): Promise<TsBalanceResult> {
-  // Latence (26/10/2026, demande d'Aurélie) : `profile` et `myBookings`
-  // ne dépendent pas l'un de l'autre (myBookings n'a besoin que de
-  // userId, déjà connu) -- partis jusqu'ici en 2 aller-retours Supabase
-  // successifs, lancés de front ici. Seule `otherBookings` reste une
-  // vraie dépendance séquentielle : elle a besoin de myFullName, donc du
-  // résultat de `profile`.
+  // Latence (26/10/2026, demande d'Aurélie : "il y a toujours un temps
+  // de latence [...] a revérifier pour que tout soit tres tres
+  // rapide") : `profile` et `myBookings` ne dépendent pas l'un de
+  // l'autre (myBookings n'a besoin que de userId, déjà connu) -- lancés
+  // de front ici. `otherBookings` et la famille nucléaire restent de
+  // vraies dépendances séquentielles (besoin de myFullName/profile) --
+  // mais lancées de front ENTRE ELLES juste en dessous.
   const [{ data: profile }, { data: myBookings }] = await Promise.all([
-    supabase.from('profiles').select('first_name, last_name').eq('id', userId).single(),
+    supabase.from('profiles').select('first_name, last_name, nuclear_family').eq('id', userId).single(),
     supabase
       .from('bookings')
       .select('id, guest_name, check_out, ts_payments(id, amount, status)')
@@ -71,14 +96,27 @@ export async function computeTsBalance(
   ])
 
   const myFullName = profile ? `${profile.first_name} ${profile.last_name}` : null
+  const nuclearFamily = knownNuclearFamily !== undefined ? knownNuclearFamily : profile?.nuclear_family ?? null
 
-  const { data: otherBookings } = myFullName
-    ? await supabase
-        .from('bookings')
-        .select('id, guest_name, user_id, check_out, ts_payments(id, amount, status)')
-        .neq('user_id', userId)
-        .not('guest_name', 'is', null)
-    : { data: [] as RawBooking[] }
+  const [{ data: otherBookings }, familyMemberIds] = await Promise.all([
+    myFullName
+      ? supabase
+          .from('bookings')
+          .select('id, guest_name, user_id, check_out, ts_payments(id, amount, status)')
+          .neq('user_id', userId)
+          .not('guest_name', 'is', null)
+      : Promise.resolve({ data: [] as RawBooking[] }),
+    otherNuclearFamilyMemberIds(supabase, userId, nuclearFamily),
+  ])
+
+  const { data: familyGuestBookings } =
+    familyMemberIds.length > 0
+      ? await supabase
+          .from('bookings')
+          .select('id, guest_name, check_out, ts_payments(id, amount, status)')
+          .in('user_id', familyMemberIds)
+          .not('guest_name', 'is', null)
+      : { data: [] as RawBooking[] }
 
   const ownItems: TsBalanceItem[] = []
   let ownPending = 0
@@ -101,6 +139,15 @@ export async function computeTsBalance(
     return amount
   }
 
+  const addToGuestBucket = (guestName: string, payments: RawTsPayment[], checkOut: string) => {
+    if (!guestMap.has(guestName)) {
+      guestMap.set(guestName, { name: guestName, pending: 0, items: [] })
+      guestOrder.push(guestName)
+    }
+    const bucket = guestMap.get(guestName)!
+    for (const payment of payments) bucket.pending += addUnpaid(bucket.items, payment, checkOut)
+  }
+
   for (const booking of (myBookings ?? []) as RawBooking[]) {
     const guestName = booking.guest_name?.trim()
     const payments = booking.ts_payments ?? []
@@ -108,12 +155,19 @@ export async function computeTsBalance(
       for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out)
       continue
     }
-    if (!guestMap.has(guestName)) {
-      guestMap.set(guestName, { name: guestName, pending: 0, items: [] })
-      guestOrder.push(guestName)
-    }
-    const bucket = guestMap.get(guestName)!
-    for (const payment of payments) bucket.pending += addUnpaid(bucket.items, payment, booking.check_out)
+    addToGuestBucket(guestName, payments, booking.check_out)
+  }
+
+  // Séjours d'accompagnants saisis par un autre membre de la même
+  // famille nucléaire (voir le grand commentaire au-dessus de la
+  // fonction) : même bucket "guests" que ci-dessus, à l'exclusion de ceux
+  // qui correspondent en réalité au titulaire du compte lui-même (comptés
+  // dans "own" par la boucle suivante à la place, jamais les deux).
+  for (const booking of (familyGuestBookings ?? []) as RawBooking[]) {
+    const guestName = booking.guest_name?.trim()
+    if (!guestName) continue
+    if (myFullName && findClosestNameMatch(guestName, [myFullName]) !== -1) continue
+    addToGuestBucket(guestName, booking.ts_payments ?? [], booking.check_out)
   }
 
   if (myFullName) {

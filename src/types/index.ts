@@ -49,6 +49,14 @@ export interface Profile {
   // en production, voir l'en-tete de src/lib/colors.ts. Peut etre null pour
   // un compte tres ancien jamais recalcule.
   color_hue: number | null
+  // Famille nucleaire (foyer proche -- couple + enfants, voir
+  // src/lib/colors.ts et src/lib/nuclear-family.ts), attribuee a
+  // l'inscription par handle_new_user(). Null pour un compte tres ancien
+  // jamais recalcule, ou qui ne correspond a aucune famille nucleaire
+  // connue. Sert depuis le 27/10/2026 a partager entre les deux comptes
+  // d'un couple les sejours d'accompagnants (enfants) qu'un seul des deux
+  // a saisis -- voir src/lib/ts-balance.ts.
+  nuclear_family: string | null
 }
 
 export interface Room {
