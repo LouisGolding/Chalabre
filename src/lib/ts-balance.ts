@@ -104,6 +104,17 @@ export async function computeTsBalance(
   ])
 
   const myFullName = profile ? `${profile.first_name} ${profile.last_name}` : null
+  // Candidats de correspondance pour "c'est en réalité SON PROPRE
+  // séjour" (27/10/2026, correctif signalé par Nicolas : le séjour
+  // d'Aurélie, auto-étiqueté juste "Aurelie" -- PRÉNOM SEUL, pas
+  // "Aurélie Fouré" -- restait visible sur son profil). findClosestNameMatch
+  // compare des chaînes entières, jamais une sous-chaîne : un
+  // auto-étiquetage au prénom seul ("Aurelie", "Guillaume") ne
+  // correspondait donc jamais à myFullName/registrantName (prénom +
+  // nom). Les deux graphies réellement observées (prénom seul, ou
+  // prénom + nom comme "Otto Lalande") sont désormais proposées comme
+  // candidats.
+  const myNameCandidates = profile ? [profile.first_name, myFullName as string] : null
   const nuclearFamily = knownNuclearFamily !== undefined ? knownNuclearFamily : profile?.nuclear_family ?? null
 
   const [{ data: otherBookings }, familyMembers] = await Promise.all([
@@ -118,7 +129,11 @@ export async function computeTsBalance(
   ])
 
   const familyMemberIds = familyMembers.map((m) => m.id)
-  const familyMemberNameById = new Map(familyMembers.map((m) => [m.id, `${m.first_name} ${m.last_name}`]))
+  // Voir le commentaire sur myNameCandidates plus haut -- même principe
+  // pour le titulaire qui a saisi un séjour d'accompagnant (registrant).
+  const familyMemberNameCandidatesById = new Map(
+    familyMembers.map((m) => [m.id, [m.first_name, `${m.first_name} ${m.last_name}`]])
+  )
 
   const { data: familyGuestBookings } =
     familyMemberIds.length > 0
@@ -180,19 +195,19 @@ export async function computeTsBalance(
     // Exclu si c'est en réalité le PROPRE séjour de celui qui l'a saisi
     // (guest_name = son propre nom par erreur) -- jamais un accompagnant,
     // jamais partagé (voir le commentaire au-dessus de la fonction).
-    const registrantName = familyMemberNameById.get(booking.user_id)
-    if (registrantName && findClosestNameMatch(guestName, [registrantName]) !== -1) continue
+    const registrantCandidates = familyMemberNameCandidatesById.get(booking.user_id)
+    if (registrantCandidates && findClosestNameMatch(guestName, registrantCandidates) !== -1) continue
     // Exclu aussi si ça correspond au titulaire DU COMPTE QUI REGARDE --
     // déjà compté dans "own" via otherBookings plus bas, jamais compté
     // deux fois.
-    if (myFullName && findClosestNameMatch(guestName, [myFullName]) !== -1) continue
+    if (myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1) continue
     addToGuestBucket(guestName, booking.ts_payments ?? [], booking.check_out)
   }
 
-  if (myFullName) {
+  if (myNameCandidates) {
     for (const booking of (otherBookings ?? []) as RawBooking[]) {
       const guestName = booking.guest_name?.trim()
-      if (!guestName || findClosestNameMatch(guestName, [myFullName]) === -1) continue
+      if (!guestName || findClosestNameMatch(guestName, myNameCandidates) === -1) continue
       const payments = booking.ts_payments ?? []
       for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out)
     }

@@ -121,7 +121,15 @@ export default async function PlanningPage() {
   // que myBookings plus haut pour rester compatible avec son usage plus
   // bas.
   const otherFamilyIds = otherFamilyMembers.map((m) => m.id)
-  const familyMemberNameById = new Map(otherFamilyMembers.map((m) => [m.id, `${m.first_name} ${m.last_name}`]))
+  // Voir le commentaire détaillé sur le même correctif dans
+  // src/lib/ts-balance.ts (27/10/2026, signalé par Nicolas : le séjour
+  // d'Aurélie, auto-étiqueté juste "Aurelie" -- prénom seul -- restait
+  // visible sur son profil, faute de correspondance avec "Aurélie Fouré").
+  // Prénom seul ET prénom+nom proposés comme candidats, les deux graphies
+  // réellement observées pour un auto-étiquetage.
+  const familyMemberNameCandidatesById = new Map(
+    otherFamilyMembers.map((m) => [m.id, [m.first_name, `${m.first_name} ${m.last_name}`]])
+  )
   const { data: familyGuestBookings } =
     otherFamilyIds.length > 0
       ? await supabase
@@ -190,14 +198,14 @@ export default async function PlanningPage() {
   // partagé), et ceux dont le nom correspond au titulaire DU COMPTE QUI
   // REGARDE (déjà son propre séjour, voir myOwnBookings/sa propre
   // pastille TS, jamais compté comme "accompagnant" en plus).
-  const myFullNameForFamily = `${profile.first_name} ${profile.last_name}`
+  const myNameCandidatesForFamily = [profile.first_name, `${profile.first_name} ${profile.last_name}`]
   const familyGuestFutureBookings = (familyGuestBookings ?? []).filter((b) => {
     if (b.check_out < todayISOForReserver) return false
     const g = b.guest_name?.trim()
     if (!g) return false
-    const registrantName = familyMemberNameById.get(b.user_id)
-    if (registrantName && findClosestNameMatch(g, [registrantName]) !== -1) return false
-    return findClosestNameMatch(g, [myFullNameForFamily]) === -1
+    const registrantCandidates = familyMemberNameCandidatesById.get(b.user_id)
+    if (registrantCandidates && findClosestNameMatch(g, registrantCandidates) !== -1) return false
+    return findClosestNameMatch(g, myNameCandidatesForFamily) === -1
   })
   const guestFutureBookings = [...myFutureBookings.filter((b) => b.guest_name), ...familyGuestFutureBookings]
     .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())

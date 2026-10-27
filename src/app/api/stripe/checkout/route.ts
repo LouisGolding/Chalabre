@@ -88,6 +88,13 @@ async function handleCheckout(request: Request) {
   const { data: caller } = await supabase.from('profiles').select('role, first_name, last_name, nuclear_family').eq('id', user.id).single()
   const isAdmin = caller?.role === 'admin'
   const myFullName = caller ? `${caller.first_name} ${caller.last_name}` : null
+  // Voir le commentaire détaillé sur le même correctif dans
+  // src/lib/ts-balance.ts (27/10/2026, signalé par Nicolas : un
+  // auto-étiquetage au prénom seul, ex. "Aurelie", ne correspondait
+  // jamais à myFullName/registrantFullName -- prénom + nom complet).
+  // Prénom seul ET prénom+nom proposés comme candidats ci-dessous, les
+  // deux graphies réellement observées.
+  const myNameCandidates = caller ? [caller.first_name, myFullName as string] : null
 
   const origin = request.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL
 
@@ -206,15 +213,18 @@ async function handleCheckout(request: Request) {
     }
     const guestName = booking.guest_name?.trim()
     const isRegistrant = booking.user_id === user.id
-    const isBeneficiary = !!guestName && !!myFullName && findClosestNameMatch(guestName, [myFullName]) !== -1
+    const isBeneficiary = !!guestName && !!myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1
     // Un séjour dont le guest_name correspond en réalité au titulaire DE
     // CE séjour (son propre nom saisi par erreur comme accompagnant)
     // n'est pas un vrai accompagnant -- jamais partageable via la
     // famille nucléaire, même règle que src/lib/ts-balance.ts
     // (rectification du 27/10/2026, demande d'Aurélie).
     const registrantProfile = asSingle(booking.profiles)
-    const registrantFullName = registrantProfile ? `${registrantProfile.first_name} ${registrantProfile.last_name}` : null
-    const isSelfTagged = !!guestName && !!registrantFullName && findClosestNameMatch(guestName, [registrantFullName]) !== -1
+    const registrantNameCandidates = registrantProfile
+      ? [registrantProfile.first_name, `${registrantProfile.first_name} ${registrantProfile.last_name}`]
+      : null
+    const isSelfTagged =
+      !!guestName && !!registrantNameCandidates && findClosestNameMatch(guestName, registrantNameCandidates) !== -1
     // Uniquement pour un vrai séjour d'accompagnant (guestName non vide,
     // et pas auto-étiqueté comme ci-dessus) -- le séjour PROPRE d'un
     // autre membre de la famille nucléaire reste réservé à son titulaire
