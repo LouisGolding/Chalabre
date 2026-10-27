@@ -3,7 +3,7 @@ import { accountFor, stripeFor, transactionFeeLineItem } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
 import { buildTsStatementDescriptorSuffix, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
-import { otherNuclearFamilyMemberIds } from '@/lib/nuclear-family'
+import { otherNuclearFamilyMembers } from '@/lib/nuclear-family'
 
 // Crée une session Stripe Checkout pour régler un paiement (taxe de séjour ou
 // cotisation mensuelle).
@@ -31,7 +31,10 @@ interface TsRowBooking {
   guest_name: string | null
   check_out: string
   house_side: string | null
-  profiles: { first_name: string } | { first_name: string }[] | null
+  // last_name ajoute le 27/10/2026 (voir isSelfTagged plus bas) -- pour
+  // pouvoir reconstruire le nom complet du titulaire de CE sejour, pas
+  // seulement son prenom.
+  profiles: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null
 }
 
 type TsRow = {
@@ -161,7 +164,7 @@ async function handleCheckout(request: Request) {
   // -------------------------------------------------------------
   const { data: rows } = await supabase
     .from('ts_payments')
-    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, house_side, profiles(first_name))')
+    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, house_side, profiles(first_name, last_name))')
     .in('id', ids)
 
   const requested = (rows ?? []) as TsRow[]
@@ -193,7 +196,7 @@ async function handleCheckout(request: Request) {
   // PROPRE de l'autre, voir isFamilyMember plus bas) peut aussi le régler
   // -- voir src/lib/nuclear-family.ts et le commentaire de computeTsBalance
   // dans src/lib/ts-balance.ts, même mécanisme.
-  const familyMemberIds = new Set(await otherNuclearFamilyMemberIds(supabase, user.id, caller?.nuclear_family ?? null))
+  const familyMemberIds = new Set((await otherNuclearFamilyMembers(supabase, user.id, caller?.nuclear_family ?? null)).map((m) => m.id))
 
   let resolvedFirstName: string | null = null
   for (const payment of payments) {
@@ -204,11 +207,19 @@ async function handleCheckout(request: Request) {
     const guestName = booking.guest_name?.trim()
     const isRegistrant = booking.user_id === user.id
     const isBeneficiary = !!guestName && !!myFullName && findClosestNameMatch(guestName, [myFullName]) !== -1
-    // Uniquement pour un séjour d'accompagnant (guestName non vide) --
-    // le séjour PROPRE d'un autre membre de la famille nucléaire reste
-    // réservé à son titulaire (ou à un admin), jamais payable par les
-    // autres.
-    const isFamilyMember = !!guestName && familyMemberIds.has(booking.user_id)
+    // Un séjour dont le guest_name correspond en réalité au titulaire DE
+    // CE séjour (son propre nom saisi par erreur comme accompagnant)
+    // n'est pas un vrai accompagnant -- jamais partageable via la
+    // famille nucléaire, même règle que src/lib/ts-balance.ts
+    // (rectification du 27/10/2026, demande d'Aurélie).
+    const registrantProfile = asSingle(booking.profiles)
+    const registrantFullName = registrantProfile ? `${registrantProfile.first_name} ${registrantProfile.last_name}` : null
+    const isSelfTagged = !!guestName && !!registrantFullName && findClosestNameMatch(guestName, [registrantFullName]) !== -1
+    // Uniquement pour un vrai séjour d'accompagnant (guestName non vide,
+    // et pas auto-étiqueté comme ci-dessus) -- le séjour PROPRE d'un
+    // autre membre de la famille nucléaire reste réservé à son titulaire
+    // (ou à un admin), jamais payable par les autres.
+    const isFamilyMember = !!guestName && !isSelfTagged && familyMemberIds.has(booking.user_id)
     if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isAdmin) {
       return NextResponse.json({ error: 'Ce paiement ne vous appartient pas' }, { status: 403 })
     }

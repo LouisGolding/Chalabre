@@ -6,7 +6,7 @@ import { colorForName, colorForPaletteIndex, fallbackIndexForName } from '@/lib/
 import type { FamilyGroup } from '@/types'
 import { computeTsBalance } from '@/lib/ts-balance'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
-import { otherNuclearFamilyMemberIds } from '@/lib/nuclear-family'
+import { otherNuclearFamilyMembers } from '@/lib/nuclear-family'
 
 // ============================================================
 // (Ancien bloc "DONNÉES DE TEST" retiré le 29/09/2026, à la demande de
@@ -66,7 +66,7 @@ export default async function PlanningPage() {
     { data: bookings },
     { data: events },
     initialTsBalance,
-    otherFamilyIds,
+    otherFamilyMembers,
   ] = await Promise.all([
     // Résolution des couleurs par nom (voir buildColorResolver plus haut) :
     // remontée ici, avant le calcul de guestFutureBookings, pour pouvoir
@@ -111,14 +111,17 @@ export default async function PlanningPage() {
     // la même profiles.nuclear_family que le titulaire -- voir
     // src/lib/nuclear-family.ts. Indépendante de tout le reste ci-dessus,
     // lancée de front avec le reste du Promise.all.
-    otherNuclearFamilyMemberIds(supabase, user.id, profile.nuclear_family),
+    otherNuclearFamilyMembers(supabase, user.id, profile.nuclear_family),
   ])
 
   // Séjours d'accompagnants saisis par un AUTRE membre de cette même
   // famille nucléaire (ex. le séjour d'Otto saisi par Nicolas, visible et
   // payable ici même depuis le compte d'Aurélie) -- vraie dépendance
-  // séquentielle (a besoin d'otherFamilyIds ci-dessus), même requête que
-  // myBookings plus haut pour rester compatible avec son usage plus bas.
+  // séquentielle (a besoin d'otherFamilyMembers ci-dessus), même requête
+  // que myBookings plus haut pour rester compatible avec son usage plus
+  // bas.
+  const otherFamilyIds = otherFamilyMembers.map((m) => m.id)
+  const familyMemberNameById = new Map(otherFamilyMembers.map((m) => [m.id, `${m.first_name} ${m.last_name}`]))
   const { data: familyGuestBookings } =
     otherFamilyIds.length > 0
       ? await supabase
@@ -180,14 +183,21 @@ export default async function PlanningPage() {
   // Même séjours d'accompagnants que ci-dessus, mais saisis par un autre
   // membre de la famille nucléaire plutôt que par le titulaire lui-même
   // (voir familyGuestBookings et le commentaire qui l'accompagne plus
-  // haut) -- exclus ceux dont le nom correspond en réalité au titulaire
-  // du compte (déjà son propre séjour, jamais compté comme "accompagnant"
-  // en plus, même logique que src/lib/ts-balance.ts).
+  // haut). Exclus (27/10/2026, rectification d'Aurélie, même règle que
+  // src/lib/ts-balance.ts) : ceux dont le nom correspond en réalité au
+  // titulaire DU COMPTE QUI L'A SAISI (son propre séjour, étiqueté par
+  // erreur avec un guest_name -- jamais un "accompagnant", jamais
+  // partagé), et ceux dont le nom correspond au titulaire DU COMPTE QUI
+  // REGARDE (déjà son propre séjour, voir myOwnBookings/sa propre
+  // pastille TS, jamais compté comme "accompagnant" en plus).
   const myFullNameForFamily = `${profile.first_name} ${profile.last_name}`
   const familyGuestFutureBookings = (familyGuestBookings ?? []).filter((b) => {
     if (b.check_out < todayISOForReserver) return false
     const g = b.guest_name?.trim()
-    return !!g && findClosestNameMatch(g, [myFullNameForFamily]) === -1
+    if (!g) return false
+    const registrantName = familyMemberNameById.get(b.user_id)
+    if (registrantName && findClosestNameMatch(g, [registrantName]) !== -1) return false
+    return findClosestNameMatch(g, [myFullNameForFamily]) === -1
   })
   const guestFutureBookings = [...myFutureBookings.filter((b) => b.guest_name), ...familyGuestFutureBookings]
     .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())

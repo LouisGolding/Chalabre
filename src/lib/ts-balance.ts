@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { tsPeriodFromCheckOut, MONTHS_3, type TsPeriod } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
-import { otherNuclearFamilyMemberIds } from '@/lib/nuclear-family'
+import { otherNuclearFamilyMembers } from '@/lib/nuclear-family'
 
 export interface TsBalanceItem {
   id: string
@@ -67,6 +67,14 @@ type RawBooking = { id: string; guest_name: string | null; check_out: string; ts
 // lui-même reste compté dans "own" (via la correspondance de nom
 // ci-dessus), jamais dans "guests" en plus — pas de double comptage.
 //
+// Rectification du 27/10/2026 (toujours Aurélie, exemple donné : son
+// propre séjour, saisi par elle-même sur son propre compte, ne doit
+// jamais apparaître chez Nicolas) : un séjour dont le guest_name
+// correspond en réalité au TITULAIRE DU COMPTE QUI L'A SAISI (et non au
+// compte qui regarde) n'est pas un "accompagnant" — c'est son propre
+// séjour, étiqueté par erreur avec un guest_name — jamais partagé avec
+// les autres membres de la famille nucléaire pour autant.
+//
 // "pending" désigne ici tout ce qui n'est pas encore réglé (status
 // 'pending' OU 'overdue', ex. un paiement Stripe qui a échoué) — même
 // convention que la vue admin public.user_balances (status != 'paid'),
@@ -98,7 +106,7 @@ export async function computeTsBalance(
   const myFullName = profile ? `${profile.first_name} ${profile.last_name}` : null
   const nuclearFamily = knownNuclearFamily !== undefined ? knownNuclearFamily : profile?.nuclear_family ?? null
 
-  const [{ data: otherBookings }, familyMemberIds] = await Promise.all([
+  const [{ data: otherBookings }, familyMembers] = await Promise.all([
     myFullName
       ? supabase
           .from('bookings')
@@ -106,17 +114,20 @@ export async function computeTsBalance(
           .neq('user_id', userId)
           .not('guest_name', 'is', null)
       : Promise.resolve({ data: [] as RawBooking[] }),
-    otherNuclearFamilyMemberIds(supabase, userId, nuclearFamily),
+    otherNuclearFamilyMembers(supabase, userId, nuclearFamily),
   ])
+
+  const familyMemberIds = familyMembers.map((m) => m.id)
+  const familyMemberNameById = new Map(familyMembers.map((m) => [m.id, `${m.first_name} ${m.last_name}`]))
 
   const { data: familyGuestBookings } =
     familyMemberIds.length > 0
       ? await supabase
           .from('bookings')
-          .select('id, guest_name, check_out, ts_payments(id, amount, status)')
+          .select('id, guest_name, user_id, check_out, ts_payments(id, amount, status)')
           .in('user_id', familyMemberIds)
           .not('guest_name', 'is', null)
-      : { data: [] as RawBooking[] }
+      : { data: [] as (RawBooking & { user_id: string })[] }
 
   const ownItems: TsBalanceItem[] = []
   let ownPending = 0
@@ -163,9 +174,17 @@ export async function computeTsBalance(
   // fonction) : même bucket "guests" que ci-dessus, à l'exclusion de ceux
   // qui correspondent en réalité au titulaire du compte lui-même (comptés
   // dans "own" par la boucle suivante à la place, jamais les deux).
-  for (const booking of (familyGuestBookings ?? []) as RawBooking[]) {
+  for (const booking of (familyGuestBookings ?? []) as (RawBooking & { user_id: string })[]) {
     const guestName = booking.guest_name?.trim()
     if (!guestName) continue
+    // Exclu si c'est en réalité le PROPRE séjour de celui qui l'a saisi
+    // (guest_name = son propre nom par erreur) -- jamais un accompagnant,
+    // jamais partagé (voir le commentaire au-dessus de la fonction).
+    const registrantName = familyMemberNameById.get(booking.user_id)
+    if (registrantName && findClosestNameMatch(guestName, [registrantName]) !== -1) continue
+    // Exclu aussi si ça correspond au titulaire DU COMPTE QUI REGARDE --
+    // déjà compté dans "own" via otherBookings plus bas, jamais compté
+    // deux fois.
     if (myFullName && findClosestNameMatch(guestName, [myFullName]) !== -1) continue
     addToGuestBucket(guestName, booking.ts_payments ?? [], booking.check_out)
   }
