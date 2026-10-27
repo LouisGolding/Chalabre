@@ -163,7 +163,11 @@ export default async function AdminPage() {
 
   const toRows = (familyGroup: 'canat' | 'lalande' | 'friend'): MemberRow[] =>
     (profiles ?? [])
-      .filter((p) => p.family_group === familyGroup && p.status === 'active')
+      // Comme dashboard/layout.tsx (voir commit de correctif du
+      // 27/10/2026) : tant que la migration n'est pas appliquee,
+      // status est undefined pour tout le monde -- ne JAMAIS exclure
+      // dans ce cas, seulement sur 'pending'/'rejected' explicites.
+      .filter((p) => p.family_group === familyGroup && p.status !== 'pending' && p.status !== 'rejected')
       .map((p) => {
         const ts = tsByUser.get(p.id) ?? { total: 0, paid: 0 }
         return {
