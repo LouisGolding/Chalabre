@@ -132,19 +132,20 @@ type ViewMode = 'week' | 'fortnight' | 'month' | 'year'
 
 // Colonne des noms : une largeur qui se resserre elle-même sur petit écran
 // (clamp), pour laisser le plus de place possible aux colonnes des jours.
-// En vue "mois"/"année", les colonnes des jours se partagent tout
-// l'espace disponible (minmax(0, 1fr)) pour que le mois ou l'année
-// tienne toujours dans la largeur de l'écran, sans scroll horizontal. En
-// vue "semaine"/"quinzaine" en revanche (depuis le 28/09/2026, précisé le
-// 29/09/2026 à la demande de Nicolas), les colonnes ont une largeur en
-// pourcentage calculée pour que la période affichée (7 ou 14 jours)
-// remplisse exactement la largeur de l'écran, sans scroll nécessaire pour
-// la voir en entier — voir gridTemplateColumns plus bas. La grille
-// affiche cependant, de part et d'autre, quelques jours supplémentaires
-// en mémoire tampon (BUFFER_DAYS, voir rangeStart/rangeEnd) : un
-// glissement horizontal fait alors apparaître les jours précédents/
-// suivants sans changer de période — la navigation par les flèches reste
-// le seul moyen de vraiment changer de période affichée.
+// En vue "année" (seule vue sans défilement horizontal), les colonnes des
+// jours se partagent tout l'espace disponible (minmax(0, 1fr)) pour que
+// l'année tienne toujours dans la largeur de l'écran. En vues "semaine"/
+// "quinzaine" (depuis le 28/09/2026, précisé le 29/09/2026 à la demande
+// de Nicolas) et "mois" (depuis le 27/10/2026, à la demande d'Aurélie),
+// les colonnes ont une largeur en pourcentage calculée pour que la
+// période affichée remplisse exactement la largeur de l'écran, sans
+// scroll nécessaire pour la voir en entier — voir gridTemplateColumns
+// plus bas. La grille affiche cependant, de part et d'autre, quelques
+// jours supplémentaires en mémoire tampon (BUFFER_DAYS, voir
+// rangeStart/rangeEnd) : une barre de défilement horizontal (en bas de
+// la grille) fait alors apparaître les jours précédents/suivants sans
+// changer de période — la navigation par les flèches reste le seul moyen
+// de vraiment changer de période affichée.
 const LABEL_COL = 'clamp(96px, 22vw, 190px)'
 
 // Nombre de jours gardés en mémoire tampon de chaque côté de la période
@@ -152,7 +153,7 @@ const LABEL_COL = 'clamp(96px, 22vw, 190px)'
 // réduit le même jour), pour permettre un aperçu par glissement
 // horizontal sans recharger la grille — voir le commentaire ci-dessus. En
 // jours (et non en nombre de périodes) pour que la profondeur du tampon
-// soit la même en semaine et en quinzaine.
+// soit la même en semaine, en quinzaine et en mois.
 const BUFFER_DAYS = 30
 
 interface Segment {
@@ -368,7 +369,15 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate.getTime(), viewMode])
   const periodDayCount = differenceInCalendarDays(periodEnd, periodStart) + 1
-  const scrollableDays = viewMode === 'week' || viewMode === 'fortnight'
+  // Vue "mois" ajoutée aux vues défilables le 27/10/2026 (demande
+  // d'Aurélie : une barre de défilement horizontal en bas de la grille,
+  // sur ordinateur, pour apercevoir les jours voisins sans changer de
+  // mois affiché) — "année" reste la seule vue sans défilement (bandeaux
+  // de mois, granularité trop fine pour un défilement jour par jour). La
+  // vue "mois" n'étant proposée que sur grand écran (pastille "Mois" en
+  // hidden md:inline, voir plus bas), elle est de fait déjà réservée à la
+  // version ordinateur.
+  const scrollableDays = viewMode === 'week' || viewMode === 'fortnight' || viewMode === 'month'
   // Index (dans le tableau "days" élargi plus bas) du premier jour de la
   // période affichée — c'est aussi le nombre de jours de tampon avant
   // elle, les deux étant égaux par construction (BUFFER_DAYS jours).
@@ -500,7 +509,13 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   // (periodStart/periodEnd), pour rester cohérent avec l'aperçu des jours
   // voisins. Au repos, displayedStartIndex vaut periodStartIndex et le
   // résultat est identique à periodStart/periodEnd.
-  const title = scrollableDays
+  // La vue "mois", bien que défilable depuis le 27/10/2026 (voir
+  // scrollableDays plus haut), garde volontairement un titre fixe
+  // ("MMMM yyyy") plutôt qu'une plage de jours qui se mettrait à jour
+  // pendant le glissement : ce défilement ne sert qu'à apercevoir les
+  // jours voisins, pas à changer réellement de mois affiché.
+  const showDayRangeTitle = viewMode === 'week' || viewMode === 'fortnight'
+  const title = showDayRangeTitle
     ? `${format(days[displayedStartIndex] ?? periodStart, 'd MMM', { locale: fr })} – ${format(
         days[Math.min(displayedStartIndex + periodDayCount - 1, dayCount - 1)] ?? periodEnd,
         'd MMM yyyy',
@@ -872,7 +887,14 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
   // Repositionne le défilement sur le début de la période affichée à
   // chaque changement de période/vue (flèches, pastilles de vue) — en
   // layout effect pour que ce repositionnement soit invisible (avant
-  // peinture), sans flash de l'ancien aperçu de jours voisins.
+  // peinture), sans flash de l'ancien aperçu de jours voisins. Exception
+  // en vue "mois" : si le mois affiché est bien celui contenant
+  // aujourd'hui (cas par défaut à l'arrivée sur la page, ou en y
+  // revenant via les flèches), on centre plutôt la date du jour dans la
+  // fenêtre visible plutôt que de partir du 1er — demandé par Aurélie le
+  // 27/10/2026, pour plus de lisibilité. Un autre mois (navigué via les
+  // flèches, qui ne contient donc pas aujourd'hui) repart du 1er, comme
+  // avant.
   useLayoutEffect(() => {
     setDisplayedStartIndex(periodStartIndex)
     if (!scrollableDays) return
@@ -881,6 +903,18 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     if (!wrapper || !dayCell) return
     const dayColWidth = dayCell.getBoundingClientRect().width
     if (!dayColWidth) return
+    if (viewMode === 'month') {
+      const todayIndex = differenceInCalendarDays(startOfDay(new Date()), rangeStart)
+      if (todayIndex >= periodStartIndex && todayIndex < periodStartIndex + periodDayCount) {
+        const centeredIndex = Math.max(
+          0,
+          Math.min(Math.round(todayIndex - periodDayCount / 2), dayCount - periodDayCount)
+        )
+        setDisplayedStartIndex(centeredIndex)
+        wrapper.scrollLeft = centeredIndex * dayColWidth
+        return
+      }
+    }
     wrapper.scrollLeft = periodStartIndex * dayColWidth
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodStart.getTime(), viewMode])
@@ -962,21 +996,37 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
         </div>
       </div>
 
-      {/* Grille. En semaine/quinzaine, la période affichée (7/14 jours)
-          remplit exactement la largeur de l'écran (voir gridTemplateColumns),
-          mais quelques jours supplémentaires (~1 mois, BUFFER_DAYS) sont
-          gardés en tampon de chaque côté : un glissement horizontal permet
-          d'apercevoir les jours précédents/suivants — sans changer de
-          période, la navigation passe toujours par les flèches uniquement
-          (onWheel/onTouch* désactivés dans ce cas). Le titre (entre les
-          flèches) se met à jour en temps réel pendant ce glissement — voir
-          handleScroll/displayedStartIndex. En mois/année, comportement
-          inchangé : tient toujours dans la largeur de l'écran, et le
-          glissement (wheel/touch) change directement de période. Demandé
-          par Nicolas les 28 et 29/09/2026. */}
+      {/* Grille. En semaine/quinzaine/mois, la période affichée remplit
+          exactement la largeur de l'écran (voir gridTemplateColumns), mais
+          quelques jours supplémentaires (BUFFER_DAYS) sont gardés en
+          tampon de chaque côté : une barre de défilement horizontal, en
+          bas de la grille, permet d'apercevoir les jours précédents/
+          suivants — sans changer de période, la navigation passe toujours
+          par les flèches uniquement (onWheel/onTouch* désactivés dans ce
+          cas). En semaine/quinzaine, le titre (entre les flèches) se met à
+          jour en temps réel pendant ce glissement — voir handleScroll/
+          displayedStartIndex ; en mois, il reste fixe ("MMMM yyyy", voir
+          showDayRangeTitle) et la vue se positionne par défaut sur
+          aujourd'hui centré plutôt que sur le 1er du mois (voir le
+          useLayoutEffect plus haut). En année (seule vue restée
+          inchangée), comportement d'origine : tient toujours dans la
+          largeur de l'écran, et le glissement (wheel/touch) change
+          directement de période. Demandé par Nicolas les 28 et 29/09/2026,
+          étendu par Aurélie le 27/10/2026. */}
       <div
         ref={scrollWrapperRef}
-        className={scrollableDays ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden'}
+        className={cn(
+          scrollableDays ? 'overflow-x-auto overflow-y-hidden' : 'overflow-hidden',
+          // Barre de défilement toujours visible, jamais la barre
+          // flottante "overlay" du trackpad macOS (qui ne s'affiche qu'au
+          // survol/pendant le défilement) : dès qu'on stylise
+          // ::-webkit-scrollbar, Chrome/Safari basculent cet élément sur
+          // une barre classique, toujours présente — demandé par Aurélie
+          // le 27/10/2026 ("une barre en bas qui permet de faire
+          // défiler"). scrollbar-width/-color couvrent Firefox.
+          scrollableDays &&
+            '[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border'
+        )}
         onWheel={scrollableDays ? undefined : handleWheel}
         onTouchStart={scrollableDays ? undefined : handleTouchStart}
         onTouchEnd={scrollableDays ? undefined : handleTouchEnd}
@@ -1120,7 +1170,8 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
                 // toute proche hors écran, sans faire apparaître/
                 // disparaître la ligne elle-même ni changer la hauteur de
                 // la grille pendant le glissement. Toujours pleinement
-                // visible en mois/année (pas de fenêtre de scroll).
+                // visible en année (seule vue restée sans fenêtre de
+                // scroll).
                 const isRowInView =
                   !scrollableDays ||
                   row.segments.some(
