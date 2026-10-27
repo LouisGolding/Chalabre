@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Trash2, ChevronDown, Phone, Mail, ArrowRightLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { actionPillClass, cn } from '@/lib/utils'
@@ -28,7 +28,7 @@ function EditableCell({
   const [draft, setDraft] = useState(value)
 
   if (!editable) {
-    return <span className={value ? 'text-foreground' : 'text-muted-foreground/60'}>{value || '—'}</span>
+    return <span className={cn('block truncate', value ? 'text-foreground' : 'text-muted-foreground/60')}>{value || '—'}</span>
   }
 
   if (editing) {
@@ -101,6 +101,43 @@ function formatPhoneFR(raw: string): string {
   return digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim()
 }
 
+// Largeur des colonnes en version ordinateur (27/10/2026, demande
+// d'Aurelie : "adapte la largeur des colonnes intelligemment pour que
+// nous ne soyons jamais obliges d'aller a droite avec une fleche...
+// comme sur excel, on pourra manuellement modifier la largeur des
+// colonnes"). Deux mecanismes :
+// 1) Largeur "naturelle" de chaque colonne = largeur du plus long
+//    contenu (en-tete compris), mesuree avec Canvas.measureText --
+//    puis ces largeurs sont comprimees ou au contraire elargies pour
+//    occuper exactement la largeur disponible du tableau (jamais de
+//    defilement en usage normal), l'espace en plus etant distribue en
+//    priorite aux colonnes de texte libre (Commentaire/Adresse/Email).
+// 2) Un utilisateur peut ensuite glisser la bordure d'une colonne (voir
+//    la poignee dans chaque <th>) pour fixer sa largeur manuellement --
+//    cette colonne sort alors du calcul automatique ci-dessus, les
+//    autres se partagent l'espace restant. Double-clic sur la bordure =
+//    retour a l'ajustement automatique. Mémorisé par categorie dans
+//    localStorage (purement un confort d'affichage, aucune donnee).
+const MIN_COL_WIDTH = 64
+const ACTION_COL_WIDTH = 56 // w-14, colonne deplacer/supprimer
+const CELL_PADDING_X = 30 // px-3 (12px*2) + marge pour la fleche de tri
+const FLEX_COLUMN_KEYS: SortKey[] = ['notes', 'address', 'email']
+
+let measureCanvas: HTMLCanvasElement | null = null
+function measureTextWidth(text: string, font: string): number {
+  if (typeof document === 'undefined') return text.length * 7
+  if (!measureCanvas) measureCanvas = document.createElement('canvas')
+  const ctx = measureCanvas.getContext('2d')
+  if (!ctx) return text.length * 7
+  ctx.font = font
+  return ctx.measureText(text).width
+}
+
+function cellText(row: Contact, key: SortKey): string {
+  if (key === 'phone') return row.phone ? formatPhoneFR(row.phone) : ''
+  return sortValue(row, key)
+}
+
 function sortValue(row: Contact, key: SortKey): string {
   switch (key) {
     case 'role':
@@ -132,6 +169,133 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [adding, setAdding] = useState(false)
   const [movingId, setMovingId] = useState<string | null>(null)
+
+  // --- Largeur des colonnes (27/10/2026, demande d'Aurelie) : voir le
+  //     grand commentaire au-dessus de MIN_COL_WIDTH plus haut. ---
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(0)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const update = () => setContainerWidth(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const storageKey = `contacts-col-widths-${categoryId}`
+  const [manualWidths, setManualWidths] = useState<Partial<Record<SortKey, number>>>({})
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey)
+      if (raw) setManualWidths(JSON.parse(raw))
+    } catch {
+      // silencieux -- navigation privee, stockage bloque... on repart
+      // simplement de l'ajustement automatique.
+    }
+  }, [storageKey])
+
+  const naturalWidths = useMemo(() => {
+    const bodyFont = '14px Georgia, serif'
+    const headerFont = '700 11px Georgia, serif'
+    const widths = {} as Record<SortKey, number>
+    for (const col of COLUMNS) {
+      let max = measureTextWidth(col.label, headerFont) + 14 // + place pour la fleche de tri
+      for (const row of rows) {
+        const w = measureTextWidth(cellText(row, col.key), bodyFont)
+        if (w > max) max = w
+      }
+      widths[col.key] = Math.max(MIN_COL_WIDTH, Math.round(max + CELL_PADDING_X))
+    }
+    return widths
+  }, [rows])
+
+  const columnWidths = useMemo(() => {
+    const reserved = canEdit ? ACTION_COL_WIDTH : 0
+    const available = Math.max(0, containerWidth - reserved)
+    const result = {} as Record<SortKey, number>
+    for (const col of COLUMNS) {
+      const manual = manualWidths[col.key]
+      if (manual != null) result[col.key] = manual
+    }
+    const autoKeys = COLUMNS.map((c) => c.key).filter((k) => manualWidths[k] == null)
+    if (autoKeys.length === 0) return result
+    const manualTotal = COLUMNS.reduce((sum, c) => sum + (manualWidths[c.key] ?? 0), 0)
+    const autoAvailable = Math.max(0, available - manualTotal)
+    const autoNaturalTotal = autoKeys.reduce((sum, k) => sum + naturalWidths[k], 0)
+    if (autoNaturalTotal <= autoAvailable) {
+      // Assez de place : la colonne garde sa largeur naturelle, l'espace
+      // en trop est distribue en priorite aux colonnes de texte libre
+      // (ou a toutes, proportionnellement, si aucune n'est "libre" parmi
+      // les colonnes encore automatiques).
+      const extra = autoAvailable - autoNaturalTotal
+      const flexAuto = autoKeys.filter((k) => FLEX_COLUMN_KEYS.includes(k))
+      const flexTotal = flexAuto.reduce((s, k) => s + naturalWidths[k], 0)
+      for (const k of autoKeys) {
+        const useFlex = flexTotal > 0
+        const base = useFlex ? (flexAuto.includes(k) ? naturalWidths[k] : 0) : naturalWidths[k]
+        const pool = useFlex ? flexTotal : autoNaturalTotal
+        const bonus = pool > 0 ? Math.round(extra * (base / pool)) : 0
+        result[k] = naturalWidths[k] + bonus
+      }
+    } else {
+      // Pas assez de place : on comprime toutes les colonnes encore
+      // automatiques proportionnellement, sans jamais descendre sous
+      // MIN_COL_WIDTH (au pire, un defilement redevient necessaire --
+      // cas rare, fenetre tres etroite ou beaucoup de colonnes deja
+      // fixees manuellement a une grande largeur).
+      const scale = autoNaturalTotal > 0 ? autoAvailable / autoNaturalTotal : 1
+      for (const k of autoKeys) {
+        result[k] = Math.max(MIN_COL_WIDTH, Math.round(naturalWidths[k] * scale))
+      }
+    }
+    return result
+  }, [containerWidth, manualWidths, naturalWidths, canEdit])
+
+  const totalTableWidth =
+    COLUMNS.reduce((sum, c) => sum + (columnWidths[c.key] ?? MIN_COL_WIDTH), 0) + (canEdit ? ACTION_COL_WIDTH : 0)
+
+  const resizingRef = useRef<{ key: SortKey; startX: number; startWidth: number } | null>(null)
+  const persistManualWidths = (next: Partial<Record<SortKey, number>>) => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next))
+    } catch {
+      // silencieux
+    }
+  }
+  const startResize = (key: SortKey, e: React.MouseEvent) => {
+    e.preventDefault()
+    const startWidth = columnWidths[key] ?? MIN_COL_WIDTH
+    resizingRef.current = { key, startX: e.clientX, startWidth }
+    const onMove = (ev: MouseEvent) => {
+      const state = resizingRef.current
+      if (!state) return
+      const next = Math.max(MIN_COL_WIDTH, Math.round(state.startWidth + (ev.clientX - state.startX)))
+      setManualWidths((prev) => ({ ...prev, [state.key]: next }))
+    }
+    const onUp = () => {
+      resizingRef.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setManualWidths((prev) => {
+        persistManualWidths(prev)
+        return prev
+      })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+  // Double-clic sur la bordure = retour a l'ajustement automatique pour
+  // cette colonne (comme un "auto-fit" Excel).
+  const resetColumnWidth = (key: SortKey) => {
+    setManualWidths((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      persistManualWidths(next)
+      return next
+    })
+  }
 
   const handleSort = (key: SortKey) => {
     if (key === sortKey) {
@@ -235,20 +399,35 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
   return (
     <div className="space-y-3">
       {sorted.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-border">
-          <table className="w-full min-w-[900px] text-left text-sm">
+        <div ref={scrollRef} className="overflow-x-auto rounded-lg border border-border">
+          <table className="text-left text-sm" style={{ tableLayout: 'fixed', width: totalTableWidth }}>
+            <colgroup>
+              {COLUMNS.map((col) => (
+                <col key={col.key} style={{ width: columnWidths[col.key] ?? MIN_COL_WIDTH }} />
+              ))}
+              {canEdit && <col style={{ width: ACTION_COL_WIDTH }} />}
+            </colgroup>
             <thead>
               <tr className="border-b border-border bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 {COLUMNS.map((col) => (
-                  <th key={col.key} className="px-3 py-2 font-medium">
+                  <th key={col.key} className="relative overflow-hidden px-3 py-2 font-medium">
                     <button
                       type="button"
                       onClick={() => handleSort(col.key)}
-                      className="inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-foreground"
+                      className="inline-flex max-w-full items-center gap-1 uppercase tracking-wide transition-colors hover:text-foreground"
                     >
-                      {col.label}
+                      <span className="truncate">{col.label}</span>
                       {sortKey === col.key && <span aria-hidden="true">{sortDir === 'asc' ? '▲' : '▼'}</span>}
                     </button>
+                    {/* Poignee de redimensionnement "a la Excel" (27/10/2026,
+                        demande d'Aurelie) -- version ordinateur uniquement
+                        (md:block), double-clic = retour a l'ajustement
+                        automatique (resetColumnWidth). */}
+                    <span
+                      onMouseDown={(e) => startResize(col.key, e)}
+                      onDoubleClick={() => resetColumnWidth(col.key)}
+                      className="absolute right-0 top-0 hidden h-full w-2 translate-x-1/2 cursor-col-resize select-none md:block"
+                    />
                   </th>
                 ))}
                 {canEdit && <th className="w-14" />}
@@ -257,13 +436,13 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
             <tbody>
               {sorted.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2.5 font-medium text-foreground">
+                  <td className="overflow-hidden px-3 py-2.5 font-medium text-foreground">
                     <EditableCell value={c.name} editable={canEdit} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="overflow-hidden px-3 py-2.5">
                     <EditableCell value={c.role} editable={canEdit} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="overflow-hidden px-3 py-2.5">
                     {canEdit ? (
                       <EditableCell
                         value={formatPhoneFR(c.phone ?? '')}
@@ -281,13 +460,13 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
                       <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="overflow-hidden px-3 py-2.5">
                     <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="overflow-hidden px-3 py-2.5">
                     <EditableCell value={c.address ?? ''} editable={canEdit} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="overflow-hidden px-3 py-2.5">
                     {canEdit ? (
                       <EditableCell value={c.email ?? ''} editable type="email" placeholder="Email" onSave={(v) => patch(c.id, 'email', v)} />
                     ) : c.email ? (
@@ -300,7 +479,7 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
                     )}
                   </td>
                   {canEdit && (
-                    <td className="px-3 py-2.5">
+                    <td className="overflow-hidden px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
                         {movingId === c.id ? (
                           <select
