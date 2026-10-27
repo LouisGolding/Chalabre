@@ -1,17 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Plus, Trash2, ChevronDown, Phone, Mail, Globe, ArrowRightLeft } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, Phone, Mail, ArrowRightLeft } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { actionPillClass, cn } from '@/lib/utils'
 import { CONTACT_CATEGORIES } from '@/lib/contact-categories'
 import { Contact } from '@/types'
-
-// Ajoute https:// devant un site web saisi sans protocole (ex.
-// "brocantemirepoix.fr"), pour que le lien fonctionne tel quel.
-function toHref(url: string) {
-  return /^https?:\/\//i.test(url) ? url : `https://${url}`
-}
 
 // Une cellule éditable en place : un admin clique dessus, elle devient un
 // champ de saisie, l'enregistrement se fait à la perte du focus ou sur
@@ -75,17 +69,20 @@ function EditableCell({
   )
 }
 
-type SortKey = 'role' | 'name' | 'notes' | 'phone' | 'address' | 'email' | 'website'
+type SortKey = 'role' | 'name' | 'notes' | 'phone' | 'address' | 'email'
 type SortDir = 'asc' | 'desc'
 
 const COLUMNS: { key: SortKey; label: string }[] = [
-  { key: 'role', label: 'Type de service' },
+  // Nom avant Type de service (27/10/2026, demande d'Aurelie : "inverser
+  // les colonnes NOM et Type de service") -- colonne Website retiree le
+  // meme jour (demande d'Aurelie), le champ existe toujours en base mais
+  // n'est plus affiche/editable dans ce tableau.
   { key: 'name', label: 'Nom' },
+  { key: 'role', label: 'Type de service' },
   { key: 'notes', label: 'Commentaire' },
   { key: 'phone', label: 'Téléphone' },
   { key: 'address', label: 'Adresse' },
   { key: 'email', label: 'Email' },
-  { key: 'website', label: 'Website' },
 ]
 
 function sortValue(row: Contact, key: SortKey): string {
@@ -102,8 +99,6 @@ function sortValue(row: Contact, key: SortKey): string {
       return row.address ?? ''
     case 'email':
       return row.email ?? ''
-    case 'website':
-      return row.website ?? ''
   }
 }
 
@@ -246,11 +241,11 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
             <tbody>
               {sorted.map((c) => (
                 <tr key={c.id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2.5">
-                    <EditableCell value={c.role} editable={canEdit} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
-                  </td>
                   <td className="px-3 py-2.5 font-medium text-foreground">
                     <EditableCell value={c.name} editable={canEdit} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <EditableCell value={c.role} editable={canEdit} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
                   </td>
                   <td className="px-3 py-2.5">
                     <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
@@ -277,18 +272,6 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
                       <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-primary hover:underline">
                         <Mail className="h-3.5 w-3.5" />
                         {c.email}
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground/60">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {canEdit ? (
-                      <EditableCell value={c.website ?? ''} editable placeholder="Site web" onSave={(v) => patch(c.id, 'website', v)} />
-                    ) : c.website ? (
-                      <a href={toHref(c.website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-primary hover:underline">
-                        <Globe className="h-3.5 w-3.5" />
-                        {c.website}
                       </a>
                     ) : (
                       <span className="text-muted-foreground/60">—</span>
