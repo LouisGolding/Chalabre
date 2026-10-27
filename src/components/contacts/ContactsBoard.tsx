@@ -76,14 +76,30 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   // Nom avant Type de service (27/10/2026, demande d'Aurelie : "inverser
   // les colonnes NOM et Type de service") -- colonne Website retiree le
   // meme jour (demande d'Aurelie), le champ existe toujours en base mais
-  // n'est plus affiche/editable dans ce tableau.
+  // n'est plus affiche/editable dans ce tableau. Telephone juste apres
+  // Type de service (27/10/2026, demande d'Aurelie) -- affiche desormais
+  // toujours au meme format (voir formatPhoneFR plus bas).
   { key: 'name', label: 'Nom' },
   { key: 'role', label: 'Type de service' },
-  { key: 'notes', label: 'Commentaire' },
   { key: 'phone', label: 'Téléphone' },
+  { key: 'notes', label: 'Commentaire' },
   { key: 'address', label: 'Adresse' },
   { key: 'email', label: 'Email' },
 ]
+
+// Formate un numero de telephone pour l'affichage, par paires de 2
+// chiffres (27/10/2026, demande d'Aurelie : "il faut qu'ils aient tous
+// la meme apparence avec des espaces entre 2 nombres: ex 06 78 76 76
+// 65") -- ne touche jamais a la valeur enregistree en base (qui peut
+// rester saisie sans espaces, avec des points, etc.), uniquement a ce
+// qui est affiche : recalcule a chaque rendu a partir de la valeur
+// brute, donc toujours coherent meme si plusieurs admins l'ont saisi
+// differemment au fil du temps.
+function formatPhoneFR(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+  return digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim()
+}
 
 function sortValue(row: Contact, key: SortKey): string {
   switch (key) {
@@ -248,19 +264,25 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
                     <EditableCell value={c.role} editable={canEdit} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
                   </td>
                   <td className="px-3 py-2.5">
-                    <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
-                  </td>
-                  <td className="px-3 py-2.5">
                     {canEdit ? (
-                      <EditableCell value={c.phone ?? ''} editable type="tel" placeholder="Téléphone" onSave={(v) => patch(c.id, 'phone', v)} />
+                      <EditableCell
+                        value={formatPhoneFR(c.phone ?? '')}
+                        editable
+                        type="tel"
+                        placeholder="Téléphone"
+                        onSave={(v) => patch(c.id, 'phone', v)}
+                      />
                     ) : c.phone ? (
                       <a href={`tel:${c.phone}`} className="flex items-center gap-1 text-primary hover:underline">
                         <Phone className="h-3.5 w-3.5" />
-                        {c.phone}
+                        {formatPhoneFR(c.phone)}
                       </a>
                     ) : (
                       <span className="text-muted-foreground/60">—</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
                   </td>
                   <td className="px-3 py-2.5">
                     <EditableCell value={c.address ?? ''} editable={canEdit} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
