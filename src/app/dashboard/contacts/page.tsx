@@ -15,7 +15,12 @@ export default async function ContactsPage() {
   const { data: contacts } = await supabase.from('contacts').select('*').order('name')
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    // Plus de max-w-3xl (retire le 27/10/2026, demande d'Aurelie : les
+    // tableaux de contacts doivent faire toute la largeur de l'ecran en
+    // version ordinateur) -- meme convention que /dashboard/admin
+    // (MembersTable), <main> donne deja la meme marge a gauche et a
+    // droite via son p-6, aucun mx-auto/max-w ici ne doit la perturber.
+    <div className="space-y-6">
       <PageTitle>Contacts</PageTitle>
       <ContactsBoard contacts={contacts ?? []} canEdit={canEdit} />
     </div>
