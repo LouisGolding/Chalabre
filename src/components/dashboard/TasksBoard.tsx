@@ -43,8 +43,9 @@ import { TaskContactTag, TaskNote } from '@/types'
 //   (voir dashboard/page.tsx, widget "RDV à venir"). Append-only, comme
 //   les commentaires de Réalisations : pas de modification, suppression
 //   par l'auteur ou un admin.
-// - "Contact" : un ou plusieurs contacts de la catégorie "Services"
-//   (Contacts) associables à la tâche (table `task_contacts`).
+// - "Contact" : un contact de la catégorie "Services" (Contacts)
+//   associable à la tâche (table `task_contacts`) -- un seul suffit
+//   (27/10/2026, demande d'Aurélie).
 // - Les deux sont ouverts à l'admin ET à la famille (indépendant de
 //   `canEdit`, réservé lui à l'ajout/suppression de tâche).
 //
@@ -123,8 +124,9 @@ export interface TaskItem {
   completedByName: string | null
   // Suivi & Contact (19/10/2026, demandé par Aurélie) -- remplacent
   // l'ancien champ unique `comment` : plusieurs notes datées (chacune
-  // pouvant porter une date de RDV), et plusieurs contacts associés
-  // (Services) -- voir migration_task_notes_contacts.sql.
+  // pouvant porter une date de RDV), et un contact associé (Services,
+  // ramené de plusieurs à un seul le 27/10/2026) -- voir
+  // migration_task_notes_contacts.sql.
   notes: TaskNote[]
   contacts: TaskContactTag[]
 }
@@ -449,9 +451,12 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
     }
   }
 
-  // --- Contact : plusieurs artisans (catégorie "Services" de Contacts)
-  //     associables à une même tâche (confirmé par Aurélie le
-  //     19/10/2026). ---
+  // --- Contact : un artisan (catégorie "Services" de Contacts) associable
+  //     à une tâche. Plusieurs étaient possibles jusqu'au 19/10/2026 ;
+  //     ramené à un seul le 27/10/2026 (demande d'Aurélie : "un seul
+  //     contact suffit pour chaque tâche") -- voir canAddContact dans
+  //     TaskRow, qui masque la pastille "+ Contact" dès qu'un contact
+  //     est déjà attaché. ---
   const attachContact = async (taskId: string, contact: ServiceContact) => {
     setPickerOpenFor(null)
     setTasks((prev) =>
@@ -1155,8 +1160,12 @@ function TaskRow({
     .filter((c) => !attachedIds.has(c.id))
     .filter((c) => !categoryKeywords || categoryKeywords.some((kw) => normalizeForMatch(c.role).includes(kw)))
   // "Autres" : pas de corps de métier évident -- pas de proposition de
-  // contact du tout pour cette catégorie (demande d'Aurélie).
-  const canAddContact = task.category !== 'autre'
+  // contact du tout pour cette catégorie (demande d'Aurélie). Un seul
+  // contact par tâche (27/10/2026, demande d'Aurélie : "un seul contact
+  // suffit pour chaque tâche") -- la pastille "+ Contact" disparaît dès
+  // qu'un contact est attaché, elle réapparaît si on le retire (croix
+  // sur la pastille du contact, voir onDetachContact).
+  const canAddContact = task.category !== 'autre' && task.contacts.length === 0
 
   // Édition en place d'une ligne (25/10/2026, demande d'Aurélie) :
   // l'auteur de la tâche (task.createdBy) peut corriger sa propre ligne,
