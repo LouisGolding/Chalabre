@@ -40,6 +40,9 @@ interface ReserverSejourProps {
   onBookingSaved?: (booking: SavedStayInfo) => void
   onBookingDeleted?: (bookingId: string) => void
   onHiddenBookingIdsChange?: (ids: string[]) => void
+  // Voir le commentaire sur NextStayCard.tsx (NextStayCardProps.guestDefaults) --
+  // simple passe-plat ici.
+  guestDefaults?: Record<string, { ageBracket: 'child' | 'adult'; houseSide: HouseSide }>
   // Change de valeur à chaque glisser persisté directement sur le planning
   // (voir PlanningPageClient.handleDatesPersistedFromCalendar) : rappelle
   // /api/ts-balance, puisque le montant de taxe de séjour a pu changer sans
@@ -62,6 +65,7 @@ export function ReserverSejour({
   onBookingDeleted,
   onHiddenBookingIdsChange,
   externalTsRefreshSignal,
+  guestDefaults,
 }: ReserverSejourProps) {
   const [tsBalance, setTsBalance] = useState<TsBalanceResult>(initialTsBalance)
 
@@ -127,6 +131,7 @@ export function ReserverSejour({
         onBookingSaved={handleSaved}
         onBookingDeleted={handleDeleted}
         onHiddenBookingIdsChange={onHiddenBookingIdsChange}
+        guestDefaults={guestDefaults}
       />
     </>
   )

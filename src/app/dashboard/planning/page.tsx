@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { PlanningBooking } from '@/components/planning/PlanningView'
 import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
 import { colorForName, colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
-import type { FamilyGroup } from '@/types'
+import type { FamilyGroup, HouseSide } from '@/types'
 import { computeTsBalance } from '@/lib/ts-balance'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 import { otherNuclearFamilyMembers } from '@/lib/nuclear-family'
@@ -206,6 +206,28 @@ export default async function PlanningPage() {
       return { ...b, color_hue: ref?.index ?? null, color_family: ref?.family ?? null }
     })
 
+  // Valeurs suggérées pour un NOUVEL accompagnant pas encore saisi
+  // (27/10/2026, demande d'Aurélie : "si tu as le renseignement, coche
+  // déjà... sa tranche d'âge" -- étendu ici au côté de maison) : reprend,
+  // pour un nom déjà vu (tolérance aux fautes de frappe, voir
+  // NextStayCard.tsx), la tranche d'âge et le côté de maison de son
+  // séjour le plus récent -- qu'il ait été saisi par le titulaire de ce
+  // compte (myBookings, tout l'historique, pas seulement les séjours à
+  // venir) ou par un autre membre de sa famille nucléaire
+  // (familyGuestBookings, ex. Otto saisi aussi bien par Nicolas que par
+  // Aurélie). Simple repli d'affichage côté client (voir
+  // NextStayCard.tsx) : n'importe quel champ reste modifiable avant
+  // d'enregistrer.
+  const guestNameDefaults: Record<string, { ageBracket: 'child' | 'adult'; houseSide: HouseSide }> = {}
+  const guestHistoryBookings = [...(myBookings ?? []), ...(familyGuestBookings ?? [])].sort(
+    (a, b) => new Date(b.check_in).getTime() - new Date(a.check_in).getTime()
+  )
+  for (const b of guestHistoryBookings as { guest_name?: string | null; house_side?: HouseSide | null; age_bracket?: 'child' | 'adult' | null }[]) {
+    const key = b.guest_name?.trim()
+    if (!key || guestNameDefaults[key] || !b.house_side) continue // déjà le plus récent pour ce nom (tri ci-dessus)
+    guestNameDefaults[key] = { ageBracket: b.age_bracket ?? 'adult', houseSide: b.house_side }
+  }
+
   const realBookings: PlanningBooking[] = (bookings ?? []).map((b) => {
     const roomsField = (b as { rooms?: { name: string } | { name: string }[] | null }).rooms
     const roomLabel = Array.isArray(roomsField) ? roomsField[0]?.name ?? null : roomsField?.name ?? null
@@ -272,6 +294,7 @@ export default async function PlanningPage() {
         initialPlanningBookings={planningBookings}
         planningEvents={planningEvents}
         currentUserId={user.id}
+        guestDefaults={guestNameDefaults}
       />
     </div>
   )

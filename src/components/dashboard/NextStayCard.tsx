@@ -17,6 +17,7 @@ import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
 import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
 import { colorForPaletteIndex, coloredTextureStyle, fallbackIndexForName, shouldUseWhiteText } from '@/lib/colors'
+import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 type AgeBracket = 'child' | 'adult'
 
@@ -82,6 +83,16 @@ interface NextStayCardProps {
   // séjour"), sans rien supprimer réellement en base. Ce callback remonte
   // la liste à jour des identifiants de séjour à masquer du planning.
   onHiddenBookingIdsChange?: (ids: string[]) => void
+  // Tranche d'âge + côté de maison du séjour le plus récent déjà saisi
+  // pour chaque accompagnant connu (27/10/2026, demande d'Aurélie : "si
+  // tu as le renseignement, coche déjà... sa tranche d'âge" — ici étendu
+  // au côté de maison) -- calculé côté serveur (planning/page.tsx) à
+  // partir de l'historique des séjours (le sien + ceux de sa famille
+  // nucléaire), indexé par le nom tel qu'enregistré. Pré-remplit
+  // "Ajouter un séjour" dès que le nom tapé correspond (tolérance aux
+  // fautes de frappe, voir findClosestNameMatch) à un nom déjà vu --
+  // reste modifiable avant d'enregistrer.
+  guestDefaults?: Record<string, { ageBracket: AgeBracket; houseSide: HouseSide }>
 }
 
 function findGuestBucket(tsBalance: TsBalanceResult, fullName: string | null): TsGuestBalance | null {
@@ -294,6 +305,7 @@ export function NextStayCard({
   onBookingSaved,
   onBookingDeleted,
   onHiddenBookingIdsChange,
+  guestDefaults,
 }: NextStayCardProps) {
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
@@ -455,6 +467,7 @@ export function NextStayCard({
             booking={entry.booking}
             defaultAgeBracket="adult"
             defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
+            guestDefaults={guestDefaults}
             showNameField
             titleWhenEmpty="Ajouter un séjour"
             titleWhenUpcoming={`Prochain séjour ${guestFirstName}`}
@@ -484,6 +497,7 @@ export function NextStayCard({
         booking={null}
         defaultAgeBracket="adult"
         defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
+        guestDefaults={guestDefaults}
         showNameField
         titleWhenEmpty="Ajouter un séjour"
         titleWhenUpcoming="Ajouter un séjour"
@@ -503,6 +517,11 @@ interface StayEntryProps {
   booking: BookingData | null
   defaultAgeBracket: AgeBracket
   defaultHouseSide?: HouseSide
+  // Voir le commentaire sur NextStayCardProps.guestDefaults plus haut --
+  // absent pour la bannière du titulaire (son propre âge/côté se déduisent
+  // déjà de son profil, voir defaultAgeBracket/defaultHouseSide passés par
+  // l'appelant), utilisé seulement pour les bannières d'accompagnant.
+  guestDefaults?: Record<string, { ageBracket: AgeBracket; houseSide: HouseSide }>
   showNameField: boolean
   titleWhenEmpty: string
   titleWhenUpcoming: string
@@ -539,6 +558,7 @@ function StayEntry({
   booking,
   defaultAgeBracket,
   defaultHouseSide,
+  guestDefaults,
   showNameField,
   titleWhenEmpty,
   titleWhenUpcoming,
@@ -580,6 +600,31 @@ function StayEntry({
   }, [checkIn, checkOut, nights, ageBracket])
 
   const hasSavedBooking = bookingId !== null
+
+  // Pré-remplissage à la frappe (27/10/2026, demande d'Aurélie) : dès que
+  // le nom tapé correspond (tolérance aux fautes de frappe, voir
+  // findClosestNameMatch) à un accompagnant déjà connu, reprend sa
+  // tranche d'âge et son côté de maison les plus récents plutôt que le
+  // défaut générique ("adulte", côté du titulaire qui saisit) -- 
+  // uniquement pour un séjour pas encore enregistré (hasSavedBooking :
+  // un séjour déjà en base garde ses propres valeurs, voir
+  // fieldsSnapshot), et seulement tant que ces deux champs n'ont pas été
+  // changés à la main (toujours égaux à leur valeur de départ) : on ne
+  // doit jamais écraser un choix explicite.
+  useEffect(() => {
+    if (!showNameField || hasSavedBooking || !guestDefaults) return
+    const typed = guestName.trim()
+    if (!typed) return
+    const names = Object.keys(guestDefaults)
+    const idx = findClosestNameMatch(typed, names)
+    if (idx === -1) return
+    const match = guestDefaults[names[idx]]
+    if (!match) return
+    if (ageBracket === defaultAgeBracket) setAgeBracket(match.ageBracket)
+    if (houseSide === (defaultHouseSide ?? null)) setHouseSide(match.houseSide)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestName])
+
   const dirty =
     checkIn !== snapshot.checkIn ||
     checkOut !== snapshot.checkOut ||

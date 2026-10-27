@@ -36,6 +36,9 @@ interface PlanningPageClientProps {
   initialPlanningBookings: PlanningBooking[]
   planningEvents: PlanningEvent[]
   currentUserId: string
+  // Voir le commentaire sur NextStayCard.tsx (NextStayCardProps.guestDefaults) --
+  // simple passe-plat ici aussi.
+  guestDefaults?: Record<string, { ageBracket: 'child' | 'adult'; houseSide: HouseSide }>
 }
 
 // Pont côté client entre le widget "Prochain séjour" (ReserverSejour /
@@ -55,6 +58,7 @@ export function PlanningPageClient({
   initialPlanningBookings,
   planningEvents,
   currentUserId,
+  guestDefaults,
 }: PlanningPageClientProps) {
   const [planningBookings, setPlanningBookings] = useState(initialPlanningBookings)
 
@@ -181,6 +185,7 @@ export function PlanningPageClient({
         onBookingDeleted={handleBookingDeleted}
         onHiddenBookingIdsChange={setHiddenBookingIds}
         externalTsRefreshSignal={calendarSyncSignal}
+        guestDefaults={guestDefaults}
       />
       <PlanningView
         bookings={visiblePlanningBookings}
