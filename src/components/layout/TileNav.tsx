@@ -274,14 +274,32 @@ export function TileNav({ role }: { role: UserRole }) {
                 rester lisible sur la photo plein écran -- rouge bordeaux
                 #73343F (palette Argile "invités", voir src/lib/colors.ts)
                 partout ailleurs. */}
-            <span
-              aria-hidden="true"
-              className={cn(
-                'icon-croix-occitane relative h-[43px] w-[43px] shrink-0 transition-transform duration-[1500ms] ease-in-out',
-                hasPhotoBackground ? 'text-white' : 'text-[#73343F]',
-                isOpen && '-rotate-180'
+            <span className="relative h-[43px] w-[43px] shrink-0">
+              {/* Interieur rempli en beige canson (27/10/2026, demande
+                  d'Aurelie), sur tous les onglets SAUF l'accueil -- la
+                  photo doit continuer a se voir au travers des trous de
+                  la croix sur l'accueil (voir .icon-croix-occitane-fill
+                  dans globals.css pour le detail du calque). Derriere
+                  le contour (icon-croix-occitane) ci-dessous, meme
+                  rotation pour rester alignee pendant l'ouverture. */}
+              {!hasPhotoBackground && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'icon-croix-occitane-fill absolute inset-0 text-background transition-transform duration-[1500ms] ease-in-out',
+                    isOpen && '-rotate-180'
+                  )}
+                />
               )}
-            />
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'icon-croix-occitane absolute inset-0 transition-transform duration-[1500ms] ease-in-out',
+                  hasPhotoBackground ? 'text-white' : 'text-[#73343F]',
+                  isOpen && '-rotate-180'
+                )}
+              />
+            </span>
           </button>
         )}
         {/* Déploiement progressif sur 1,5s (demandé par Aurélie le

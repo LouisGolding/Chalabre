@@ -246,6 +246,32 @@
     -webkit-mask-position: center;
     mask-position: center;
   }
+
+  /* Interieur de la croix occitane rempli en beige canson (27/10/2026,
+     demande d'Aurelie : "sur tous les onglets sauf accueil, rempli
+     l'interieur de la croix occitane par le beige canson") -- le PNG
+     original (croix-occitane.png) n'est qu'un contour/silhouette avec
+     des trous internes (voir TileNav.tsx) : ces trous, utilises comme
+     masque, laissaient voir par transparence ce qui defile derriere la
+     poignee. croix-occitane-fill.png est un second masque, genere a
+     partir du premier par un simple remplissage des trous (silhouette
+     exterieure identique, plus aucun trou interne), pose en calque
+     derriere .icon-croix-occitane ci-dessus et colore en --background
+     (text-background, voir TileNav.tsx) pour donner cet effet de
+     "medaillon" plein. Non utilise sur l'accueil (hasPhotoBackground) :
+     la photo doit continuer a se voir au travers des trous la-bas.
+  */
+  .icon-croix-occitane-fill {
+    background-color: currentColor;
+    -webkit-mask-image: url('/images/croix-occitane-fill.png');
+    mask-image: url('/images/croix-occitane-fill.png');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
   html {
     @apply font-sans;
   }
