@@ -170,6 +170,22 @@ const CHAPTERS = [
   srcM: `/bienvenue/videos/${id}-mobile.mp4`, posterM: `/bienvenue/videos/${id}-mobile.jpg`,
 }));
 
+// Compteur de vues (demandé par Aurélie le 27/10/2026, voir
+// /api/bienvenue-view) : pas de prénom ni d'identifiant, juste un
+// POST silencieux par chapitre ouvert ("start") et par vidéo regardée
+// jusqu'au bout ("end") -- jamais bloquant si ça échoue (hors-ligne,
+// etc.), d'où le try/catch et l'absence de await côté appelant.
+function logView(chapterId, event) {
+  try {
+    fetch('/api/bienvenue-view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chapterId, event }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (e) {}
+}
+
 const $ = (id) => document.getElementById(id);
 const list = $('list'), sommaire = $('sommaire'), lecteur = $('lecteur'), video = $('video');
 const end = $('end'), countdown = $('countdown'), nextBtn = $('next');
@@ -207,6 +223,7 @@ function open(i, autoplay) {
   video.poster = (mobile ? c.posterM : c.poster) || '';
   end.hidden = true;
   manifeste.hidden = true; sommaire.hidden = true; lecteur.hidden = false;
+  logView(c.id, 'start');
   try { history.replaceState(null, '', '#' + c.id); } catch (e) {}
   window.scrollTo({ top: 0 });
   $('back').focus({ preventScroll: true });
@@ -246,6 +263,7 @@ function close() {
 }
 
 video.addEventListener('ended', () => {
+  logView(CHAPTERS[current].id, 'end');
   const n = nextReady(current);
   nextBtn.hidden = n < 0;
   end.hidden = false;

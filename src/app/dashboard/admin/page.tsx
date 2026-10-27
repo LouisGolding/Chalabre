@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation'
 import { MembersTable, MemberRow } from '@/components/admin/MembersTable'
 import { StaysHistory, StayRow } from '@/components/admin/StaysHistory'
 import { IncidentsHistory, IncidentRow } from '@/components/admin/IncidentsHistory'
+import { TutorialViewsHistory, TutorialViewRow } from '@/components/admin/TutorialViewsHistory'
 
 // Forme d'un paiement TS imbriqué dans une ligne `bookings` (voir la
 // requête bookingsRaw plus bas) -- pas de typage Supabase genere dans ce
@@ -100,7 +101,7 @@ export default async function AdminPage() {
   // seule stayRows, plus bas, a besoin de l'historique complet (et
   // alimente un widget replié par défaut depuis le 26/10/2026, voir
   // StaysHistory.tsx).
-  const [{ data: profiles }, { data: currentYearBookingsRaw }, { data: bookingsRaw }, { data: incidentsRaw }] = await Promise.all([
+  const [{ data: profiles }, { data: currentYearBookingsRaw }, { data: bookingsRaw }, { data: incidentsRaw }, { data: tutorialViewsRaw }] = await Promise.all([
     supabase.from('profiles').select('*').order('last_name'),
     supabase
       .from('bookings')
@@ -119,9 +120,13 @@ export default async function AdminPage() {
     // (utilisée par /api/incidents, voir EmergencyGuide.tsx), jusqu'ici
     // sans aucun affichage admin.
     supabase.from('incident_reports').select('category, zone_label'),
+    // Nouveau widget "Vidéos tutoriel" (27/10/2026, demande d'Aurélie) --
+    // voir TutorialViewsHistory.tsx et supabase/migration_bienvenue_views.sql.
+    supabase.from('bienvenue_views').select('chapter_id, event'),
   ])
   const bookings = (bookingsRaw ?? []) as unknown as BookingRow[]
   const incidentRows: IncidentRow[] = (incidentsRaw ?? []).map((i) => ({ category: i.category, zoneLabel: i.zone_label }))
+  const tutorialViewRows: TutorialViewRow[] = (tutorialViewsRaw ?? []).map((v) => ({ chapterId: v.chapter_id, event: v.event as 'start' | 'end' }))
 
   // Totaux TS par membre, année en cours uniquement (année du check-in du
   // séjour, pas de la date de paiement) -- recalculé à chaque chargement
@@ -216,6 +221,10 @@ export default async function AdminPage() {
       {/* Nouveau widget "Historique des pannes" (26/10/2026, demande
           d'Aurélie) -- voir IncidentsHistory.tsx. */}
       <IncidentsHistory rows={incidentRows} />
+
+      {/* Nouveau widget "Vidéos tutoriel" (27/10/2026, demande
+          d'Aurélie) -- voir TutorialViewsHistory.tsx. */}
+      <TutorialViewsHistory rows={tutorialViewRows} />
     </div>
   )
 }
