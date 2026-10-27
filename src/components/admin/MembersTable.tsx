@@ -7,9 +7,13 @@ export interface MemberRow {
   id: string
   firstName: string
   lastName: string
-  email: string
-  role: 'admin' | 'family' | 'friend'
-  createdAt: string
+  // null uniquement pour un accompagnant sans compte (ex. Otto) qui a sa
+  // propre ligne (27/10/2026, demande d'Aurélie -- voir le grand
+  // commentaire plus bas) : il n'a ni email, ni rôle, ni date de
+  // création à afficher.
+  email: string | null
+  role: 'admin' | 'family' | 'friend' | null
+  createdAt: string | null
   // Totaux TS de l'année en cours (voir admin/page.tsx) -- fusionnés
   // dans ce tableau depuis l'ancien tableau "Soldes par membre" de
   // l'onglet "Suivi paiements", demandé par Nicolas le 07/10/2026.
@@ -18,6 +22,13 @@ export interface MemberRow {
   // recalculé à l'affichage (tsTotalYear - tsPaidYear), pas stocké.
   tsTotalYear: number
   tsPaidYear: number
+}
+
+// Une ligne d'accompagnant sans compte (voir MemberRow.role ci-dessus) :
+// pas de vrai profil à activer/désactiver, donc jamais de bouton
+// "Autorisations" ni d'appel à toggleAdmin pour cette ligne.
+function isGuestRow(row: MemberRow): boolean {
+  return row.role === null
 }
 
 // Libellé affiché sur la pastille "Autorisations" — un compte 'family' et
@@ -34,6 +45,7 @@ export interface MemberRow {
 // Le libellé ("Admin"/"Membre") suffit à indiquer l'état actuel, plus
 // besoin d'un fond plein distinct pour ça.
 function roleLabel(role: MemberRow['role']): string {
+  if (role === null) return ''
   return role === 'admin' ? 'Admin' : 'Membre'
 }
 
@@ -68,9 +80,9 @@ function sortValue(row: MemberRow, key: SortKey): string | number {
     case 'remaining':
       return remainingOf(row)
     case 'email':
-      return row.email
+      return row.email ?? ''
     case 'createdAt':
-      return row.createdAt
+      return row.createdAt ?? ''
   }
 }
 
@@ -140,6 +152,10 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
   }, [rows, sortKey, sortDir])
 
   const toggleAdmin = async (row: MemberRow) => {
+    // Jamais appelé pour une ligne d'accompagnant sans compte (le bouton
+    // n'est pas rendu pour ces lignes, voir isGuestRow plus bas), mais
+    // garde-fou au cas où.
+    if (isGuestRow(row)) return
     const makeAdmin = row.role !== 'admin'
     setPending(row.id)
     try {
@@ -187,23 +203,29 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
               <tr key={row.id} className="border-b border-border last:border-0">
                 <td className="px-3 py-2.5 font-medium uppercase text-foreground">{row.lastName}</td>
                 <td className="px-3 py-2.5 text-foreground">{row.firstName}</td>
+                {/* Case vide pour un accompagnant sans compte (27/10/2026,
+                    demande d'Aurélie) -- pas de bouton "Autorisations" à
+                    afficher, puisqu'il n'y a pas de vrai profil derrière
+                    cette ligne pour en changer le rôle. */}
                 <td className="px-3 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => toggleAdmin(row)}
-                    disabled={pending === row.id}
-                    className={actionPillClass}
-                  >
-                    {roleLabel(row.role)}
-                  </button>
+                  {!isGuestRow(row) && (
+                    <button
+                      type="button"
+                      onClick={() => toggleAdmin(row)}
+                      disabled={pending === row.id}
+                      className={actionPillClass}
+                    >
+                      {roleLabel(row.role)}
+                    </button>
+                  )}
                 </td>
                 <td className="px-3 py-2.5 text-right text-foreground">{formatCurrency(row.tsTotalYear)}</td>
                 <td className="px-3 py-2.5 text-right text-green-600">{formatCurrency(row.tsPaidYear)}</td>
                 <td className={`px-3 py-2.5 text-right font-semibold ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {formatCurrency(remaining)}
                 </td>
-                <td className="px-3 py-2.5 text-muted-foreground">{row.email}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{formatDate(row.createdAt)}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{row.email ?? '—'}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{row.createdAt ? formatDate(row.createdAt) : '—'}</td>
               </tr>
             )
           })}

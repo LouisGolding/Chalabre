@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { occupantDisplayName, properCase } from '@/lib/utils'
+import { occupantDisplayName, properCase, firstNameOnly } from '@/lib/utils'
 import { canAccessMembresTab } from '@/lib/members-access'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
@@ -106,7 +106,11 @@ export default async function AdminPage() {
     supabase.from('profiles').select('*').order('last_name'),
     supabase
       .from('bookings')
-      .select('user_id, ts_payments(amount, status)')
+      // guest_name ajouté le 27/10/2026 (voir tsByGuest plus bas, demande
+      // d'Aurélie : "les lignes de paiements soient claires pour tout le
+      // monde") -- distinguer le séjour propre du titulaire de celui d'un
+      // accompagnant sans compte.
+      .select('user_id, guest_name, ts_payments(amount, status)')
       .gte('check_in', currentYearStart)
       .lt('check_in', nextYearStart),
     // Un séjour = une ligne (avec ses paiements TS imbriqués, 0 à N) --
@@ -133,15 +137,43 @@ export default async function AdminPage() {
   // séjour, pas de la date de paiement) -- recalculé à chaque chargement
   // de page, jamais stocké (même principe que les tâches récurrentes de
   // l'onglet Entretien, point 18 de points-a-regler-avec-louis.md).
+  //
+  // Rectification du 27/10/2026 (demande d'Aurélie, cohérence des lignes
+  // de paiement) : un séjour D'ACCOMPAGNANT sans compte (ex. Otto, saisi
+  // par Nicolas) n'est plus mélangé au total du compte qui l'a saisi --
+  // il va dans tsByGuest ci-dessous et ressort sur sa PROPRE ligne dans
+  // le tableau (voir toRows plus bas), même si c'est toujours payable
+  // depuis le compte d'un parent (voir /api/stripe/checkout, inchangé).
+  const familyGroupById = new Map((profiles ?? []).map((p) => [p.id, p.family_group]))
+  const lastNameById = new Map((profiles ?? []).map((p) => [p.id, p.last_name]))
+
   const tsByUser = new Map<string, { total: number; paid: number }>()
+  const tsByGuest = new Map<string, { guestName: string; familyGroup: string; lastName: string; total: number; paid: number }>()
   for (const b of currentYearBookingsRaw ?? []) {
     if (b.ts_payments.length === 0) continue
-    const agg = tsByUser.get(b.user_id) ?? { total: 0, paid: 0 }
+    const guestName = b.guest_name?.trim()
+    if (!guestName) {
+      const agg = tsByUser.get(b.user_id) ?? { total: 0, paid: 0 }
+      for (const p of b.ts_payments) {
+        agg.total += Number(p.amount)
+        if (p.status === 'paid') agg.paid += Number(p.amount)
+      }
+      tsByUser.set(b.user_id, agg)
+      continue
+    }
+    // Regroupé par (famille du titulaire qui a saisi + nom exact de
+    // l'accompagnant) -- même convention de regroupement que les
+    // pastilles "TS - <prénom>" du Planning (voir computeTsBalance dans
+    // src/lib/ts-balance.ts) : par texte exact du guest_name, jamais
+    // dédoublonné avec une autre orthographe du même nom.
+    const familyGroup = familyGroupById.get(b.user_id) ?? 'friend'
+    const key = `${familyGroup}::${guestName}`
+    const agg = tsByGuest.get(key) ?? { guestName, familyGroup, lastName: lastNameById.get(b.user_id) ?? '', total: 0, paid: 0 }
     for (const p of b.ts_payments) {
       agg.total += Number(p.amount)
       if (p.status === 'paid') agg.paid += Number(p.amount)
     }
-    tsByUser.set(b.user_id, agg)
+    tsByGuest.set(key, agg)
   }
 
   // Inscriptions en attente de validation (27/10/2026, voir
@@ -161,8 +193,8 @@ export default async function AdminPage() {
       createdAt: p.created_at,
     }))
 
-  const toRows = (familyGroup: 'canat' | 'lalande' | 'friend'): MemberRow[] =>
-    (profiles ?? [])
+  const toRows = (familyGroup: 'canat' | 'lalande' | 'friend'): MemberRow[] => {
+    const accountRows: MemberRow[] = (profiles ?? [])
       // Comme dashboard/layout.tsx (voir commit de correctif du
       // 27/10/2026) : tant que la migration n'est pas appliquee,
       // status est undefined pour tout le monde -- ne JAMAIS exclure
@@ -183,6 +215,29 @@ export default async function AdminPage() {
           tsPaidYear: ts.paid,
         }
       })
+
+    // Une ligne par accompagnant sans compte de cette famille (27/10/2026,
+    // demande d'Aurélie) -- même prénom/nom de famille que sur le
+    // Planning (firstNameOnly + nom du titulaire qui a saisi, voir
+    // occupantDisplayName dans src/lib/utils.ts pour la même convention),
+    // sans email/rôle/date de création (role: null -- voir MembersTable,
+    // ça laisse la case "Autorisations" vide) et son propre total TS,
+    // même si le paiement reste possible depuis le compte d'un parent.
+    const guestRows: MemberRow[] = [...tsByGuest.values()]
+      .filter((g) => g.familyGroup === familyGroup)
+      .map((g) => ({
+        id: `guest:${familyGroup}:${g.guestName}`,
+        firstName: firstNameOnly(g.guestName),
+        lastName: properCase(g.lastName),
+        email: null,
+        role: null,
+        createdAt: null,
+        tsTotalYear: g.total,
+        tsPaidYear: g.paid,
+      }))
+
+    return [...accountRows, ...guestRows]
+  }
 
   const groups: { key: 'canat' | 'lalande' | 'friend'; label: string }[] = [
     { key: 'canat', label: 'Canat' },
