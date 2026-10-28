@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Eye, EyeOff } from 'lucide-react'
-import { parseFrenchDate } from '@/lib/utils'
+import { formatDateInputValue, parseFrenchDate } from '@/lib/utils'
 
 type FamilyGroup = 'lalande' | 'canat' | 'friend'
 
@@ -241,8 +241,11 @@ export default function RegisterPage() {
                   inputMode="numeric"
                   placeholder="JJ/MM/AAAA"
                   autoComplete="bday"
+                  maxLength={10}
                   value={formData.dateOfBirth}
-                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, dateOfBirth: formatDateInputValue(e.target.value, formData.dateOfBirth) })
+                  }
                   required
                 />
               </div>

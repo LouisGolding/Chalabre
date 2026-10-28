@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { UNKNOWN_DATE_OF_BIRTH } from '@/lib/profile'
-import { properCase, parseFrenchDate, formatFrenchDateInput } from '@/lib/utils'
+import { properCase, parseFrenchDate, formatFrenchDateInput, formatDateInputValue } from '@/lib/utils'
 import type { FamilyGroup, Profile } from '@/types'
 
 export function CompleteProfileForm({ profile }: { profile: Profile }) {
@@ -117,8 +117,9 @@ export function CompleteProfileForm({ profile }: { profile: Profile }) {
                   inputMode="numeric"
                   placeholder="JJ/MM/AAAA"
                   autoComplete="bday"
+                  maxLength={10}
                   value={dateOfBirth}
-                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  onChange={(e) => setDateOfBirth(formatDateInputValue(e.target.value, dateOfBirth))}
                   required
                 />
               </div>

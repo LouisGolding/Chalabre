@@ -128,6 +128,28 @@ export function formatFrenchDateInput(iso: string): string {
   return `${match[3]}/${match[2]}/${match[1]}`
 }
 
+/** Formate la saisie EN COURS du champ "date de naissance" (JJ/MM/AAAA)
+ * en insérant automatiquement les "/" après le jour et après le mois --
+ * demandé par Aurélie le 28/10/2026 ("on tape 29, le '/' se met, puis
+ * 04, le '/' se met, puis 1945"). `previousValue` est la valeur affichée
+ * juste avant cette frappe : nécessaire pour qu'un Retour arrière juste
+ * après un "/" auto-inséré supprime aussi le chiffre qui le précède --
+ * sinon le "/" semblerait se réinsérer tout seul puisqu'il est recalculé
+ * à partir des mêmes chiffres restants. */
+export function formatDateInputValue(raw: string, previousValue: string): string {
+  let digits = raw.replace(/\D/g, '')
+  if (raw.length < previousValue.length && previousValue.endsWith('/') && raw === previousValue.slice(0, -1)) {
+    digits = digits.slice(0, -1)
+  }
+  digits = digits.slice(0, 8)
+  let out = digits.slice(0, 2)
+  if (digits.length >= 2) out += '/'
+  out += digits.slice(2, 4)
+  if (digits.length >= 4) out += '/'
+  out += digits.slice(4, 8)
+  return out
+}
+
 // Casse normalisée pour l'affichage d'un prénom/nom (une majuscule au
 // début, le reste en minuscule), quelle que soit la casse telle que
 // saisie en base -- demandé par Aurélie le 26/10/2026 ("Eva" s'affichait
