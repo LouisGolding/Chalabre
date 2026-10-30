@@ -303,6 +303,7 @@ export default async function PlanningPage() {
         planningEvents={planningEvents}
         currentUserId={user.id}
         guestDefaults={guestNameDefaults}
+        familyMembers={otherFamilyMembers}
       />
     </div>
   )

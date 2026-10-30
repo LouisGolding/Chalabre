@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { ReserverSejour } from '@/components/planning/ReserverSejour'
-import { SavedStayInfo } from '@/components/dashboard/NextStayCard'
+import { SavedStayInfo, FamilyMemberOption } from '@/components/dashboard/NextStayCard'
 import { colorForName, colorForPaletteIndex } from '@/lib/colors'
 import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 import type { TsBalanceResult } from '@/lib/ts-balance'
@@ -39,6 +39,9 @@ interface PlanningPageClientProps {
   // Voir le commentaire sur NextStayCard.tsx (NextStayCardProps.guestDefaults) --
   // simple passe-plat ici aussi.
   guestDefaults?: Record<string, { ageBracket: 'child' | 'adult'; houseSide: HouseSide }>
+  // "Option famille" (30/10/2026) -- simple passe-plat ici aussi, voir
+  // NextStayCard.tsx (FamilyMemberOption).
+  familyMembers?: FamilyMemberOption[]
 }
 
 // Pont côté client entre le widget "Prochain séjour" (ReserverSejour /
@@ -59,6 +62,7 @@ export function PlanningPageClient({
   planningEvents,
   currentUserId,
   guestDefaults,
+  familyMembers,
 }: PlanningPageClientProps) {
   const [planningBookings, setPlanningBookings] = useState(initialPlanningBookings)
 
@@ -186,6 +190,7 @@ export function PlanningPageClient({
         onHiddenBookingIdsChange={setHiddenBookingIds}
         externalTsRefreshSignal={calendarSyncSignal}
         guestDefaults={guestDefaults}
+        familyMembers={familyMembers}
       />
       <PlanningView
         bookings={visiblePlanningBookings}

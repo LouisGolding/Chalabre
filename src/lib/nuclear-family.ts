@@ -4,6 +4,14 @@ export interface NuclearFamilyMember {
   id: string
   first_name: string
   last_name: string
+  // Ajoutés le 30/10/2026 pour le widget "Option famille" (NextStayCard.tsx) :
+  // préremplir automatiquement la tranche d'âge et la couleur d'un
+  // accompagnant membre de la même famille nucléaire, sans rien changer
+  // pour les appelants existants (ts-balance.ts, planning/page.tsx) qui
+  // ignorent simplement ces champs.
+  date_of_birth: string | null
+  color_hue: number | null
+  family_group: string | null
 }
 
 // Familles nucléaires (27/10/2026, demande d'Aurélie : "si un des deux
@@ -51,7 +59,7 @@ export async function otherNuclearFamilyMembers(
 
   const { data: members } = await supabase
     .from('profiles')
-    .select('id, first_name, last_name')
+    .select('id, first_name, last_name, date_of_birth, color_hue, family_group')
     .eq('nuclear_family', nuclearFamily)
     .neq('id', userId)
 

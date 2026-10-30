@@ -9,6 +9,7 @@ import {
   cn,
   firstNameOnly,
   formatCurrency,
+  formatFrenchDateInput,
   normalizeName,
   stayPhase,
   viewTogglePillClass,
@@ -21,6 +22,32 @@ import { colorForPaletteIndex, coloredTextureStyle, fallbackIndexForName, should
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 type AgeBracket = 'child' | 'adult'
+
+// "Option famille" (30/10/2026, demande d'Aurélie) : un autre membre de
+// la même famille nucléaire (profiles.nuclear_family, voir
+// src/lib/nuclear-family.ts), pour préremplir automatiquement sa propre
+// bannière quand le titulaire active l'option -- voir
+// otherFamilyMembersForWidget dans planning/page.tsx pour le calcul
+// côté serveur.
+export interface FamilyMemberOption {
+  id: string
+  first_name: string
+  last_name: string
+  date_of_birth: string | null
+  color_hue: number | null
+  family_group: string | null
+}
+
+// Age plausible a la date donnee (entre 0 et 110 ans) -- une date de
+// naissance hors de cette plage (ex. dans le futur, cas d'une erreur de
+// saisie a l'inscription deja signalee a Louis pour Virgil Jullien et
+// Mathieu Lalande le 30/10/2026) n'est PAS consideree comme connue : on
+// revient alors au choix manuel 0-16/17+ plutot que d'afficher/calculer
+// un montant de taxe de sejour silencieusement faux.
+function plausibleAgeAt(dobIso: string, refIso: string): number | null {
+  const age = differenceInYears(new Date(refIso + 'T00:00:00'), parseISO(dobIso))
+  return age >= 0 && age <= 110 ? age : null
+}
 
 // Refonte du widget "Prochain séjour" en bannières dépliables (demandée
 // par Nicolas le 23/09/2026, pendant qu'on réglait le format mobile
@@ -94,6 +121,10 @@ interface NextStayCardProps {
   // fautes de frappe, voir findClosestNameMatch) à un nom déjà vu --
   // reste modifiable avant d'enregistrer.
   guestDefaults?: Record<string, { ageBracket: AgeBracket; houseSide: HouseSide }>
+  // "Option famille" (30/10/2026) : voir FamilyMemberOption plus haut.
+  // Absent ou vide => pas de bascule "Famille" affichee (compte sans
+  // famille nucleaire enregistree, ou seul dans la sienne).
+  familyMembers?: FamilyMemberOption[]
 }
 
 function findGuestBucket(tsBalance: TsBalanceResult, fullName: string | null): TsGuestBalance | null {
@@ -203,16 +234,21 @@ function TotalTaxeSejourStayPill({
   ids,
   light,
   darkBg,
+  label,
 }: {
   pending: number
   ids: string[]
   light: boolean
   darkBg: boolean
+  // "Total taxe de séjour famille :" quand l'option famille est active sur
+  // ce widget (30/10/2026, demande d'Aurélie) -- voir pillLabel dans
+  // StayEntry, prop absente ou undefined ailleurs (texte par défaut).
+  label?: string
 }) {
   const inner = (
     <>
       <span className={stayPillTextClass(light, darkBg, 'font-semibold')}>
-        Total taxe de séjour :
+        {label ?? 'Total taxe de séjour :'}
       </span>{' '}
       <StayPillAmount pending={pending} light={light} darkBg={darkBg} />
     </>
@@ -307,6 +343,7 @@ export function NextStayCard({
   onBookingDeleted,
   onHiddenBookingIdsChange,
   guestDefaults,
+  familyMembers = [],
 }: NextStayCardProps) {
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
@@ -428,6 +465,55 @@ export function NextStayCard({
     setAddSlotResetKey((k) => k + 1)
   }
 
+  // "Option famille" (30/10/2026, demande d'Aurélie, voir la maquette
+  // "Réserver en famille") : n'est proposable qu'une fois le séjour du
+  // titulaire lui-même enregistré (primaryBooking non nul) -- ses dates
+  // servent de référence, verrouillées pour chaque accompagnant tant que
+  // l'option reste active (voir StayEntry, prop lockedDates). Remise à
+  // zéro des "Retirer" individuels à chaque activation plutôt que de les
+  // garder caches indéfiniment.
+  const [familyOn, setFamilyOn] = useState(false)
+  const [removedFamilyIds, setRemovedFamilyIds] = useState<Set<string>>(new Set())
+  const familyToggleAvailable = familyMembers.length > 0
+  const handleFamilyToggle = () => {
+    setFamilyOn((v) => {
+      if (!v) setRemovedFamilyIds(new Set())
+      return !v
+    })
+  }
+
+  // Un membre de la famille déjà représenté par une bannière "accompagnant"
+  // existante (nom déjà saisi, tolérant aux fautes de frappe -- même
+  // logique que guestDefaults plus haut) ne reçoit pas de bannière
+  // "famille" en plus -- une fois enregistrée (onSaved plus bas), sa
+  // bannière rejoint guestEntries et sort naturellement d'ici au rendu
+  // suivant.
+  const existingGuestNames = guestEntries.map((e) => e.booking?.guest_name?.trim()).filter((n): n is string => !!n)
+  const activeFamilyMembers =
+    familyOn && primaryBooking
+      ? familyMembers.filter((m) => {
+          if (removedFamilyIds.has(m.id)) return false
+          const fullName = `${m.first_name} ${m.last_name}`.trim()
+          return findClosestNameMatch(fullName, existingGuestNames) === -1
+        })
+      : []
+
+  // Pastille "Total taxe de séjour famille" (30/10/2026) sur le titulaire :
+  // son propre solde + celui de chaque membre de la famille actuellement
+  // affiché ci-dessous -- ids fusionnés pour régler tout en une seule
+  // session Stripe (voir TSBalancePayButton). undefined quand l'option
+  // n'est pas active : StayEntry garde alors son solde habituel.
+  const familyPendingOverride = familyOn
+    ? tsBalance.own.pending +
+      activeFamilyMembers.reduce((sum, m) => sum + (findGuestBucket(tsBalance, `${m.first_name} ${m.last_name}`)?.pending ?? 0), 0)
+    : undefined
+  const familyIdsOverride = familyOn
+    ? [
+        ...tsBalance.own.items.map((i) => i.id),
+        ...activeFamilyMembers.flatMap((m) => findGuestBucket(tsBalance, `${m.first_name} ${m.last_name}`)?.items.map((i) => i.id) ?? []),
+      ]
+    : undefined
+
   return (
     <div className="space-y-3">
       <StayEntry
@@ -446,7 +532,66 @@ export function NextStayCard({
         onSaved={onBookingSaved}
         onDeleted={handlePrimaryDeleted}
         onHiddenChange={(id) => setEntryHidden('primary', id)}
+        familyToggle={familyToggleAvailable ? { on: familyOn, onToggle: handleFamilyToggle, disabled: !primaryBooking } : undefined}
+        pillLabel={familyOn ? 'Total taxe de séjour famille :' : undefined}
+        pendingOverride={familyPendingOverride}
+        idsOverride={familyIdsOverride}
       />
+
+      {activeFamilyMembers.map((m) => {
+        const fullName = `${m.first_name} ${m.last_name}`.trim()
+        const memberFamily = (m.family_group as FamilyGroup | null) ?? profile.family_group
+        const memberColor = colorForPaletteIndex(
+          memberFamily,
+          typeof m.color_hue === 'number' ? m.color_hue : fallbackIndexForName(fullName)
+        )
+        const bucket = findGuestBucket(tsBalance, fullName)
+        const knownAge = m.date_of_birth && primaryBooking ? plausibleAgeAt(m.date_of_birth, primaryBooking.check_in) : null
+        return (
+          <StayEntry
+            key={`family-${m.id}:${primaryBooking?.check_in ?? ''}:${primaryBooking?.check_out ?? ''}`}
+            entryKey={`family-${m.id}`}
+            booking={null}
+            defaultAgeBracket="adult"
+            knownAgeBracket={knownAge !== null ? (knownAge >= 16 ? 'adult' : 'child') : undefined}
+            defaultHouseSide={
+              primaryBooking?.house_side ?? (profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined)
+            }
+            fixedGuestName={fullName}
+            showNameField={false}
+            titleWhenEmpty={`Séjour ${fullName}`}
+            titleWhenUpcoming={`Séjour ${fullName}`}
+            titleWhenOngoing={`Séjour ${fullName}`}
+            pending={bucket?.pending ?? 0}
+            ids={bucket?.items.map((i) => i.id) ?? []}
+            bgColor={memberColor}
+            lockedDates={primaryBooking ? { checkIn: primaryBooking.check_in, checkOut: primaryBooking.check_out } : undefined}
+            onRemoved={() => setRemovedFamilyIds((prev) => new Set(prev).add(m.id))}
+            onSaved={(saved) => {
+              onBookingSaved?.(saved)
+              setGuestEntries((prev) => [
+                ...prev,
+                {
+                  localId: saved.id,
+                  booking: {
+                    id: saved.id,
+                    check_in: saved.check_in,
+                    check_out: saved.check_out,
+                    guest_name: saved.guest_name,
+                    house_side: saved.house_side,
+                    age_bracket: saved.age_bracket,
+                  },
+                  colorHue: saved.colorHue,
+                  colorFamily: saved.colorFamily,
+                  remountKey: 0,
+                },
+              ])
+            }}
+            onDeleted={onBookingDeleted}
+            onHiddenChange={() => {}}
+          />
+        )
+      })}
 
       {guestEntries.map((entry) => {
         const bucket = findGuestBucket(tsBalance, entry.booking?.guest_name ?? null)
@@ -538,20 +683,41 @@ interface StayEntryProps {
   // rien n'a été saisi, on ne montre donc pas "Supprimer ce séjour" à
   // vide (elle referme juste le formulaire).
   hideDeleteWhenEmpty?: boolean
+  // "Option famille" (30/10/2026) -- voir FamilyMemberOption et le
+  // commentaire dans NextStayCard ci-dessus pour le détail de chacun :
+  // nom fixe (pas de champ éditable) pour une bannière famille,
+  // tranche d'âge déjà connue (plus de pastilles 0-16/17+) quand sa date
+  // de naissance est plausible, dates verrouillées sur celles du
+  // titulaire tant que l'option reste active, et (titulaire seulement)
+  // la bascule "Famille" + le remplacement de la pastille de solde.
+  fixedGuestName?: string
+  knownAgeBracket?: AgeBracket
+  lockedDates?: { checkIn: string; checkOut: string }
+  familyToggle?: { on: boolean; onToggle: () => void; disabled: boolean }
+  pillLabel?: string
+  pendingOverride?: number
+  idsOverride?: string[]
 }
 
-function fieldsSnapshot(booking: BookingData | null, defaultAgeBracket: AgeBracket, defaultHouseSide?: HouseSide) {
+function fieldsSnapshot(
+  booking: BookingData | null,
+  defaultAgeBracket: AgeBracket,
+  defaultHouseSide?: HouseSide,
+  fixedGuestName?: string,
+  knownAgeBracket?: AgeBracket,
+  lockedDates?: { checkIn: string; checkOut: string }
+) {
   return {
-    checkIn: booking?.check_in ?? '',
-    checkOut: booking?.check_out ?? '',
+    checkIn: lockedDates?.checkIn ?? booking?.check_in ?? '',
+    checkOut: lockedDates?.checkOut ?? booking?.check_out ?? '',
     notes: booking?.notes ?? '',
     // Tranche d'age memorisee sur le sejour (26/10/2026) prioritaire sur
     // le defaut calcule par l'appelant -- celui-ci ne reste un repli que
     // pour un sejour jamais enregistre avec cette colonne (anterieur a la
     // migration) ou pas encore enregistre du tout (booking === null).
-    ageBracket: booking?.age_bracket ?? defaultAgeBracket,
+    ageBracket: booking?.age_bracket ?? knownAgeBracket ?? defaultAgeBracket,
     houseSide: booking?.house_side ?? defaultHouseSide ?? null,
-    guestName: booking?.guest_name ?? '',
+    guestName: fixedGuestName ?? booking?.guest_name ?? '',
   }
 }
 
@@ -572,8 +738,15 @@ function StayEntry({
   onDeleted,
   onHiddenChange,
   hideDeleteWhenEmpty,
+  fixedGuestName,
+  knownAgeBracket,
+  lockedDates,
+  familyToggle,
+  pillLabel,
+  pendingOverride,
+  idsOverride,
 }: StayEntryProps) {
-  const initialSnapshot = fieldsSnapshot(booking, defaultAgeBracket, defaultHouseSide)
+  const initialSnapshot = fieldsSnapshot(booking, defaultAgeBracket, defaultHouseSide, fixedGuestName, knownAgeBracket, lockedDates)
 
   const [checkIn, setCheckIn] = useState(initialSnapshot.checkIn)
   const [checkOut, setCheckOut] = useState(initialSnapshot.checkOut)
@@ -698,7 +871,7 @@ function StayEntry({
           checkOut,
           amount,
           bookingId,
-          guestName: showNameField ? guestName.trim() : undefined,
+          guestName: showNameField ? guestName.trim() : (fixedGuestName ?? undefined),
           houseSide,
           notes: notes.trim() || null,
           ageBracket,
@@ -715,7 +888,7 @@ function StayEntry({
         id: data.bookingId,
         check_in: checkIn,
         check_out: checkOut,
-        guest_name: showNameField ? guestName.trim() || null : null,
+        guest_name: showNameField ? guestName.trim() || null : (fixedGuestName ?? null),
         house_side: houseSide,
         age_bracket: ageBracket,
         colorHue: typeof data.colorHue === 'number' ? data.colorHue : null,
@@ -770,7 +943,13 @@ function StayEntry({
 
   return (
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
-      <TotalTaxeSejourStayPill pending={pending} ids={ids} light={light} darkBg={darkBg} />
+      <TotalTaxeSejourStayPill
+        pending={pendingOverride ?? pending}
+        ids={idsOverride ?? ids}
+        light={light}
+        darkBg={darkBg}
+        label={pillLabel}
+      />
 
       {/* Plus de libelle "Nom Prenom" au-dessus : seul l'encadre ou le nom
           est ecrit reste, avec le meme traitement que le champ "Note"
@@ -802,31 +981,76 @@ function StayEntry({
           darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground'
         )}
       >
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          Du :
-          <input
-            type="date"
-            value={checkIn}
-            onChange={(e) => setCheckIn(e.target.value)}
+        {lockedDates ? (
+          // "Option famille" active (30/10/2026) : dates du titulaire,
+          // non modifiables ici -- voir le commentaire sur lockedDates
+          // dans StayEntryProps.
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-extrabold">
+            Du {formatFrenchDateInput(lockedDates.checkIn)} au {formatFrenchDateInput(lockedDates.checkOut)}
+          </span>
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              Du :
+              <input
+                type="date"
+                value={checkIn}
+                onChange={(e) => setCheckIn(e.target.value)}
+                className={cn(
+                  'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
+                  darkBg ? 'text-white border-white/40 focus:border-white' : light ? 'text-foreground/60' : 'text-foreground'
+                )}
+              />
+            </span>
+            <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              Au :
+              <input
+                type="date"
+                value={checkOut}
+                min={checkIn || undefined}
+                onChange={(e) => setCheckOut(e.target.value)}
+                className={cn(
+                  'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
+                  darkBg ? 'text-white border-white/40 focus:border-white' : light ? 'text-foreground/60' : 'text-foreground'
+                )}
+              />
+            </span>
+          </>
+        )}
+        {familyToggle && (
+          // "Option famille" (30/10/2026, demande d'Aurélie) : alignée
+          // horizontalement avec les champs de dates, sur le widget du
+          // titulaire uniquement -- voir NextStayCard. Désactivée tant
+          // que son propre séjour n'est pas encore enregistré (les dates
+          // de référence des accompagnants n'existent pas encore).
+          <button
+            type="button"
+            disabled={familyToggle.disabled}
+            onClick={familyToggle.onToggle}
+            aria-pressed={familyToggle.on}
             className={cn(
-              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
-              darkBg ? 'text-white border-white/40 focus:border-white' : light ? 'text-foreground/60' : 'text-foreground'
+              'ml-auto inline-flex items-center gap-2 whitespace-nowrap font-bold disabled:opacity-40',
+              darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground'
             )}
-          />
-        </span>
-        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-          Au :
-          <input
-            type="date"
-            value={checkOut}
-            min={checkIn || undefined}
-            onChange={(e) => setCheckOut(e.target.value)}
-            className={cn(
-              'border-0 border-b border-foreground/30 bg-transparent px-1 py-0.5 text-xs font-extrabold uppercase tracking-[0.08em] outline-none focus:border-foreground md:text-sm',
-              darkBg ? 'text-white border-white/40 focus:border-white' : light ? 'text-foreground/60' : 'text-foreground'
-            )}
-          />
-        </span>
+          >
+            <span
+              className={cn(
+                'relative h-5 w-[34px] shrink-0 rounded-full border',
+                darkBg ? 'border-white' : 'border-current',
+                familyToggle.on && (darkBg ? 'bg-white' : 'bg-current')
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute left-0.5 top-0.5 h-3.5 w-3.5 rounded-full transition-transform',
+                  familyToggle.on ? 'translate-x-3.5' : 'translate-x-0',
+                  familyToggle.on ? (darkBg ? 'bg-foreground' : 'bg-background') : darkBg ? 'bg-white' : 'bg-current'
+                )}
+              />
+            </span>
+            Famille
+          </button>
+        )}
       </div>
 
       {/* Champ "Note" : plus de libelle ni de soulignement -- demande par
@@ -870,12 +1094,22 @@ function StayEntry({
           surveiller sur mobile reel si ca redevient trop juste en largeur
           avec le tracking uniforme a 0.08em. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <button type="button" className={pillClass(ageBracket === 'child')} onClick={() => setAgeBracket('child')}>
-          0-16 ans
-        </button>
-        <button type="button" className={pillClass(ageBracket === 'adult')} onClick={() => setAgeBracket('adult')}>
-          17 ans et +
-        </button>
+        {knownAgeBracket === undefined && (
+          // Choix manuel 0-16/17+ : masqué quand la tranche d'âge est
+          // déjà connue avec certitude (date de naissance plausible,
+          // voir knownAgeBracket/plausibleAgeAt) -- demandé par Aurélie
+          // le 29/10/2026 pour les bannières "Option famille" : "tu ne
+          // proposeras plus le choix" pour un profil dont la date de
+          // naissance est renseignée.
+          <>
+            <button type="button" className={pillClass(ageBracket === 'child')} onClick={() => setAgeBracket('child')}>
+              0-16 ans
+            </button>
+            <button type="button" className={pillClass(ageBracket === 'adult')} onClick={() => setAgeBracket('adult')}>
+              17 ans et +
+            </button>
+          </>
+        )}
         <button type="button" className={pillClass(houseSide === 'canat')} onClick={() => setHouseSide('canat')}>
           Canat
         </button>
