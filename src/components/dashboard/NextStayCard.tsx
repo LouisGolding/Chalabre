@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { differenceInYears, parseISO } from 'date-fns'
 import {
   actionPillClass,
+  calculateTSRate,
   calculateTotalTS,
   cn,
   firstNameOnly,
@@ -599,6 +600,17 @@ function StayEntry({
     return calculateTotalTS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
   }, [checkIn, checkOut, nights, ageBracket])
 
+  // Tarif par nuit affiche a cote du total (30/10/2026, demande d'Aurelie :
+  // "10e/nuit" ou "15e/nuit" a cote de la ligne "Taxe de sejour") -- pris
+  // sur la date d'arrivee : les rares sejours qui chevauchent le
+  // changement de saison (31 octobre) ont un total exact malgre tout
+  // (calculateTotalTS additionne nuit par nuit), seul ce tarif affiche
+  // suppose une seule saison sur tout le sejour.
+  const nightlyRate = useMemo(() => {
+    if (nights <= 0 || !checkIn) return 0
+    return calculateTSRate(new Date(checkIn), ageBracket === 'child' ? 10 : 20, true)
+  }, [checkIn, nights, ageBracket])
+
   const hasSavedBooking = bookingId !== null
 
   // Pré-remplissage à la frappe (27/10/2026, demande d'Aurélie) : dès que
@@ -886,6 +898,7 @@ function StayEntry({
           <span className="font-extrabold">
             {nights} nuit{nights > 1 ? 's' : ''} : {formatCurrency(amount)}
           </span>
+          <span className="font-normal opacity-70">({nightlyRate}€/nuit)</span>
         </div>
       )}
 
