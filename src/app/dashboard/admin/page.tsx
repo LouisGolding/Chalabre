@@ -1,5 +1,6 @@
 import { PageTitle } from '@/components/layout/PageTitle'
 import { occupantDisplayName, properCase, firstNameOnly } from '@/lib/utils'
+import { UNKNOWN_DATE_OF_BIRTH } from '@/lib/profile'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 import { canAccessMembresTab } from '@/lib/members-access'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
@@ -259,6 +260,12 @@ export default async function AdminPage() {
           lastName: properCase(p.last_name),
           email: p.email,
           role: p.role,
+          // UNKNOWN_DATE_OF_BIRTH ('1900-01-01', ecrit par handle_new_user
+          // quand l'inscription ne fournit aucune date -- ex. "Continuer
+          // avec Google") ramene ici a null, pour que la colonne "Date de
+          // naissance" (30/10/2026, demande d'Aurelie) affiche une case
+          // vide et editable plutot qu'une fausse date de 1900.
+          dateOfBirth: p.date_of_birth === UNKNOWN_DATE_OF_BIRTH ? null : p.date_of_birth,
           createdAt: p.created_at,
           tsTotalYear: ts.total,
           tsPaidYear: ts.paid,
@@ -280,6 +287,7 @@ export default async function AdminPage() {
         lastName: properCase(g.lastName),
         email: null,
         role: null,
+        dateOfBirth: null,
         createdAt: null,
         tsTotalYear: g.total,
         tsPaidYear: g.paid,

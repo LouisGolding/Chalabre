@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { actionPillClass, formatCurrency, formatDate } from '@/lib/utils'
+import { actionPillClass, formatCurrency, formatDate, formatFrenchDateInput, formatDateInputValue, parseFrenchDate } from '@/lib/utils'
 
 export interface MemberRow {
   id: string
@@ -13,6 +13,14 @@ export interface MemberRow {
   // création à afficher.
   email: string | null
   role: 'admin' | 'family' | 'friend' | null
+  // Date de naissance ISO (ou null : accompagnant sans compte, ou compte
+  // dont la date n'a jamais ete renseignee -- ex. inscription via
+  // "Continuer avec Google", voir UNKNOWN_DATE_OF_BIRTH dans
+  // src/lib/profile.ts, deja ramene a null par admin/page.tsx). Colonne
+  // "Date de naissance" ajoutee le 30/10/2026 (demande d'Aurelie), juste
+  // avant "Cree le" -- editable (voir EditableDob plus bas) pour les
+  // comptes reels, au cas ou elle manque.
+  dateOfBirth: string | null
   createdAt: string | null
   // Totaux TS de l'année en cours (voir admin/page.tsx) -- fusionnés
   // dans ce tableau depuis l'ancien tableau "Soldes par membre" de
@@ -58,7 +66,7 @@ function remainingOf(row: MemberRow): number {
   return row.tsTotalYear - row.tsPaidYear
 }
 
-type SortKey = 'lastName' | 'firstName' | 'role' | 'tsTotalYear' | 'tsPaidYear' | 'remaining' | 'email' | 'createdAt'
+type SortKey = 'lastName' | 'firstName' | 'role' | 'tsTotalYear' | 'tsPaidYear' | 'remaining' | 'email' | 'dateOfBirth' | 'createdAt'
 type SortDir = 'asc' | 'desc'
 
 // Colonnes numériques (alignées à droite, triées par valeur et non par
@@ -81,9 +89,78 @@ function sortValue(row: MemberRow, key: SortKey): string | number {
       return remainingOf(row)
     case 'email':
       return row.email ?? ''
+    case 'dateOfBirth':
+      return row.dateOfBirth ?? ''
     case 'createdAt':
       return row.createdAt ?? ''
   }
+}
+
+// Cellule "Date de naissance" editable (30/10/2026, demande d'Aurelie) --
+// saisie en texte libre JJ/MM/AAAA, "/" ajoutes automatiquement pendant la
+// frappe (formatDateInputValue), jamais de calendrier -- meme convention
+// que le formulaire d'inscription (voir ProfileForm.tsx). Enregistre au
+// blur si la date a change et est valide (POST /api/profiles/date-of-birth,
+// reserve aux admins comme le reste de ce tableau) ; revient a la valeur
+// precedente si la saisie est incomplete ou invalide.
+function EditableDob({
+  profileId,
+  dateOfBirth,
+  onSaved,
+}: {
+  profileId: string
+  dateOfBirth: string | null
+  onSaved: (iso: string) => void
+}) {
+  const savedDisplay = dateOfBirth ? formatFrenchDateInput(dateOfBirth) : ''
+  const [display, setDisplay] = useState(savedDisplay)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleBlur = async () => {
+    if (display === savedDisplay) return
+    if (display === '') return
+    const iso = parseFrenchDate(display)
+    if (!iso) {
+      setError('Date invalide (JJ/MM/AAAA)')
+      setDisplay(savedDisplay)
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/profiles/date-of-birth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileId, dateOfBirth: display }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Erreur')
+      onSaved(iso)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur')
+      setDisplay(savedDisplay)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col">
+      <input
+        type="text"
+        inputMode="numeric"
+        maxLength={10}
+        placeholder="JJ/MM/AAAA"
+        value={display}
+        disabled={saving}
+        onChange={(e) => setDisplay(formatDateInputValue(e.target.value, display))}
+        onBlur={handleBlur}
+        className="w-24 border-0 border-b border-border bg-transparent text-muted-foreground outline-none focus:border-foreground focus:text-foreground disabled:opacity-50"
+      />
+      {error && <span className="text-xs text-red-600">{error}</span>}
+    </div>
+  )
 }
 
 // Tableau "Membres" (admin uniquement) — un par catégorie (CANAT / LALANDE
@@ -122,6 +199,7 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
     { key: 'tsPaidYear', label: 'Payé' },
     { key: 'remaining', label: 'Reste dû' },
     { key: 'email', label: 'Email' },
+    { key: 'dateOfBirth', label: 'Date de naissance' },
     { key: 'createdAt', label: 'Créé le' },
   ]
 
@@ -225,6 +303,24 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
                   {formatCurrency(remaining)}
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground">{row.email ?? '—'}</td>
+                {/* Date de naissance (30/10/2026, demande d'Aurelie) -- editable
+                    uniquement pour un vrai compte (isGuestRow(row) === false) :
+                    un accompagnant sans compte (ex. Otto) n'a pas de profil a
+                    mettre a jour. Saisie JJ/MM/AAAA, jamais un calendrier (meme
+                    convention que l'inscription, voir formatDateInputValue). */}
+                <td className="px-3 py-2.5 text-muted-foreground">
+                  {isGuestRow(row) ? (
+                    '—'
+                  ) : (
+                    <EditableDob
+                      profileId={row.id}
+                      dateOfBirth={row.dateOfBirth}
+                      onSaved={(iso) =>
+                        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, dateOfBirth: iso } : r)))
+                      }
+                    />
+                  )}
+                </td>
                 <td className="px-3 py-2.5 text-muted-foreground">{row.createdAt ? formatDate(row.createdAt) : '—'}</td>
               </tr>
             )
