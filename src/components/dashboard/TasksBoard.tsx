@@ -180,7 +180,10 @@ const CATEGORY_LABEL: Record<Category, string> = {
 const CATEGORY_CONTACT_KEYWORDS: Partial<Record<Category, string[]>> = {
   plomberie: ['plomb'],
   electricite: ['electric'],
-  jardin: ['jardin'],
+  // Jardin (02/11/2026, demande de Nicolas) : en plus de "Jardinier", on
+  // propose aussi les élagueurs et les contacts liés à la tonte (tondeur,
+  // "tonte de pelouse"...).
+  jardin: ['jardin', 'elagu', 'tond', 'tonte'],
 }
 
 function normalizeForMatch(value: string): string {
