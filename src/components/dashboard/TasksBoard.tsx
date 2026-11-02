@@ -245,6 +245,19 @@ function nextWizardStep(step: WizardStep, category: Category): WizardStep {
   }
 }
 
+// Dernière étape de saisie avant publication (02/11/2026, demande de
+// Nicolas : "apres avoir demande la periodicite, tu proposes tout de
+// suite de publier" -- jusque-la, valider la dernière valeur saisie
+// (urgence pour les catégories hors jardin, récurrence pour jardin)
+// faisait juste passer à l'étape "ready", qui n'affiche aucun champ --
+// il fallait donc un second clic "Publier" dans le vide pour ce qui
+// ressemblait à une seule étape. isLastStep() permet de fusionner les
+// deux : on affiche "Publier" et on publie directement dès la dernière
+// valeur saisie, sans étape "ready" intermédiaire perceptible.
+function isLastStep(step: WizardStep, category: Category): boolean {
+  return step !== 'ready' && nextWizardStep(step, category) === 'ready'
+}
+
 const DAY_MS = 1000 * 60 * 60 * 24
 
 function daysSince(iso: string | null): number | null {
@@ -706,7 +719,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
               onSubmit={(e) => {
                 e.preventDefault()
                 if (wizardStep === 'title' && !title.trim()) return
-                if (wizardStep === 'ready') {
+                if (wizardStep === 'ready' || isLastStep(wizardStep, category)) {
                   addTask()
                 } else {
                   setWizardStep(nextWizardStep(wizardStep, category))
@@ -818,13 +831,14 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
               {/* Traite et nomme comme le bouton "Publier" de "Partager ce
                   qui a ete fait" (RealisationsBoard.tsx) -- demande par
                   Nicolas le 05/10/2026 : plus d'icone, meme libelle/etat.
-                  "Valider" sur les étapes intermédiaires, "Publier" sur
-                  la dernière -- un seul bouton affiché à la fois, les
-                  deux soumettent le même <form> (type="submit", voir
+                  "Valider" sur les étapes intermédiaires, "Publier" dès
+                  la dernière valeur à saisir (isLastStep(), voir plus
+                  haut) -- un seul bouton affiché à la fois, les deux
+                  soumettent le même <form> (type="submit", voir
                   onSubmit ci-dessus) donc répondent aussi à la touche
                   Entrée (demande d'Aurélie du 26/10/2026). */}
               <button type="submit" disabled={saving} className={actionPillClass}>
-                {wizardStep === 'ready' ? (saving ? 'Publication...' : 'Publier') : 'Valider'}
+                {wizardStep === 'ready' || isLastStep(wizardStep, category) ? (saving ? 'Publication...' : 'Publier') : 'Valider'}
               </button>
             </form>
 
