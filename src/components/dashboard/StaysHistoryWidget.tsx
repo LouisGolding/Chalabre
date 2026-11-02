@@ -4,14 +4,14 @@ import { useState } from 'react'
 import { cn, formatFrenchDateInput } from '@/lib/utils'
 import { shouldUseWhiteText } from '@/lib/colors'
 import { StayBanner, balancePillOuterClass } from '@/components/dashboard/NextStayCard'
-import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
+import { CSBalancePayButton } from '@/components/payment/CSBalancePayButton'
 
 // Widget "Votre historique" (demandé par Aurélie le 01/11/2026) : sous le
 // widget "Réserver un séjour" de l'onglet Planning, un widget repliable
 // par personne (couleur = color_hue de cette personne, même système que
 // partout ailleurs) listant ses séjours PASSÉS (check_out < aujourd'hui),
-// du plus récent au plus ancien, en lecture seule -- seule la pastille TS
-// de chaque ligne est actionnable (reglement si impayée, "TS PAYÉE" sinon).
+// du plus récent au plus ancien, en lecture seule -- seule la pastille CS
+// de chaque ligne est actionnable (reglement si impayée, "CS PAYÉE" sinon).
 //
 // Un widget par personne, y compris pour chaque enfant sans compte
 // (has_login = false) de la famille nucléaire -- "Historique de <prénom>",
@@ -33,22 +33,22 @@ function compactAmount(amount: number): string {
   return Number.isInteger(amount) ? `${amount}` : amount.toFixed(2).replace('.', ',')
 }
 
-// Pastille TS d'une ligne d'historique : montant restant (rouge,
+// Pastille CS d'une ligne d'historique : montant restant (rouge,
 // cliquable -- ouvre le paiement, même mécanisme que partout ailleurs)
-// si impayé, sinon "TS PAYÉE" en lecture seule (pas de bouton, pas de
+// si impayé, sinon "CS PAYÉE" en lecture seule (pas de bouton, pas de
 // clic) -- demande explicite d'Aurélie pour ce widget précisément.
-function HistoryTsPill({ pending, ids, darkBg }: { pending: number; ids: string[]; darkBg: boolean }) {
+function HistoryCsPill({ pending, ids, darkBg }: { pending: number; ids: string[]; darkBg: boolean }) {
   const outerClass = cn(balancePillOuterClass, darkBg && 'border-white/40')
   if (pending > 0 && ids.length > 0) {
     return (
-      <TSBalancePayButton ids={ids} className={outerClass}>
+      <CSBalancePayButton ids={ids} className={outerClass}>
         <span className="font-extrabold text-red-600">-{compactAmount(pending)}€</span>
-      </TSBalancePayButton>
+      </CSBalancePayButton>
     )
   }
   return (
     <span className={outerClass}>
-      <span className={cn('font-semibold', darkBg ? 'text-white' : 'text-foreground/60')}>TS PAYÉE</span>
+      <span className={cn('font-semibold', darkBg ? 'text-white' : 'text-foreground/60')}>CS PAYÉE</span>
     </span>
   )
 }
@@ -65,7 +65,7 @@ export function StaysHistoryWidget({
   const [isOpen, setIsOpen] = useState(false)
   const darkBg = shouldUseWhiteText(personColor)
   // Pastille repliée : juste le nombre de séjours, pas de montant agrégé
-  // (le solde global existe déjà par ailleurs -- "TS: X€" sur le widget
+  // (le solde global existe déjà par ailleurs -- "CS: X€" sur le widget
   // "Réserver un séjour") -- évite de dupliquer un total qui pourrait
   // sembler contredire l'autre si lu trop vite.
   const closedPill = (
@@ -90,7 +90,7 @@ export function StaysHistoryWidget({
               >
                 Du {formatFrenchDateInput(s.checkIn)} au {formatFrenchDateInput(s.checkOut)}
               </span>
-              <HistoryTsPill pending={s.pending} ids={s.ids} darkBg={darkBg} />
+              <HistoryCsPill pending={s.pending} ids={s.ids} darkBg={darkBg} />
             </div>
           ))}
         </div>

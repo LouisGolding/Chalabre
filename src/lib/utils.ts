@@ -56,8 +56,8 @@ export function getSeason(date: Date): 'summer' | 'winter' {
   return 'summer'
 }
 
-// TS rate calculation
-export function calculateTSRate(date: Date, age: number, withParents: boolean): number {
+// CS rate calculation
+export function calculateCSRate(date: Date, age: number, withParents: boolean): number {
   const season = getSeason(date)
 
   if (season === 'summer') {
@@ -71,7 +71,7 @@ export function calculateTSRate(date: Date, age: number, withParents: boolean): 
   }
 }
 
-export function calculateTotalTS(
+export function calculateTotalCS(
   checkIn: Date,
   checkOut: Date,
   age: number,
@@ -80,7 +80,7 @@ export function calculateTotalTS(
   let total = 0
   const current = new Date(checkIn)
   while (current < checkOut) {
-    total += calculateTSRate(current, age, withParents)
+    total += calculateCSRate(current, age, withParents)
     current.setDate(current.getDate() + 1)
   }
   return total
@@ -166,7 +166,7 @@ export function properCase(value: string): string {
 // Certains champs de saisie (ex. "Nom Prénom" d'un accompagnant, voir
 // StayEntry dans NextStayCard.tsx) peuvent contenir un nom de famille,
 // mais celui-ci ne doit jamais s'afficher ailleurs sur le site (planning,
-// pastilles de solde TS...) — seul le prénom, comme pour les titulaires de
+// pastilles de solde CS...) — seul le prénom, comme pour les titulaires de
 // compte (profile.first_name). On ne garde donc que le premier mot saisi,
 // toujours affiché en casse normalisée (voir properCase ci-dessus).
 export function firstNameOnly(fullName: string): string {
@@ -212,36 +212,36 @@ export function stayPhase(checkIn: string, checkOut: string, today: Date = new D
 // ensureGuestColor dans /api/bookings/quick : Nicolas a confirmé qu'une
 // correspondance exacte du nom complet suffit, le nom et prénom complets
 // étant toujours saisis (pas de risque réel d'homonymie). Réutilisée ici
-// pour relier le solde TS d'un accompagnant (guest_name en texte libre) à
+// pour relier le solde CS d'un accompagnant (guest_name en texte libre) à
 // son propre compte quand il en a un — demandé par Aurélie le 22/09/2026
-// (voir src/lib/ts-balance.ts).
+// (voir src/lib/cs-balance.ts).
 export function normalizeName(name: string): string {
   return name.trim().toLowerCase()
 }
 
 // Mois sur 3 lettres, toujours dans cet ordre — demandé par Aurélie le
-// 22/09/2026 pour le libellé bancaire des paiements de taxe de séjour
-// (voir buildTsStatementDescriptorSuffix ci-dessous).
+// 22/09/2026 pour le libellé bancaire des paiements de contribution séjour
+// (voir buildCsStatementDescriptorSuffix ci-dessous).
 export const MONTHS_3 = [
   'JAN', 'FEV', 'MAR', 'AVR', 'MAI', 'JUN',
   'JUL', 'AOU', 'SEP', 'OCT', 'NOV', 'DEC',
 ] as const
 
-export interface TsPeriod {
+export interface CsPeriod {
   year: number
   monthIndex: number // 0-11
 }
 
-// Période (année/mois) d'un séjour pour le libellé de paiement de sa taxe
-// de séjour — on prend le DERNIER jour du séjour (check_out), demandé par
-// Aurélie le 22/09/2026 : "TS_PRENOM_ANNEE/MOIS DU DERNIER JOUR DU
+// Période (année/mois) d'un séjour pour le libellé de paiement de sa contribution
+// séjour — on prend le DERNIER jour du séjour (check_out), demandé par
+// Aurélie le 22/09/2026 : "CS_PRENOM_ANNEE/MOIS DU DERNIER JOUR DU
 // SEJOUR".
-export function tsPeriodFromCheckOut(checkOutISO: string): TsPeriod {
+export function csPeriodFromCheckOut(checkOutISO: string): CsPeriod {
   const d = new Date(checkOutISO)
   return { year: d.getUTCFullYear(), monthIndex: d.getUTCMonth() }
 }
 
-// Fin du libellé bancaire d'un règlement de taxe de séjour : le prénom et
+// Fin du libellé bancaire d'un règlement de contribution séjour : le prénom et
 // le mois du dernier jour de chaque séjour, ex. LEA JUN26 (demande
 // d'Aurélie : le libellé affiche le mois du séjour).
 //
@@ -256,7 +256,7 @@ export function tsPeriodFromCheckOut(checkOutISO: string): TsPeriod {
 // (Stripe interdit < > \ ' " *).
 const TS_DESCRIPTOR_SUFFIX_MAX = 10
 
-export function buildTsStatementDescriptorSuffix(firstName: string, periods: TsPeriod[]): string {
+export function buildCsStatementDescriptorSuffix(firstName: string, periods: CsPeriod[]): string {
   const uniqueSorted = Array.from(
     new Map(periods.map((p) => [`${p.year}-${p.monthIndex}`, p])).values()
   ).sort((a, b) => a.year - b.year || a.monthIndex - b.monthIndex)

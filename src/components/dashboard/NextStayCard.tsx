@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { differenceInYears, parseISO } from 'date-fns'
 import {
   actionPillClass,
-  calculateTSRate,
-  calculateTotalTS,
+  calculateCSRate,
+  calculateTotalCS,
   cn,
   firstNameOnly,
   formatCurrency,
@@ -14,10 +14,10 @@ import {
   stayPhase,
   viewTogglePillClass,
 } from '@/lib/utils'
-import { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
-import { TSBalancePayButton } from '@/components/payment/TSBalancePayButton'
+import { FamilyGroup, HouseSide, Profile, CSPayment } from '@/types'
+import { CSBalancePayButton } from '@/components/payment/CSBalancePayButton'
 import { ChevronDown, Minus } from 'lucide-react'
-import type { TsBalanceResult, TsGuestBalance } from '@/lib/ts-balance'
+import type { CsBalanceResult, CsGuestBalance } from '@/lib/cs-balance'
 import { colorForPaletteIndex, coloredTextureStyle, fallbackIndexForName, shouldUseWhiteText } from '@/lib/colors'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
@@ -43,7 +43,7 @@ export interface FamilyMemberOption {
 // saisie a l'inscription deja signalee a Louis pour Virgil Jullien et
 // Mathieu Lalande le 30/10/2026) n'est PAS consideree comme connue : on
 // revient alors au choix manuel 0-16/17+ plutot que d'afficher/calculer
-// un montant de taxe de sejour silencieusement faux.
+// un montant de contribution sejour silencieusement faux.
 function plausibleAgeAt(dobIso: string, refIso: string): number | null {
   const age = differenceInYears(new Date(refIso + 'T00:00:00'), parseISO(dobIso))
   return age >= 0 && age <= 110 ? age : null
@@ -54,8 +54,8 @@ function plausibleAgeAt(dobIso: string, refIso: string): number | null {
 // ensemble) : chaque séjour (le sien, puis un par accompagnant) a
 // désormais sa propre bannière — titre évolutif à gauche selon que le
 // séjour n'existe pas encore / est à venir / est en cours, pastille de
-// solde TS toujours visible à droite (cliquable, lien de paiement groupé
-// — voir TSBalancePayButton) — et ne se déplie qu'au clic sur le titre.
+// solde CS toujours visible à droite (cliquable, lien de paiement groupé
+// — voir CSBalancePayButton) — et ne se déplie qu'au clic sur le titre.
 // Remplace l'ancien enregistrement automatique (debounce à chaque frappe)
 // par un enregistrement explicite ("Valider"/"Modifier"), pour éviter
 // qu'un séjour se retrouve à moitié saisi en base pendant la frappe.
@@ -67,7 +67,7 @@ interface BookingData {
   guest_name?: string | null
   house_side?: HouseSide | null
   notes?: string | null
-  ts_payments?: TSPayment[]
+  cs_payments?: CSPayment[]
   // Couleur de cet occupant (voir src/lib/colors.ts -- depuis le 29/09/2026,
   // color_hue est un index de palette, a lire avec color_family), resolue
   // cote serveur -- sert a colorer le fond de sa banniere ci-dessous.
@@ -98,10 +98,10 @@ interface NextStayCardProps {
   // Séjours déjà saisis pour des accompagnants (bannière "Ajouter un
   // séjour"), le cas échéant.
   guestBookings?: BookingData[]
-  // Solde TS (le sien + un par accompagnant déjà saisi), pour les
+  // Solde CS (le sien + un par accompagnant déjà saisi), pour les
   // pastilles des bannières — voir ReserverSejour.tsx pour le calcul et
   // le rafraîchissement.
-  tsBalance: TsBalanceResult
+  csBalance: CsBalanceResult
   onBookingSaved?: (booking: SavedStayInfo) => void
   onBookingDeleted?: (bookingId: string) => void
   // Séjours déjà validés mais en cours de modification (champs touchés,
@@ -128,7 +128,7 @@ interface NextStayCardProps {
   // Paiement delegue (01/11/2026, cas unique Alexandre -> Guy, voir
   // DelegatedStay plus haut) : un widget en lecture seule par sejour
   // affiche en plus des siens propres, pour que ce compte puisse regler
-  // la taxe de sejour d'un autre a sa place. Absent ou vide => rien
+  // la contribution sejour d'un autre a sa place. Absent ou vide => rien
   // n'est affiche (cas normal, tout le monde sauf Guy).
   delegatedStays?: DelegatedStay[]
 }
@@ -136,14 +136,14 @@ interface NextStayCardProps {
 // Paiement delegue (01/11/2026, demande d'Aurelie : "le sejour
 // d'Alexandre doit apparaitre comme un widget entier sur le tableau de
 // bord de Guy [...] pour que Guy puisse payer a sa place") -- voir
-// profiles.ts_payer_id (supabase/migration_profiles_ts_payer_delegate.sql)
+// profiles.cs_payer_id (supabase/migration_profiles_ts_payer_delegate.sql)
 // et planning/page.tsx pour le calcul cote serveur. Traite comme un cas
 // unique (pas de bascule "famille" generale) : contrairement a
 // FamilyMemberOption plus haut, chaque sejour (passe, en cours ou a
 // venir) d'Alexandre devient ici son propre widget, pas seulement le
 // prochain -- voir DelegatedStayBanner ci-dessous, en LECTURE SEULE (pas
 // d'edition des dates depuis le compte de Guy, seul le reglement de la
-// taxe de sejour est actionnable).
+// contribution sejour est actionnable).
 export interface DelegatedStay {
   ownerFullName: string
   ownerColor: string
@@ -152,15 +152,15 @@ export interface DelegatedStay {
   ids: string[]
 }
 
-function findGuestBucket(tsBalance: TsBalanceResult, fullName: string | null): TsGuestBalance | null {
+function findGuestBucket(csBalance: CsBalanceResult, fullName: string | null): CsGuestBalance | null {
   if (!fullName) return null
   const target = normalizeName(fullName)
-  return tsBalance.guests.find((g) => normalizeName(g.name) === target) ?? null
+  return csBalance.guests.find((g) => normalizeName(g.name) === target) ?? null
 }
 
 // Montant compact ("90" ou "90,50"), sans le formatage de formatCurrency
-// (espace + decimales systematiques) -- meme convention que TaxeSejourPill,
-// pour que "TS : -90€" tienne sur une seule ligne a cote du titre (demande
+// (espace + decimales systematiques) -- meme convention que ContributionSejourPill,
+// pour que "CS : -90€" tienne sur une seule ligne a cote du titre (demande
 // par Nicolas le 29/09/2026, pastille visible widget ferme comme ouvert).
 function compactAmount(amount: number): string {
   return Number.isInteger(amount) ? `${amount}` : amount.toFixed(2).replace('.', ',')
@@ -169,10 +169,10 @@ function soldeLabel(pending: number) {
   return pending > 0 ? `-${compactAmount(pending)}` : compactAmount(0)
 }
 
-// Pastilles de solde ("TS: X€" fermee, "Total taxe de sejour: X€"
+// Pastilles de solde ("CS: X€" fermee, "Total contribution sejour: X€"
 // ouverte) : encadre transparent, typo dans la couleur du widget,
 // majuscules trackees. Jusqu'au 04/10/2026, le survol/clic reprenait le
-// mecanisme de TaxeSejourPill.tsx sur l'accueil (le cadre se remplit de
+// mecanisme de ContributionSejourPill.tsx sur l'accueil (le cadre se remplit de
 // blanc, le texte se decoupe pour laisser deviner la photo de fond fixe
 // de l'accueil) -- mais sur Planning, le fond reel n'est jamais cette
 // photo (c'est le beige canson du widget), donc le survol affichait un
@@ -238,7 +238,7 @@ function BalancePill({
   const content = (
     <>
       <span className={stayPillTextClass(light, darkBg, 'font-semibold')}>
-        TS:
+        CS:
       </span>{' '}
       <StayPillAmount pending={pending} light={light} darkBg={darkBg} />
     </>
@@ -248,13 +248,13 @@ function BalancePill({
     return <span className={outerClass}>{content}</span>
   }
   return (
-    <TSBalancePayButton ids={ids} className={outerClass}>
+    <CSBalancePayButton ids={ids} className={outerClass}>
       {content}
-    </TSBalancePayButton>
+    </CSBalancePayButton>
   )
 }
 
-function TotalTaxeSejourStayPill({
+function TotalContributionSejourStayPill({
   pending,
   ids,
   light,
@@ -265,7 +265,7 @@ function TotalTaxeSejourStayPill({
   ids: string[]
   light: boolean
   darkBg: boolean
-  // "Total taxe de séjour famille :" quand l'option famille est active sur
+  // "Total contribution séjour famille :" quand l'option famille est active sur
   // ce widget (30/10/2026, demande d'Aurélie) -- voir pillLabel dans
   // StayEntry, prop absente ou undefined ailleurs (texte par défaut).
   label?: string
@@ -273,7 +273,7 @@ function TotalTaxeSejourStayPill({
   const inner = (
     <>
       <span className={stayPillTextClass(light, darkBg, 'font-semibold')}>
-        {label ?? 'Total taxe de séjour :'}
+        {label ?? 'Total contribution séjour :'}
       </span>{' '}
       <StayPillAmount pending={pending} light={light} darkBg={darkBg} />
     </>
@@ -283,9 +283,9 @@ function TotalTaxeSejourStayPill({
     return <span className={outerClass}>{inner}</span>
   }
   return (
-    <TSBalancePayButton ids={ids} className={outerClass}>
+    <CSBalancePayButton ids={ids} className={outerClass}>
       {inner}
-    </TSBalancePayButton>
+    </CSBalancePayButton>
   )
 }
 
@@ -349,7 +349,7 @@ export function StayBanner({
         {!isOpen && pill}
       </div>
       {/* Plus de ligne de separation ni de padding haut uniforme : l'espace
-          entre le titre et la pastille "Total taxe de sejour" fait
+          entre le titre et la pastille "Total contribution sejour" fait
           12px (8px de py-2 sur l'entete + 4px de pt-1 ici) -- entete
           reduit de 12px a 8px de hauteur le 30/09/2026 a la demande de
           Nicolas (toutes les bannieres repliees), qui avait initialement
@@ -363,7 +363,7 @@ export function NextStayCard({
   profile,
   booking,
   guestBookings = [],
-  tsBalance,
+  csBalance,
   onBookingSaved,
   onBookingDeleted,
   onHiddenBookingIdsChange,
@@ -405,7 +405,7 @@ export function NextStayCard({
   // Pastilles 0-16/17+ masquees sur la banniere du titulaire quand sa
   // propre date de naissance est connue et plausible (demande d'Aurelie
   // le 02/11/2026 : "pas besoin d'afficher le choix" quand on a deja
-  // l'info pour calculer la taxe de sejour) -- meme garde-fou
+  // l'info pour calculer la contribution sejour) -- meme garde-fou
   // (plausibleAgeAt, bornes 0-110) que pour les membres de la famille
   // plus bas, qui exclut deja naturellement le sentinel 1900-01-01 (age
   // calcule > 110 ans). Calculee par rapport au prochain sejour s'il y en
@@ -424,7 +424,7 @@ export function NextStayCard({
   // dates ont réellement changé (comparées à une signature mémorisée), pour
   // ne jamais remonter -- et donc refermer -- une bannière pour rien à
   // chaque re-rendu. Demandé par Nicolas le 02/10/2026 : "si je réduis la
-  // bande d'Otto ... son widget doit automatiquement changer, sa taxe de
+  // bande d'Otto ... son widget doit automatiquement changer, sa contribution
   // séjour aussi".
   const primarySignatureRef = useRef(`${booking?.id ?? ''}|${booking?.check_in ?? ''}|${booking?.check_out ?? ''}`)
   useEffect(() => {
@@ -552,40 +552,40 @@ export function NextStayCard({
       ? familyMembers.filter((m) => !removedFamilyIds.has(m.id) && !isAlreadyRepresented(m))
       : []
 
-  // Pastille "Total taxe de séjour famille" (30/10/2026) sur le titulaire :
+  // Pastille "Total contribution séjour famille" (30/10/2026) sur le titulaire :
   // son propre solde + celui de chaque membre de la famille actuellement
   // affiché ci-dessous -- ids fusionnés pour régler tout en une seule
-  // session Stripe (voir TSBalancePayButton). undefined quand l'option
+  // session Stripe (voir CSBalancePayButton). undefined quand l'option
   // n'est pas active : StayEntry garde alors son solde habituel.
   const familyPendingOverride = familyOn
-    ? tsBalance.own.pending +
-      activeFamilyMembers.reduce((sum, m) => sum + (findGuestBucket(tsBalance, `${m.first_name} ${m.last_name}`)?.pending ?? 0), 0)
+    ? csBalance.own.pending +
+      activeFamilyMembers.reduce((sum, m) => sum + (findGuestBucket(csBalance, `${m.first_name} ${m.last_name}`)?.pending ?? 0), 0)
     : undefined
   const familyIdsOverride = familyOn
     ? [
-        ...tsBalance.own.items.map((i) => i.id),
-        ...activeFamilyMembers.flatMap((m) => findGuestBucket(tsBalance, `${m.first_name} ${m.last_name}`)?.items.map((i) => i.id) ?? []),
+        ...csBalance.own.items.map((i) => i.id),
+        ...activeFamilyMembers.flatMap((m) => findGuestBucket(csBalance, `${m.first_name} ${m.last_name}`)?.items.map((i) => i.id) ?? []),
       ]
     : undefined
 
   // Correctif du 02/11/2026 (demande de Nicolas : "dans le widget
   // 'votre prochain séjour', on devrait simplement avoir à payer la
-  // taxe de séjour qui correspond à CE séjour, et non le cumul de
-  // toutes les taxes de séjour de nos séjours précédents, puisque mtn
+  // contribution séjour qui correspond à CE séjour, et non le cumul de
+  // toutes les contributions séjour de nos séjours précédents, puisque mtn
   // on a un historique [...] pour le cas des séjours famille, tu peux
   // en faire le cumul, seule exception") : jusqu'ici, pendant/ids de ce
-  // widget reprenaient tsBalance.own en entier -- TOUT ce qui reste dû
+  // widget reprenaient csBalance.own en entier -- TOUT ce qui reste dû
   // sur TOUS les séjours propres du titulaire, passés compris (voir le
-  // grand commentaire de computeTsBalance dans ts-balance.ts, "jamais
+  // grand commentaire de computeCsBalance dans cs-balance.ts, "jamais
   // remis à zéro d'un séjour à l'autre"). Ce cumul-là reste affiché,
   // mais seulement sur la pastille de la page d'accueil (voir
-  // dashboard/page.tsx, TaxeSejourPill) -- ici, on filtre tsBalance.own.items
+  // dashboard/page.tsx, ContributionSejourPill) -- ici, on filtre csBalance.own.items
   // à ceux du SEUL séjour affiché par ce widget (primaryBooking.id, voir
-  // TsBalanceItem.bookingId dans ts-balance.ts). Sans effet quand
+  // CsBalanceItem.bookingId dans cs-balance.ts). Sans effet quand
   // familyOn (familyPendingOverride/idsOverride ci-dessus prennent le
   // relais, cumul volontairement conservé pour ce cas précis).
   const primaryStayItems = primaryBooking
-    ? tsBalance.own.items.filter((i) => i.bookingId === primaryBooking.id)
+    ? csBalance.own.items.filter((i) => i.bookingId === primaryBooking.id)
     : []
   const primaryStayPending = primaryStayItems.reduce((sum, i) => sum + i.amount, 0)
   const primaryStayIds = primaryStayItems.map((i) => i.id)
@@ -610,7 +610,7 @@ export function NextStayCard({
         onDeleted={handlePrimaryDeleted}
         onHiddenChange={(id) => setEntryHidden('primary', id)}
         familyToggle={familyToggleAvailable ? { on: familyOn, onToggle: handleFamilyToggle, disabled: !primaryBooking } : undefined}
-        pillLabel={familyOn ? 'Total taxe de séjour famille :' : 'Payer ici sa taxe de séjour :'}
+        pillLabel={familyOn ? 'Total contribution séjour famille :' : 'Payer ici sa contribution séjour :'}
         pendingOverride={familyPendingOverride}
         idsOverride={familyIdsOverride}
       />
@@ -622,7 +622,7 @@ export function NextStayCard({
           memberFamily,
           typeof m.color_hue === 'number' ? m.color_hue : fallbackIndexForName(fullName)
         )
-        const bucket = findGuestBucket(tsBalance, fullName)
+        const bucket = findGuestBucket(csBalance, fullName)
         const knownAge = m.date_of_birth && primaryBooking ? plausibleAgeAt(m.date_of_birth, primaryBooking.check_in) : null
         return (
           <StayEntry
@@ -672,7 +672,7 @@ export function NextStayCard({
       })}
 
       {guestEntries.map((entry) => {
-        const bucket = findGuestBucket(tsBalance, entry.booking?.guest_name ?? null)
+        const bucket = findGuestBucket(csBalance, entry.booking?.guest_name ?? null)
         const guestFirstName = entry.booking?.guest_name ? firstNameOnly(entry.booking.guest_name) : ''
         // Couleur de cet accompagnant : son index de palette connu (charge
         // au montage, ou renvoye par l'API a l'enregistrement — voir
@@ -744,7 +744,7 @@ export function NextStayCard({
 // meme habillage visuel que StayEntry (StayBanner, pastilles de solde)
 // mais sans aucun champ editable ni bouton Supprimer/Modifier : ce
 // sejour appartient a quelqu'un d'autre (Alexandre), seul le reglement
-// de sa taxe de sejour est a faire depuis ce compte (Guy).
+// de sa contribution sejour est a faire depuis ce compte (Guy).
 function DelegatedStayBanner({ stay }: { stay: DelegatedStay }) {
   const [isOpen, setIsOpen] = useState(false)
   const { booking, ownerFullName, ownerColor, pending, ids } = stay
@@ -757,7 +757,7 @@ function DelegatedStayBanner({ stay }: { stay: DelegatedStay }) {
 
   return (
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={() => setIsOpen((o) => !o)} bgColor={ownerColor}>
-      <TotalTaxeSejourStayPill pending={pending} ids={ids} light darkBg={darkBg} />
+      <TotalContributionSejourStayPill pending={pending} ids={ids} light darkBg={darkBg} />
       <div
         className={cn(
           'flex flex-wrap items-center gap-x-4 gap-y-1 text-xs uppercase tracking-[0.08em] md:text-sm',
@@ -897,18 +897,18 @@ function StayEntry({
 
   const amount = useMemo(() => {
     if (nights <= 0) return 0
-    return calculateTotalTS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
+    return calculateTotalCS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
   }, [checkIn, checkOut, nights, ageBracket])
 
   // Tarif par nuit affiche a cote du total (30/10/2026, demande d'Aurelie :
-  // "10e/nuit" ou "15e/nuit" a cote de la ligne "Taxe de sejour") -- pris
+  // "10e/nuit" ou "15e/nuit" a cote de la ligne "Contribution sejour") -- pris
   // sur la date d'arrivee : les rares sejours qui chevauchent le
   // changement de saison (31 octobre) ont un total exact malgre tout
-  // (calculateTotalTS additionne nuit par nuit), seul ce tarif affiche
+  // (calculateTotalCS additionne nuit par nuit), seul ce tarif affiche
   // suppose une seule saison sur tout le sejour.
   const nightlyRate = useMemo(() => {
     if (nights <= 0 || !checkIn) return 0
-    return calculateTSRate(new Date(checkIn), ageBracket === 'child' ? 10 : 20, true)
+    return calculateCSRate(new Date(checkIn), ageBracket === 'child' ? 10 : 20, true)
   }, [checkIn, nights, ageBracket])
 
   const hasSavedBooking = bookingId !== null
@@ -1070,7 +1070,7 @@ function StayEntry({
 
   return (
     <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
-      <TotalTaxeSejourStayPill
+      <TotalContributionSejourStayPill
         pending={pendingOverride ?? pending}
         ids={idsOverride ?? ids}
         light={light}
@@ -1098,7 +1098,7 @@ function StayEntry({
 
       {/* Disposition/typo du contenu deplie alignees sur le visuel envoye par
           Nicolas le 29/09/2026 : libelles courts en majuscules + tracking
-          (meme langage que les pastilles "TOTAL TAXE DE SEJOUR"/"Aujourd'hui"
+          (meme langage que les pastilles "TOTAL CONTRIBUTION SEJOUR"/"Aujourd'hui"
           de l'accueil), valeurs en ultra gras, plus de boutons a fond plein
           pour l'age/l'aile -- de simples libelles textuels, gras si
           selectionnes. */}
@@ -1262,7 +1262,7 @@ function StayEntry({
 
       {nights > 0 && (
         // Ligne simplifiee le 02/11/2026 (demande d'Aurelie) : plus de
-        // prefixe "Taxe de sejour :", on affiche directement
+        // prefixe "Contribution sejour :", on affiche directement
         // "8 nuits : 85€ (10€/nuit)".
         <div
           className={cn(

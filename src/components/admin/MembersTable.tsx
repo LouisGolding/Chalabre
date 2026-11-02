@@ -38,14 +38,14 @@ export interface MemberRow {
   // comptes reels, au cas ou elle manque.
   dateOfBirth: string | null
   createdAt: string | null
-  // Totaux TS de l'année en cours (voir admin/page.tsx) -- fusionnés
+  // Totaux CS de l'année en cours (voir admin/page.tsx) -- fusionnés
   // dans ce tableau depuis l'ancien tableau "Soldes par membre" de
   // l'onglet "Suivi paiements", demandé par Nicolas le 07/10/2026.
-  // tsTotalYear = toutes les taxes de séjour de l'année en cours
-  // (payées ou non), tsPaidYear = celles déjà payées. "Reste dû" est
-  // recalculé à l'affichage (tsTotalYear - tsPaidYear), pas stocké.
-  tsTotalYear: number
-  tsPaidYear: number
+  // csTotalYear = toutes les contributions séjour de l'année en cours
+  // (payées ou non), csPaidYear = celles déjà payées. "Reste dû" est
+  // recalculé à l'affichage (csTotalYear - csPaidYear), pas stocké.
+  csTotalYear: number
+  csPaidYear: number
   // Ordre par défaut du tableau (02/11/2026, demande de Nicolas :
   // "classer dans l'ordre où je te les ai donnés, c'est l'ordre de
   // l'arbre généalogique") -- profiles.family_tree_order, voir la
@@ -82,20 +82,20 @@ function roleLabel(role: MemberRow['role']): string {
 }
 
 // Reste dû de l'année en cours -- jamais stocké, toujours recalculé à
-// l'affichage à partir de tsTotalYear/tsPaidYear (même logique que les
+// l'affichage à partir de csTotalYear/csPaidYear (même logique que les
 // tâches récurrentes de l'onglet Entretien, point 18 de
 // points-a-regler-avec-louis.md : recalcul au chargement, pas de valeur
 // figée en base).
 function remainingOf(row: MemberRow): number {
-  return row.tsTotalYear - row.tsPaidYear
+  return row.csTotalYear - row.csPaidYear
 }
 
-type SortKey = 'treeOrder' | 'lastName' | 'firstName' | 'role' | 'tsTotalYear' | 'tsPaidYear' | 'remaining' | 'email' | 'dateOfBirth' | 'createdAt'
+type SortKey = 'treeOrder' | 'lastName' | 'firstName' | 'role' | 'csTotalYear' | 'csPaidYear' | 'remaining' | 'email' | 'dateOfBirth' | 'createdAt'
 type SortDir = 'asc' | 'desc'
 
 // Colonnes numériques (alignées à droite, triées par valeur et non par
 // texte) -- voir sortValue et le rendu des <td> plus bas.
-const NUMERIC_KEYS: SortKey[] = ['tsTotalYear', 'tsPaidYear', 'remaining']
+const NUMERIC_KEYS: SortKey[] = ['csTotalYear', 'csPaidYear', 'remaining']
 
 function sortValue(row: MemberRow, key: SortKey): string | number {
   switch (key) {
@@ -109,10 +109,10 @@ function sortValue(row: MemberRow, key: SortKey): string | number {
       return row.firstName
     case 'role':
       return roleLabel(row.role)
-    case 'tsTotalYear':
-      return row.tsTotalYear
-    case 'tsPaidYear':
-      return row.tsPaidYear
+    case 'csTotalYear':
+      return row.csTotalYear
+    case 'csPaidYear':
+      return row.csPaidYear
     case 'remaining':
       return remainingOf(row)
     case 'email':
@@ -206,7 +206,7 @@ function EditableDob({
 // l'ancien tableau "Soldes par membre" de l'onglet "Suivi paiements"
 // (voir admin/paiements/page.tsx). Nouvel ordre des colonnes : Nom (en
 // MAJUSCULES désormais), Prénom (inchangé, minuscules), Autorisations,
-// Total TS <année en cours>, Payé, Reste dû, Email, Créé le.
+// Total CS <année en cours>, Payé, Reste dû, Email, Créé le.
 export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
   const [rows, setRows] = useState(initialRows)
   // Tri par défaut (02/11/2026, demande de Nicolas) : l'ordre de l'arbre
@@ -218,9 +218,9 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [pending, setPending] = useState<string | null>(null)
 
-  // "Total TS <année>" -- 2 derniers chiffres de l'année en cours,
+  // "Total CS <année>" -- 2 derniers chiffres de l'année en cours,
   // recalculés à chaque affichage (jamais figés en base) : le libellé
-  // passera donc automatiquement de "Total TS 26" à "Total TS 27" le
+  // passera donc automatiquement de "Total CS 26" à "Total CS 27" le
   // 1er janvier 2027, comme demandé par Nicolas.
   const yearSuffix = String(new Date().getFullYear()).slice(-2)
 
@@ -228,8 +228,8 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
     { key: 'lastName', label: 'Nom' },
     { key: 'firstName', label: 'Prénom' },
     { key: 'role', label: 'Autorisations' },
-    { key: 'tsTotalYear', label: `Total TS ${yearSuffix}` },
-    { key: 'tsPaidYear', label: 'Payé' },
+    { key: 'csTotalYear', label: `Total CS ${yearSuffix}` },
+    { key: 'csPaidYear', label: 'Payé' },
     { key: 'remaining', label: 'Reste dû' },
     { key: 'email', label: 'Email' },
     { key: 'dateOfBirth', label: 'Date de naissance' },
@@ -343,8 +343,8 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
                     </button>
                   )}
                 </td>
-                <td className="px-3 py-2.5 text-right text-foreground">{formatCurrency(row.tsTotalYear)}</td>
-                <td className="px-3 py-2.5 text-right text-green-600">{formatCurrency(row.tsPaidYear)}</td>
+                <td className="px-3 py-2.5 text-right text-foreground">{formatCurrency(row.csTotalYear)}</td>
+                <td className="px-3 py-2.5 text-right text-green-600">{formatCurrency(row.csPaidYear)}</td>
                 <td className={`px-3 py-2.5 text-right font-semibold ${remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>
                   {formatCurrency(remaining)}
                 </td>

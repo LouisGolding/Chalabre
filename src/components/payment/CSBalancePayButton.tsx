@@ -4,22 +4,22 @@ import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-interface TSBalancePayButtonProps {
-  // Un ou plusieurs ts_payments réglés en une seule session Stripe — tout
+interface CSBalancePayButtonProps {
+  // Un ou plusieurs cs_payments réglés en une seule session Stripe — tout
   // ce qu'une personne doit, payé d'un coup (demandé par Aurélie le
   // 22/09/2026, voir /api/stripe/checkout/route.ts et
-  // src/lib/ts-balance.ts).
+  // src/lib/cs-balance.ts).
   ids: string[]
   children: React.ReactNode
   className?: string
 }
 
-// Pastille de solde TS (ReserverSejour.tsx) rendue cliquable : un
+// Pastille de solde CS (ReserverSejour.tsx) rendue cliquable : un
 // récapitulatif ET un lien de paiement, comme la pastille "Payer X€"
 // existante (voir PayButton.tsx) — mais pour la totalité de ce qu'une
 // personne doit (potentiellement plusieurs séjours), pas un seul paiement
 // à la fois.
-export function TSBalancePayButton({ ids, children, className }: TSBalancePayButtonProps) {
+export function CSBalancePayButton({ ids, children, className }: CSBalancePayButtonProps) {
   const [loading, setLoading] = useState(false)
 
   const handlePay = async () => {
@@ -29,7 +29,7 @@ export function TSBalancePayButton({ ids, children, className }: TSBalancePayBut
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'ts', ids }),
+        body: JSON.stringify({ type: 'cs', ids }),
       })
       // Avant le 09/10/2026, une erreur ici (réponse HTTP d'erreur, ou
       // même une page d'erreur HTML renvoyée par le serveur au lieu de

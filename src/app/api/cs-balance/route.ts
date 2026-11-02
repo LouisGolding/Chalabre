@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { computeTsBalance } from '@/lib/ts-balance'
+import { computeCsBalance } from '@/lib/cs-balance'
 
-// Solde de taxe de séjour en attente pour le compte connecté, réparti
-// entre son propre solde ("Votre solde TS" — le sien, plus celui de tout
-// séjour saisi ailleurs sous son nom, voir computeTsBalance) et un solde
-// par accompagnant pour lequel ce compte a saisi un séjour ("TS -
+// Solde de contribution séjour en attente pour le compte connecté, réparti
+// entre son propre solde ("Votre solde CS" — le sien, plus celui de tout
+// séjour saisi ailleurs sous son nom, voir computeCsBalance) et un solde
+// par accompagnant pour lequel ce compte a saisi un séjour ("CS -
 // <prénom>") — demandé par Aurélie le 21 puis 22/09/2026. Utilisé pour
 // rafraîchir instantanément les pastilles de l'onglet Planning dès qu'un
 // séjour y est enregistré, supprimé ou réglé (voir ReserverSejour.tsx),
@@ -18,6 +18,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
   }
 
-  const balance = await computeTsBalance(supabase, user.id)
+  const balance = await computeCsBalance(supabase, user.id)
   return NextResponse.json(balance)
 }

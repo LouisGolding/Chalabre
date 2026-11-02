@@ -11,10 +11,10 @@ import { IncidentsHistory, IncidentRow } from '@/components/admin/IncidentsHisto
 import { TutorialViewsHistory, TutorialViewRow } from '@/components/admin/TutorialViewsHistory'
 import { PendingRegistrations, PendingRegistrationRow } from '@/components/admin/PendingRegistrations'
 
-// Forme d'un paiement TS imbriqué dans une ligne `bookings` (voir la
+// Forme d'un paiement CS imbriqué dans une ligne `bookings` (voir la
 // requête bookingsRaw plus bas) -- pas de typage Supabase genere dans ce
 // projet, donc type explicite plutot qu'un `any`.
-type NestedTsPayment = {
+type NestedCsPayment = {
   amount: number
   status: string
   paid_at: string | null
@@ -28,11 +28,11 @@ type BookingRow = {
   check_out: string
   guest_name: string | null
   profiles: { first_name: string; last_name: string; family_group: string } | null
-  ts_payments: NestedTsPayment[]
+  cs_payments: NestedCsPayment[]
 }
 
 // Priorité d'affichage du statut agrégé d'un séjour quand il a plusieurs
-// ts_payments (ex. un paiement déjà réglé + un second "en attente" pour
+// cs_payments (ex. un paiement déjà réglé + un second "en attente" pour
 // le solde restant après modification des dates, voir le commentaire en
 // tête de api/bookings/quick/route.ts) : le cas le moins favorable
 // l'emporte, pour que "Statut" alerte toujours sur ce qu'il reste à
@@ -40,7 +40,7 @@ type BookingRow = {
 // payé.
 const STATUS_PRIORITY: StayRow['status'][] = ['overdue', 'pending', 'paid']
 
-function aggregateStatus(payments: NestedTsPayment[]): StayRow['status'] {
+function aggregateStatus(payments: NestedCsPayment[]): StayRow['status'] {
   if (payments.length === 0) return 'none'
   for (const status of STATUS_PRIORITY) {
     if (payments.some((p) => p.status === status)) return status
@@ -65,19 +65,19 @@ function aggregateStatus(payments: NestedTsPayment[]): StayRow['status'] {
 //
 // Fusion du 07/10/2026, demandée par Nicolas :
 // - Chacun des 3 tableaux (MembersTable) affiche désormais aussi les
-//   totaux de taxe de séjour de l'année en cours par membre (colonnes
-//   "Total TS <année>" / "Payé" / "Reste dû") — anciennement le tableau
+//   totaux de contribution séjour de l'année en cours par membre (colonnes
+//   "Total CS <année>" / "Payé" / "Reste dû") — anciennement le tableau
 //   séparé "Soldes par membre" de l'onglet "Suivi paiements".
 // - Le tableau "Listes des séjours" (déplacé lui aussi depuis "Suivi
 //   paiements") est affiché en dernier sur cette page.
 //
 // Refonte du 07/10/2026 (même jour), demandée par Nicolas : "Listes des
 // séjours" doit être "un historique de chaque séjour enregistré" — pas
-// seulement ceux ayant un ts_payment. La requête part donc maintenant de
-// `bookings` (avec ts_payments imbriqués) plutôt que de `ts_payments`
-// elle-même : un séjour sans aucune taxe de séjour due (aucun ts_payment,
+// seulement ceux ayant un cs_payment. La requête part donc maintenant de
+// `bookings` (avec cs_payments imbriqués) plutôt que de `cs_payments`
+// elle-même : un séjour sans aucune contribution séjour due (aucun cs_payment,
 // ex. montant saisi à 0) apparaît désormais aussi, avec le statut "Aucune
-// TS due" (voir StaysHistory.tsx). Conséquence directe et vérifiée : un
+// CS due" (voir StaysHistory.tsx). Conséquence directe et vérifiée : un
 // séjour supprimé (DELETE /api/bookings/quick) disparaît de cette liste
 // dès le prochain chargement de page, puisqu'il ne vit plus dans
 // `bookings` — sans dépendre d'une suppression en cascade sur une autre
@@ -99,7 +99,7 @@ export default async function AdminPage() {
   // Membres") : les 2 requêtes ci-dessous ne dépendent ni l'une de
   // l'autre ni du résultat de l'autre -- parties en parallèle plutôt
   // qu'en série. La seconde est en plus désormais filtrée à l'année en
-  // cours : elle ne sert qu'à calculer tsByUser (totaux de l'année),
+  // cours : elle ne sert qu'à calculer csByUser (totaux de l'année),
   // inutile de faire remonter tout l'historique des séjours pour ça --
   // seule stayRows, plus bas, a besoin de l'historique complet (et
   // alimente un widget replié par défaut depuis le 26/10/2026, voir
@@ -108,21 +108,21 @@ export default async function AdminPage() {
     supabase.from('profiles').select('*').order('last_name'),
     supabase
       .from('bookings')
-      // guest_name ajouté le 27/10/2026 (voir tsByGuest plus bas, demande
+      // guest_name ajouté le 27/10/2026 (voir csByGuest plus bas, demande
       // d'Aurélie : "les lignes de paiements soient claires pour tout le
       // monde") -- distinguer le séjour propre du titulaire de celui d'un
       // accompagnant sans compte. age_bracket ajouté le même jour (voir
       // rectification plus bas : seuls les enfants obtiennent leur propre
       // ligne "invité").
-      .select('user_id, guest_name, age_bracket, ts_payments(amount, status)')
+      .select('user_id, guest_name, age_bracket, cs_payments(amount, status)')
       .gte('check_in', currentYearStart)
       .lt('check_in', nextYearStart),
-    // Un séjour = une ligne (avec ses paiements TS imbriqués, 0 à N) --
+    // Un séjour = une ligne (avec ses paiements CS imbriqués, 0 à N) --
     // sert à afficher "Listes des séjours" en bas de page (tout
     // l'historique, voir StaysHistory.tsx).
     supabase
       .from('bookings')
-      .select('id, user_id, check_in, check_out, guest_name, profiles(first_name, last_name, family_group), ts_payments(amount, status, paid_at, stripe_payment_intent_id)')
+      .select('id, user_id, check_in, check_out, guest_name, profiles(first_name, last_name, family_group), cs_payments(amount, status, paid_at, stripe_payment_intent_id)')
       .order('check_in', { ascending: false }),
     // Nouveau widget "Historique des pannes" (26/10/2026, demande
     // d'Aurélie) -- voir IncidentsHistory.tsx. Table déjà en place
@@ -137,7 +137,7 @@ export default async function AdminPage() {
   const incidentRows: IncidentRow[] = (incidentsRaw ?? []).map((i) => ({ category: i.category, zoneLabel: i.zone_label }))
   const tutorialViewRows: TutorialViewRow[] = (tutorialViewsRaw ?? []).map((v) => ({ chapterId: v.chapter_id, event: v.event as 'start' | 'end' }))
 
-  // Totaux TS par membre, année en cours uniquement (année du check-in du
+  // Totaux CS par membre, année en cours uniquement (année du check-in du
   // séjour, pas de la date de paiement) -- recalculé à chaque chargement
   // de page, jamais stocké (même principe que les tâches récurrentes de
   // l'onglet Entretien, point 18 de points-a-regler-avec-louis.md).
@@ -145,7 +145,7 @@ export default async function AdminPage() {
   // Rectification du 27/10/2026 (demande d'Aurélie, cohérence des lignes
   // de paiement) : un séjour D'ACCOMPAGNANT sans compte (ex. Otto, saisi
   // par Nicolas) n'est plus mélangé au total du compte qui l'a saisi --
-  // il va dans tsByGuest ci-dessous et ressort sur sa PROPRE ligne dans
+  // il va dans csByGuest ci-dessous et ressort sur sa PROPRE ligne dans
   // le tableau (voir toRows plus bas), même si c'est toujours payable
   // depuis le compte d'un parent (voir /api/stripe/checkout, inchangé).
   //
@@ -158,7 +158,7 @@ export default async function AdminPage() {
   //    compte lui-même qui a saisi son propre séjour via le champ
   //    "accompagnant" (ex. Aurélie se saisissant elle-même comme
   //    "Aurelie", ou Guillaume comme "Guillaume") : fusionné dans
-  //    tsByUser de ce compte plutôt que de créer une ligne fantôme en
+  //    csByUser de ce compte plutôt que de créer une ligne fantôme en
   //    double.
   // 2/ "ne rajoute que des lignes pour les enfants" : un accompagnant
   //    sans compte ET sans homonyme (ex. Eva, l'épouse de Guillaume, qui
@@ -176,34 +176,34 @@ export default async function AdminPage() {
     firstName: p.first_name,
   }))
 
-  const tsByUser = new Map<string, { total: number; paid: number }>()
-  const tsByGuest = new Map<string, { guestName: string; familyGroup: string; lastName: string; total: number; paid: number }>()
+  const csByUser = new Map<string, { total: number; paid: number }>()
+  const csByGuest = new Map<string, { guestName: string; familyGroup: string; lastName: string; total: number; paid: number }>()
   for (const b of currentYearBookingsRaw ?? []) {
-    if (b.ts_payments.length === 0) continue
+    if (b.cs_payments.length === 0) continue
     const guestName = b.guest_name?.trim()
     if (!guestName) {
-      const agg = tsByUser.get(b.user_id) ?? { total: 0, paid: 0 }
-      for (const p of b.ts_payments) {
+      const agg = csByUser.get(b.user_id) ?? { total: 0, paid: 0 }
+      for (const p of b.cs_payments) {
         agg.total += Number(p.amount)
         if (p.status === 'paid') agg.paid += Number(p.amount)
       }
-      tsByUser.set(b.user_id, agg)
+      csByUser.set(b.user_id, agg)
       continue
     }
     // Cas 1/ ci-dessus : homonyme d'un compte existant -- fusionné dans
-    // ce compte, jamais dans tsByGuest.
+    // ce compte, jamais dans csByGuest.
     const homonymIndex = findClosestNameMatch(
       guestName,
       profileIdByFirstName.map((p) => p.firstName)
     )
     if (homonymIndex !== -1) {
       const matchedId = profileIdByFirstName[homonymIndex].id
-      const agg = tsByUser.get(matchedId) ?? { total: 0, paid: 0 }
-      for (const p of b.ts_payments) {
+      const agg = csByUser.get(matchedId) ?? { total: 0, paid: 0 }
+      for (const p of b.cs_payments) {
         agg.total += Number(p.amount)
         if (p.status === 'paid') agg.paid += Number(p.amount)
       }
-      tsByUser.set(matchedId, agg)
+      csByUser.set(matchedId, agg)
       continue
     }
     // Cas 2/ ci-dessus : pas de compte correspondant -- seuls les
@@ -213,17 +213,17 @@ export default async function AdminPage() {
     if (b.age_bracket !== 'child') continue
     // Regroupé par (famille du titulaire qui a saisi + nom exact de
     // l'accompagnant) -- même convention de regroupement que les
-    // pastilles "TS - <prénom>" du Planning (voir computeTsBalance dans
-    // src/lib/ts-balance.ts) : par texte exact du guest_name, jamais
+    // pastilles "CS - <prénom>" du Planning (voir computeCsBalance dans
+    // src/lib/cs-balance.ts) : par texte exact du guest_name, jamais
     // dédoublonné avec une autre orthographe du même nom.
     const familyGroup = familyGroupById.get(b.user_id) ?? 'friend'
     const key = `${familyGroup}::${guestName}`
-    const agg = tsByGuest.get(key) ?? { guestName, familyGroup, lastName: lastNameById.get(b.user_id) ?? '', total: 0, paid: 0 }
-    for (const p of b.ts_payments) {
+    const agg = csByGuest.get(key) ?? { guestName, familyGroup, lastName: lastNameById.get(b.user_id) ?? '', total: 0, paid: 0 }
+    for (const p of b.cs_payments) {
       agg.total += Number(p.amount)
       if (p.status === 'paid') agg.paid += Number(p.amount)
     }
-    tsByGuest.set(key, agg)
+    csByGuest.set(key, agg)
   }
 
   // Inscriptions en attente de validation (27/10/2026, voir
@@ -251,7 +251,7 @@ export default async function AdminPage() {
       // dans ce cas, seulement sur 'pending'/'rejected' explicites.
       .filter((p) => p.family_group === familyGroup && p.status !== 'pending' && p.status !== 'rejected')
       .map((p) => {
-        const ts = tsByUser.get(p.id) ?? { total: 0, paid: 0 }
+        const ts = csByUser.get(p.id) ?? { total: 0, paid: 0 }
         return {
           id: p.id,
           // Casse normalisee (demande par Aurelie le 26/10/2026) : voir
@@ -271,8 +271,8 @@ export default async function AdminPage() {
           // 30/10/2026) vs vrai compte -- voir MemberRow.hasLogin dans
           // MembersTable.tsx pour pourquoi (02/11/2026, demande d'Aurélie).
           hasLogin: p.has_login,
-          tsTotalYear: ts.total,
-          tsPaidYear: ts.paid,
+          csTotalYear: ts.total,
+          csPaidYear: ts.paid,
           // Ordre de l'arbre généalogique (02/11/2026, voir MemberRow.treeOrder
           // dans MembersTable.tsx) -- null pour qui n'est pas encore placé.
           treeOrder: p.family_tree_order ?? null,
@@ -284,9 +284,9 @@ export default async function AdminPage() {
     // Planning (firstNameOnly + nom du titulaire qui a saisi, voir
     // occupantDisplayName dans src/lib/utils.ts pour la même convention),
     // sans email/rôle/date de création (role: null -- voir MembersTable,
-    // ça laisse la case "Autorisations" vide) et son propre total TS,
+    // ça laisse la case "Autorisations" vide) et son propre total CS,
     // même si le paiement reste possible depuis le compte d'un parent.
-    const guestRows: MemberRow[] = [...tsByGuest.values()]
+    const guestRows: MemberRow[] = [...csByGuest.values()]
       .filter((g) => g.familyGroup === familyGroup)
       .map((g) => ({
         id: `guest:${familyGroup}:${g.guestName}`,
@@ -297,8 +297,8 @@ export default async function AdminPage() {
         dateOfBirth: null,
         createdAt: null,
         hasLogin: false,
-        tsTotalYear: g.total,
-        tsPaidYear: g.paid,
+        csTotalYear: g.total,
+        csPaidYear: g.paid,
         // Un accompagnant reconstitué depuis un nom de séjour (voir le
         // commentaire juste au-dessus) n'a pas de fiche profiles, donc
         // pas de place connue dans l'arbre -- classé en dernier, comme
@@ -316,12 +316,12 @@ export default async function AdminPage() {
   ]
 
   // Une ligne par séjour pour StaysHistory -- voir aggregateStatus
-  // ci-dessus pour le cas (rare) de plusieurs ts_payments sur un même
+  // ci-dessus pour le cas (rare) de plusieurs cs_payments sur un même
   // séjour. "Payé le" / "Stripe ID" affichent le paiement payé le plus
   // récent s'il y en a un, sinon "—" (voir StaysHistory.tsx).
   const stayRows: StayRow[] = bookings.map((b) => {
-    const amount = b.ts_payments.reduce((sum, p) => sum + Number(p.amount), 0)
-    const lastPaid = b.ts_payments
+    const amount = b.cs_payments.reduce((sum, p) => sum + Number(p.amount), 0)
+    const lastPaid = b.cs_payments
       .filter((p) => p.status === 'paid' && p.paid_at)
       .sort((a, c) => (a.paid_at! < c.paid_at! ? 1 : -1))[0]
     return {
@@ -333,7 +333,7 @@ export default async function AdminPage() {
       checkIn: b.check_in,
       checkOut: b.check_out,
       amount,
-      status: aggregateStatus(b.ts_payments),
+      status: aggregateStatus(b.cs_payments),
       paidAt: lastPaid?.paid_at ?? null,
       stripeId: lastPaid?.stripe_payment_intent_id ?? null,
       year: new Date(b.check_in).getFullYear(),

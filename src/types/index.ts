@@ -1,10 +1,10 @@
 export type UserRole = 'admin' | 'family' | 'friend'
 export type FamilyGroup = 'lalande' | 'canat' | 'friend'
 // Côté de la maison (ou dépendance) où dort la personne pour un séjour
-// donné (jamais 'friend') — détermine sur quel compte bancaire la taxe de
+// donné (jamais 'friend') — détermine sur quel compte bancaire la contribution
 // séjour du séjour est versée. "petite_maison" (demandé par Aurélie le
-// 21/09/2026) : une dépendance distincte de la maison principale — sa taxe
-// de séjour suit le même circuit de paiement que "lalande", pour arriver
+// 21/09/2026) : une dépendance distincte de la maison principale — sa contribution
+// séjour suit le même circuit de paiement que "lalande", pour arriver
 // sur le même compte (aucun routage Stripe par compte n'existe encore dans
 // le code à ce jour — un seul compte Stripe pour tous les paiements, voir
 // src/app/api/stripe/checkout/route.ts — cette règle s'appliquera donc
@@ -55,7 +55,7 @@ export interface Profile {
   // jamais recalcule, ou qui ne correspond a aucune famille nucleaire
   // connue. Sert depuis le 27/10/2026 a partager entre les deux comptes
   // d'un couple les sejours d'accompagnants (enfants) qu'un seul des deux
-  // a saisis -- voir src/lib/ts-balance.ts.
+  // a saisis -- voir src/lib/cs-balance.ts.
   nuclear_family: string | null
 }
 
@@ -80,7 +80,7 @@ export interface Booking {
   profile?: Profile
   room?: Room
   guests?: BookingGuest[]
-  ts_payment?: TSPayment
+  cs_payment?: CSPayment
 }
 
 export interface BookingGuest {
@@ -92,7 +92,7 @@ export interface BookingGuest {
   with_parents: boolean
 }
 
-export interface TSPayment {
+export interface CSPayment {
   id: string
   booking_id: string
   user_id: string
@@ -193,25 +193,25 @@ export interface BudgetStatement {
   created_at: string
 }
 
-// Transaction Stripe réellement encaissée (cotisation mensuelle ou taxe
-// de séjour, statut "paid"), rattachée à un compte Lalande/Canat pour le
+// Transaction Stripe réellement encaissée (cotisation mensuelle ou contribution
+// séjour, statut "paid"), rattachée à un compte Lalande/Canat pour le
 // widget dépliable "Transactions Stripe" de BudgetBoard.tsx (demande de
 // Nicolas, 17/10/2026). Calculée à chaque chargement de page à partir de
-// tm_payments/ts_payments (voir dashboard/budget/page.tsx), jamais
+// tm_payments/cs_payments (voir dashboard/budget/page.tsx), jamais
 // stockée séparément. Le compte vient :
 // - pour une cotisation (tm_payments), de profiles.family_group (le
 //   côté de la maison du cotisant) ;
-// - pour une taxe de séjour (ts_payments), de bookings.house_side (le
+// - pour une contribution séjour (cs_payments), de bookings.house_side (le
 //   côté de la maison OÙ le séjour a eu lieu -- pas forcément celui du
 //   payeur, un invité "friend" pouvant séjourner côté Lalande comme côté
 //   Canat), "petite_maison" étant routé sur le compte Lalande (même
-//   règle que pour la taxe de séjour elle-même, voir
+//   règle que pour la contribution séjour elle-même, voir
 //   migration_house_side_petite_maison.sql).
 // L'encaissement suit la même règle (accountFor, src/lib/stripe.ts).
 export interface BudgetStripeTransaction {
   id: string
   account: 'lalande' | 'canat'
-  kind: 'cotisation' | 'taxe_sejour'
+  kind: 'cotisation' | 'contribution_sejour'
   label: string
   amount: number
   paidAt: string

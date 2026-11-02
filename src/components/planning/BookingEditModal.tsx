@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { differenceInCalendarDays } from 'date-fns'
-import { calculateTotalTS, formatCurrency } from '@/lib/utils'
+import { calculateTotalCS, formatCurrency } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 import type { HouseSide } from '@/types'
@@ -14,7 +14,7 @@ import type { HouseSide } from '@/types'
 // (demandé par Nicolas le 21/09/2026 : "il faut que ce séjour soit
 // modifiable à tout moment même après le séjour").
 //
-// Le montant de la taxe de séjour est toujours recalculé en intégralité
+// Le montant de la contribution séjour est toujours recalculé en intégralité
 // ici à partir des dates et de la tranche d'âge actuellement affichées —
 // jamais additionné à ce qui existait avant l'édition (même logique que
 // StayEntry dans NextStayCard.tsx et que /api/bookings/quick, qui écrase
@@ -25,7 +25,7 @@ export interface EditableBooking {
   check_out: string
   house_side?: HouseSide | null
   label: string
-  // 10 (enfant) ou 20 (adulte) — cf. calculateTotalTS. Déduit par
+  // 10 (enfant) ou 20 (adulte) — cf. calculateTotalCS. Déduit par
   // PlanningView de la date de naissance du titulaire (ou "adulte" par
   // défaut pour un accompagnant, comme dans StayEntry), faute de tranche
   // d'âge mémorisée en base pour un séjour existant.
@@ -56,7 +56,7 @@ export function BookingEditModal({ booking, editable, saving, error, onClose, on
 
   const amount = useMemo(() => {
     if (nights <= 0) return 0
-    return calculateTotalTS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
+    return calculateTotalCS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
   }, [checkIn, checkOut, nights, ageBracket])
 
   const canSubmit = editable && !!checkIn && !!checkOut && nights > 0
@@ -174,7 +174,7 @@ export function BookingEditModal({ booking, editable, saving, error, onClose, on
 
         {nights > 0 && (
           <p className="mt-4 text-sm font-light text-muted-foreground">
-            {nights} nuit{nights > 1 ? 's' : ''} · Taxe de séjour :{' '}
+            {nights} nuit{nights > 1 ? 's' : ''} · Contribution séjour :{' '}
             <span className="font-semibold text-foreground">{formatCurrency(amount)}</span>
           </p>
         )}

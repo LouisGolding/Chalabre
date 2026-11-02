@@ -5,7 +5,7 @@ import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
 import { StaysHistoryWidget } from '@/components/dashboard/StaysHistoryWidget'
 import { colorForName, colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
 import type { FamilyGroup, HouseSide } from '@/types'
-import { computeTsBalance } from '@/lib/ts-balance'
+import { computeCsBalance } from '@/lib/cs-balance'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 import { otherNuclearFamilyMembers } from '@/lib/nuclear-family'
 
@@ -59,14 +59,14 @@ export default async function PlanningPage() {
   // Requêtes indépendantes de ce rendu, lancées en parallèle plutôt que
   // séquentiellement (demandé par Aurélie le 26/10/2026 : "il y a toujours
   // un temps de latence quand on navigue dans le site") — même principe
-  // que dans dashboard/page.tsx et ts-balance.ts.
+  // que dans dashboard/page.tsx et cs-balance.ts.
   const [
     { data: allProfilesForColor },
     { data: guestPeople },
     { data: myBookings },
     { data: bookings },
     { data: events },
-    initialTsBalance,
+    initialCsBalance,
     otherFamilyMembers,
     { data: delegatePayerProfiles },
   ] = await Promise.all([
@@ -88,7 +88,7 @@ export default async function PlanningPage() {
     // le 21/09/2026, demandé par Nicolas).
     supabase
       .from('bookings')
-      .select('*, ts_payments(*)')
+      .select('*, cs_payments(*)')
       .eq('user_id', user.id)
       .order('check_in', { ascending: true }),
     supabase
@@ -99,14 +99,14 @@ export default async function PlanningPage() {
       .from('events')
       .select('*')
       .order('start_date', { ascending: true }),
-    // Solde de taxe de séjour "à la manière d'un solde bancaire" (demandé
-    // par Aurélie le 22/09/2026) : voir computeTsBalance pour le détail —
-    // reparti entre le solde propre du titulaire ("Votre solde TS", y
+    // Solde de contribution séjour "à la manière d'un solde bancaire" (demandé
+    // par Aurélie le 22/09/2026) : voir computeCsBalance pour le détail —
+    // reparti entre le solde propre du titulaire ("Votre solde CS", y
     // compris ses séjours saisis par quelqu'un d'autre sous son nom) et un
-    // solde par accompagnant pour lequel ce compte a saisi un séjour ("TS -
-    // <prénom>"). Rafraîchi ensuite en direct via /api/ts-balance (même
+    // solde par accompagnant pour lequel ce compte a saisi un séjour ("CS -
+    // <prénom>"). Rafraîchi ensuite en direct via /api/cs-balance (même
     // fonction) sans recharger la page.
-    computeTsBalance(supabase, user.id, profile.nuclear_family),
+    computeCsBalance(supabase, user.id, profile.nuclear_family),
     // Familles nucléaires (27/10/2026, demande d'Aurélie : "si un des deux
     // parents rentre le sejour de son enfant, ce sejour apparait aussi sur
     // le profil de l'autre parent") : ids des autres comptes qui partagent
@@ -115,16 +115,16 @@ export default async function PlanningPage() {
     // lancée de front avec le reste du Promise.all.
     otherNuclearFamilyMembers(supabase, user.id, profile.nuclear_family),
     // Paiement délégué (cas unique, 01/11/2026, décision d'Aurélie) :
-    // Alexandre paie souvent sa taxe de séjour en cash à Guy --
-    // profiles.ts_payer_id (voir supabase/migration_profiles_ts_payer_delegate.sql)
-    // marque un compte dont la taxe de séjour doit être réglable depuis
+    // Alexandre paie souvent sa contribution séjour en cash à Guy --
+    // profiles.cs_payer_id (voir supabase/migration_profiles_ts_payer_delegate.sql)
+    // marque un compte dont la contribution séjour doit être réglable depuis
     // un AUTRE compte, désigné ici. Indépendant du reste, lancé de front.
     // Écrit en général (n'importe quel profil pourrait un jour avoir ce
     // champ renseigné), même si pour l'instant seul Alexandre l'a.
     supabase
       .from('profiles')
       .select('id, first_name, last_name, family_group, color_hue')
-      .eq('ts_payer_id', profile.id),
+      .eq('cs_payer_id', profile.id),
   ])
 
   // Séjours d'accompagnants saisis par un AUTRE membre de cette même
@@ -135,7 +135,7 @@ export default async function PlanningPage() {
   // bas.
   const otherFamilyIds = otherFamilyMembers.map((m) => m.id)
   // Voir le commentaire détaillé sur le même correctif dans
-  // src/lib/ts-balance.ts (27/10/2026, signalé par Nicolas : le séjour
+  // src/lib/cs-balance.ts (27/10/2026, signalé par Nicolas : le séjour
   // d'Aurélie, auto-étiqueté juste "Aurelie" -- prénom seul -- restait
   // visible sur son profil, faute de correspondance avec "Aurélie Fouré").
   // Prénom seul ET prénom+nom proposés comme candidats, les deux graphies
@@ -147,18 +147,18 @@ export default async function PlanningPage() {
     otherFamilyIds.length > 0
       ? await supabase
           .from('bookings')
-          .select('*, ts_payments(*)')
+          .select('*, cs_payments(*)')
           .in('user_id', otherFamilyIds)
           .not('guest_name', 'is', null)
       : { data: [] as typeof myBookings }
 
   // Tous les séjours (passés, en cours ou à venir -- pas de filtre de
   // date, à la différence de myFutureBookings plus bas) de chaque compte
-  // qui délègue le paiement de sa taxe de séjour à CE titulaire (voir
+  // qui délègue le paiement de sa contribution séjour à CE titulaire (voir
   // delegatePayerProfiles plus haut) -- un widget entier par séjour,
   // "comme si c'était un de ses propres séjours" (demande d'Aurélie),
   // affiché en lecture seule (voir DelegatedStayBanner dans
-  // NextStayCard.tsx) : seul le règlement de la taxe de séjour est
+  // NextStayCard.tsx) : seul le règlement de la contribution séjour est
   // actionnable, pas d'édition des dates d'Alexandre depuis le compte de
   // Guy.
   const delegatePayerIds = (delegatePayerProfiles ?? []).map((p) => p.id)
@@ -170,7 +170,7 @@ export default async function PlanningPage() {
     house_side: HouseSide | null
     notes: string | null
     guest_name: string | null
-    ts_payments: { id: string; amount: number; status: string }[] | null
+    cs_payments: { id: string; amount: number; status: string }[] | null
   }
   const delegateNameCandidatesById = new Map(
     (delegatePayerProfiles ?? []).map((p) => [p.id, [p.first_name, `${p.first_name} ${p.last_name}`]])
@@ -183,7 +183,7 @@ export default async function PlanningPage() {
   // le cas où Alexandre se serait réservé lui-même -- jamais celui qui
   // se produit réellement. On cherche désormais aussi, parmi TOUS les
   // séjours du site portant un guest_name (même principe que
-  // otherBookings dans ts-balance.ts), ceux dont le nom correspond
+  // otherBookings dans cs-balance.ts), ceux dont le nom correspond
   // (tolérant aux fautes de frappe) à un compte qui délègue son paiement
   // à CE titulaire -- peu importe qui les a saisis.
   const [{ data: delegateOwnBookingsRaw }, { data: delegateGuestBookingsRaw }] =
@@ -191,12 +191,12 @@ export default async function PlanningPage() {
       ? await Promise.all([
           supabase
             .from('bookings')
-            .select('id, user_id, check_in, check_out, house_side, notes, guest_name, ts_payments(id, amount, status)')
+            .select('id, user_id, check_in, check_out, house_side, notes, guest_name, cs_payments(id, amount, status)')
             .in('user_id', delegatePayerIds)
             .order('check_in', { ascending: true }),
           supabase
             .from('bookings')
-            .select('id, user_id, check_in, check_out, house_side, notes, guest_name, ts_payments(id, amount, status)')
+            .select('id, user_id, check_in, check_out, house_side, notes, guest_name, cs_payments(id, amount, status)')
             .not('guest_name', 'is', null)
             .order('check_in', { ascending: true }),
         ])
@@ -226,7 +226,7 @@ export default async function PlanningPage() {
     if (!owner) return []
     const ownerFamily = (owner.family_group as FamilyGroup | null) ?? 'friend'
     const ownerIndex = typeof owner.color_hue === 'number' ? owner.color_hue : fallbackIndexForName(`${owner.first_name} ${owner.last_name}`)
-    const payments = b.ts_payments ?? []
+    const payments = b.cs_payments ?? []
     const unpaid = payments.filter((p) => p.status !== 'paid')
     return [
       {
@@ -283,7 +283,7 @@ export default async function PlanningPage() {
   const myFutureBookings = (myBookings ?? []).filter((b) => b.check_out >= todayISOForReserver)
   // Candidats de correspondance pour "c'est en réalité SON PROPRE
   // séjour" -- même tolérance (accents/fautes de frappe) que partout
-  // ailleurs (ts-balance.ts, checkout/route.ts, dashboard/page.tsx).
+  // ailleurs (cs-balance.ts, checkout/route.ts, dashboard/page.tsx).
   // Remonté ici (avant myOwnBookings) depuis sa place d'origine plus bas,
   // pour pouvoir aussi s'en servir dans le calcul de myOwnBookings.
   const myNameCandidatesForFamily = [profile.first_name, `${profile.first_name} ${profile.last_name}`]
@@ -311,12 +311,12 @@ export default async function PlanningPage() {
   // membre de la famille nucléaire plutôt que par le titulaire lui-même
   // (voir familyGuestBookings et le commentaire qui l'accompagne plus
   // haut). Exclus (27/10/2026, rectification d'Aurélie, même règle que
-  // src/lib/ts-balance.ts) : ceux dont le nom correspond en réalité au
+  // src/lib/cs-balance.ts) : ceux dont le nom correspond en réalité au
   // titulaire DU COMPTE QUI L'A SAISI (son propre séjour, étiqueté par
   // erreur avec un guest_name -- jamais un "accompagnant", jamais
   // partagé), et ceux dont le nom correspond au titulaire DU COMPTE QUI
   // REGARDE (déjà son propre séjour, voir myOwnBookings/sa propre
-  // pastille TS, jamais compté comme "accompagnant" en plus).
+  // pastille CS, jamais compté comme "accompagnant" en plus).
   const familyGuestFutureBookings = (familyGuestBookings ?? []).filter((b) => {
     if (b.check_out < todayISOForReserver) return false
     const g = b.guest_name?.trim()
@@ -366,17 +366,17 @@ export default async function PlanningPage() {
   // widget par personne (jamais un seul regroupe pour toute la famille),
   // couleur = color_hue de la personne, listant ses sejours PASSES
   // (check_out < aujourd'hui) du plus recent au plus ancien, en lecture
-  // seule -- seule la pastille TS de chaque ligne est actionnable (voir
+  // seule -- seule la pastille CS de chaque ligne est actionnable (voir
   // StaysHistoryWidget.tsx).
   type RawHistoryBooking = {
     id: string
     check_in: string
     check_out: string
     guest_name?: string | null
-    ts_payments?: { id: string; amount: number; status: string }[] | null
+    cs_payments?: { id: string; amount: number; status: string }[] | null
   }
   const toHistoryStay = (b: RawHistoryBooking) => {
-    const payments = b.ts_payments ?? []
+    const payments = b.cs_payments ?? []
     const unpaid = payments.filter((p) => p.status !== 'paid')
     return {
       id: b.id,
@@ -485,7 +485,7 @@ export default async function PlanningPage() {
           "Réserver un séjour" qui menait à /dashboard/reserver (ancien
           formulaire BookingForm) ; le 21/09/2026, ce bouton a d'abord
           arrêté de naviguer pour à la place déplier directement ici le
-          widget "Prochain séjour + Taxe de séjour" qui vivait jusque-là sur
+          widget "Prochain séjour + Contribution séjour" qui vivait jusque-là sur
           la page d'accueil (demandé par Nicolas) ; puis, le même jour,
           Aurélie a demandé de retirer ce bouton entièrement ("elle n'est
           plus utile") — le widget s'affiche donc maintenant directement dès
@@ -494,7 +494,7 @@ export default async function PlanningPage() {
         profile={profile}
         myOwnBookings={myOwnBookings}
         guestFutureBookings={guestFutureBookings}
-        initialTsBalance={initialTsBalance}
+        initialCsBalance={initialCsBalance}
         initialPlanningBookings={planningBookings}
         planningEvents={planningEvents}
         currentUserId={user.id}

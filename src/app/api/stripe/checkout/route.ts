@@ -1,32 +1,32 @@
 import { NextResponse } from 'next/server'
 import { accountFor, stripeFor, transactionFeeLineItem } from '@/lib/stripe'
 import { createClient } from '@/lib/supabase/server'
-import { buildTsStatementDescriptorSuffix, firstNameOnly, tsPeriodFromCheckOut } from '@/lib/utils'
+import { buildCsStatementDescriptorSuffix, firstNameOnly, csPeriodFromCheckOut } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 import { otherNuclearFamilyMembers } from '@/lib/nuclear-family'
 
-// Crée une session Stripe Checkout pour régler un paiement (taxe de séjour ou
+// Crée une session Stripe Checkout pour régler un paiement (contribution séjour ou
 // cotisation mensuelle).
 //
 // ⚠️ SÉCURITÉ (corrigé le 19/09/2026) : le montant n'est JAMAIS pris du client.
 // Avant, la route facturait le `amount` envoyé par le navigateur — n'importe
-// qui pouvait payer 1 € une taxe de 100 €. Le montant, le propriétaire et le
+// qui pouvait payer 1 € une contribution de 100 €. Le montant, le propriétaire et le
 // statut sont désormais relus en base à partir de l'id du paiement.
 //
-// Taxe de séjour (`type: 'ts'`) : accepte désormais plusieurs `ids` à la
+// Contribution séjour (`type: 'cs'`) : accepte désormais plusieurs `ids` à la
 // fois (demandé par Aurélie le 22/09/2026) — un seul paiement Stripe pour
-// régler d'un coup tout ce qu'une personne doit (pastille "Votre solde TS"
-// ou "TS - <prénom>", voir ReserverSejour.tsx et src/lib/ts-balance.ts). Un
+// régler d'un coup tout ce qu'une personne doit (pastille "Votre solde CS"
+// ou "CS - <prénom>", voir ReserverSejour.tsx et src/lib/cs-balance.ts). Un
 // `id` seul (ancien format, toujours utilisé par mes-paiements/page.tsx et
 // le bouton "Payer" d'un séjour dans NextStayCard.tsx) reste accepté,
 // équivalent à ids: [id].
 //
 // Une session Stripe n'encaisse que sur un seul compte (Lalande ou Canat,
-// voir src/lib/stripe.ts) : si un solde TS mélange des séjours des deux
+// voir src/lib/stripe.ts) : si un solde CS mélange des séjours des deux
 // côtés, on ne règle cette fois que ceux du côté du premier paiement
 // demandé. Les autres restent dus et le solde affiché permet de les régler
 // ensuite.
-interface TsRowBooking {
+interface CsRowBooking {
   user_id: string
   guest_name: string | null
   check_out: string
@@ -35,20 +35,20 @@ interface TsRowBooking {
   // pouvoir reconstruire le nom complet du titulaire de CE sejour, pas
   // seulement son prenom.
   profiles:
-    | { first_name: string; last_name: string; ts_payer_id: string | null }
-    | { first_name: string; last_name: string; ts_payer_id: string | null }[]
+    | { first_name: string; last_name: string; cs_payer_id: string | null }
+    | { first_name: string; last_name: string; cs_payer_id: string | null }[]
     | null
 }
 
-type TsRow = {
+type CsRow = {
   id: string
   amount: number
   status: string
   booking_id: string
   // Supabase renvoie un objet unique pour un embed many-to-one (chaque
-  // ts_payment n'a qu'un seul booking) ; le tableau n'est là que par
+  // cs_payment n'a qu'un seul booking) ; le tableau n'est là que par
   // prudence si jamais le client typé se comportait autrement.
-  bookings: TsRowBooking | TsRowBooking[] | null
+  bookings: CsRowBooking | CsRowBooking[] | null
 }
 
 function asSingle<T>(value: T | T[] | null): T | null {
@@ -84,7 +84,7 @@ async function handleCheckout(request: Request) {
       ? [body.id]
       : []
 
-  if ((type !== 'ts' && type !== 'tm') || ids.length === 0) {
+  if ((type !== 'cs' && type !== 'tm') || ids.length === 0) {
     return NextResponse.json({ error: 'Paramètres invalides' }, { status: 400 })
   }
 
@@ -92,7 +92,7 @@ async function handleCheckout(request: Request) {
   const isAdmin = caller?.role === 'admin'
   const myFullName = caller ? `${caller.first_name} ${caller.last_name}` : null
   // Voir le commentaire détaillé sur le même correctif dans
-  // src/lib/ts-balance.ts (27/10/2026, signalé par Nicolas : un
+  // src/lib/cs-balance.ts (27/10/2026, signalé par Nicolas : un
   // auto-étiquetage au prénom seul, ex. "Aurelie", ne correspondait
   // jamais à myFullName/registrantFullName -- prénom + nom complet).
   // Prénom seul ET prénom+nom proposés comme candidats ci-dessous, les
@@ -168,16 +168,16 @@ async function handleCheckout(request: Request) {
   }
 
   // -------------------------------------------------------------
-  // Taxe de séjour (ts) : un ou plusieurs paiements, groupés en une seule
+  // Contribution séjour (cs) : un ou plusieurs paiements, groupés en une seule
   // session Stripe si plusieurs séjours impayés d'une même personne sont
   // réglés d'un coup.
   // -------------------------------------------------------------
   const { data: rows } = await supabase
-    .from('ts_payments')
-    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, house_side, profiles(first_name, last_name, ts_payer_id))')
+    .from('cs_payments')
+    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, house_side, profiles(first_name, last_name, cs_payer_id))')
     .in('id', ids)
 
-  const requested = (rows ?? []) as TsRow[]
+  const requested = (rows ?? []) as CsRow[]
 
   if (requested.length !== ids.length) {
     return NextResponse.json({ error: 'Paiement introuvable' }, { status: 404 })
@@ -186,7 +186,7 @@ async function handleCheckout(request: Request) {
     return NextResponse.json({ error: 'Un de ces paiements est déjà réglé' }, { status: 400 })
   }
 
-  const accountOf = (p: TsRow) => accountFor(asSingle(p.bookings)?.house_side)
+  const accountOf = (p: CsRow) => accountFor(asSingle(p.bookings)?.house_side)
   const first = requested.find((p) => p.id === ids[0]) ?? requested[0]
   const account = accountOf(first)
   const payments = requested.filter((p) => accountOf(p) === account)
@@ -196,29 +196,29 @@ async function handleCheckout(request: Request) {
   // personne elle-même quand le nom de l'accompagnant correspond à son
   // propre compte (tolérant aux accents/fautes de frappe depuis le
   // 07/10/2026 — findClosestNameMatch, même mécanisme que ensureGuestColor,
-  // harmonisé avec computeTsBalance qui avait la même incohérence),
+  // harmonisé avec computeCsBalance qui avait la même incohérence),
   // ou un admin — demandé par Aurélie le 22/09/2026 (ex. Emmanuelle règle
-  // la taxe d'Oscar qu'elle a saisie, ou Oscar la règle lui-même).
+  // la contribution d'Oscar qu'elle a saisie, ou Oscar la règle lui-même).
   // Familles nucléaires (27/10/2026, demande d'Aurélie : "si un des deux
   // parents rentre le sejour de son enfant [...] l'un des deux parents
   // puisse payer") : un compte qui partage la même profiles.nuclear_family
   // que celui qui a saisi un séjour D'ACCOMPAGNANT (jamais pour le séjour
   // PROPRE de l'autre, voir isFamilyMember plus bas) peut aussi le régler
-  // -- voir src/lib/nuclear-family.ts et le commentaire de computeTsBalance
-  // dans src/lib/ts-balance.ts, même mécanisme.
+  // -- voir src/lib/nuclear-family.ts et le commentaire de computeCsBalance
+  // dans src/lib/cs-balance.ts, même mécanisme.
   const familyMemberIds = new Set((await otherNuclearFamilyMembers(supabase, user.id, caller?.nuclear_family ?? null)).map((m) => m.id))
 
-  // Paiement délégué (01/11/2026, cas Alexandre -> Guy, profiles.ts_payer_id) :
-  // tous les comptes qui délèguent leur taxe de séjour à un AUTRE compte,
+  // Paiement délégué (01/11/2026, cas Alexandre -> Guy, profiles.cs_payer_id) :
+  // tous les comptes qui délèguent leur contribution séjour à un AUTRE compte,
   // pour pouvoir retrouver le bon ci-dessous, avec leur nom pour la
   // correspondance tolérante aux fautes de frappe.
   const { data: delegateProfiles } = await supabase
     .from('profiles')
-    .select('id, first_name, last_name, ts_payer_id')
-    .not('ts_payer_id', 'is', null)
+    .select('id, first_name, last_name, cs_payer_id')
+    .not('cs_payer_id', 'is', null)
   const delegateProfilesList = (delegateProfiles ?? []).map((p) => ({
     candidates: [p.first_name, `${p.first_name} ${p.last_name}`],
-    ts_payer_id: p.ts_payer_id as string,
+    cs_payer_id: p.cs_payer_id as string,
   }))
 
   let resolvedFirstName: string | null = null
@@ -233,7 +233,7 @@ async function handleCheckout(request: Request) {
     // Un séjour dont le guest_name correspond en réalité au titulaire DE
     // CE séjour (son propre nom saisi par erreur comme accompagnant)
     // n'est pas un vrai accompagnant -- jamais partageable via la
-    // famille nucléaire, même règle que src/lib/ts-balance.ts
+    // famille nucléaire, même règle que src/lib/cs-balance.ts
     // (rectification du 27/10/2026, demande d'Aurélie).
     const registrantProfile = asSingle(booking.profiles)
     const registrantNameCandidates = registrantProfile
@@ -247,12 +247,12 @@ async function handleCheckout(request: Request) {
     // (ou à un admin), jamais payable par les autres.
     const isFamilyMember = !!guestName && !isSelfTagged && familyMemberIds.has(booking.user_id)
     // Paiement delegue (01/11/2026, cas unique Alexandre -> Guy, voir
-    // profiles.ts_payer_id et NextStayCard.tsx/DelegatedStay).
+    // profiles.cs_payer_id et NextStayCard.tsx/DelegatedStay).
     // Corrigé le 02/11/2026 (signalé par Nicolas : dans son cas concret,
     // le séjour d'Alexandre n'est PAS saisi par Alexandre lui-même --
     // c'est Nicolas qui l'a saisi, via "Ajouter un séjour", guest_name =
     // "Alexandre Lalande", exactement comme un accompagnant ordinaire).
-    // L'ancienne version ne vérifiait que `registrantProfile.ts_payer_id`
+    // L'ancienne version ne vérifiait que `registrantProfile.cs_payer_id`
     // -- le délégant QUI A SAISI son propre séjour sur son propre
     // compte -- donc ne reconnaissait jamais ce cas réel (le
     // `registrantProfile` est alors celui de Nicolas, pas d'Alexandre,
@@ -260,8 +260,8 @@ async function handleCheckout(request: Request) {
     // son NOM (guestName quand présent, sinon le titulaire lui-même),
     // peu importe quel compte a saisi le séjour.
     const isDelegatedPayer = guestName
-      ? delegateProfilesList.some((d) => d.ts_payer_id === user.id && findClosestNameMatch(guestName, d.candidates) !== -1)
-      : registrantProfile?.ts_payer_id === user.id
+      ? delegateProfilesList.some((d) => d.cs_payer_id === user.id && findClosestNameMatch(guestName, d.candidates) !== -1)
+      : registrantProfile?.cs_payer_id === user.id
     if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isDelegatedPayer && !isAdmin) {
       return NextResponse.json({ error: 'Ce paiement ne vous appartient pas' }, { status: 403 })
     }
@@ -277,18 +277,18 @@ async function handleCheckout(request: Request) {
     return NextResponse.json({ error: 'Montant invalide' }, { status: 400 })
   }
 
-  const periods = payments.map((p) => tsPeriodFromCheckOut(asSingle(p.bookings)!.check_out))
-  const statementDescriptorSuffix = buildTsStatementDescriptorSuffix(resolvedFirstName ?? 'Famille', periods)
+  const periods = payments.map((p) => csPeriodFromCheckOut(asSingle(p.bookings)!.check_out))
+  const statementDescriptorSuffix = buildCsStatementDescriptorSuffix(resolvedFirstName ?? 'Famille', periods)
 
   const lineItems = payments.map((payment) => {
     const booking = asSingle(payment.bookings)!
-    const period = tsPeriodFromCheckOut(booking.check_out)
+    const period = csPeriodFromCheckOut(booking.check_out)
     const monthLabel = new Date(booking.check_out).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
     return {
       price_data: {
         currency: 'eur',
         product_data: {
-          name: `Taxe de séjour — ${resolvedFirstName ?? 'Famille'} (séjour du ${new Date(booking.check_out).toLocaleDateString('fr-FR', { timeZone: 'UTC' })})`,
+          name: `Contribution séjour — ${resolvedFirstName ?? 'Famille'} (séjour du ${new Date(booking.check_out).toLocaleDateString('fr-FR', { timeZone: 'UTC' })})`,
           description: `La Bâtisse — Chalabre (${monthLabel}, ${period.year}/${period.monthIndex + 1})`,
         },
         unit_amount: Math.round(Number(payment.amount) * 100),
@@ -303,18 +303,18 @@ async function handleCheckout(request: Request) {
 
   // Frais de transaction (1,5 %, voir transactionFeeLineItem dans
   // src/lib/stripe.ts) : une seule ligne séparée pour tout le groupe,
-  // basée sur la somme exacte des lignes de taxe de séjour ci-dessus
+  // basée sur la somme exacte des lignes de contribution séjour ci-dessus
   // (jamais sur un arrondi recalculé depuis totalAmount) -- les
-  // montants officiels de ts_payments.amount restent inchangés, en base
+  // montants officiels de cs_payments.amount restent inchangés, en base
   // comme à l'écran.
-  const tsBaseAmountCents = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount, 0)
+  const csBaseAmountCents = lineItems.reduce((sum, li) => sum + li.price_data.unit_amount, 0)
 
   const session = await stripeFor(account).checkout.sessions.create({
     mode: 'payment',
     currency: 'eur',
-    line_items: [...lineItems, transactionFeeLineItem(tsBaseAmountCents)],
+    line_items: [...lineItems, transactionFeeLineItem(csBaseAmountCents)],
     metadata: {
-      payment_type: 'ts',
+      payment_type: 'cs',
       payment_id: paidIds[0],
       payment_ids: JSON.stringify(paidIds),
       user_id: primaryUserId,
@@ -325,7 +325,7 @@ async function handleCheckout(request: Request) {
     payment_intent_data: {
       statement_descriptor_suffix: statementDescriptorSuffix,
       metadata: {
-        payment_type: 'ts',
+        payment_type: 'cs',
         payment_id: paidIds[0],
         payment_ids: JSON.stringify(paidIds),
         user_id: primaryUserId,

@@ -38,8 +38,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing metadata' }, { status: 400 })
     }
 
-    // Un paiement de taxe de séjour peut désormais regrouper plusieurs
-    // ts_payments réglés en une seule session Stripe (demandé par Aurélie
+    // Un paiement de contribution séjour peut désormais regrouper plusieurs
+    // cs_payments réglés en une seule session Stripe (demandé par Aurélie
     // le 22/09/2026 : régler d'un coup tout ce qu'une personne doit — voir
     // /api/stripe/checkout/route.ts). payment_ids porte la liste complète
     // (JSON) ; payment_id (unique) reste renseigné pour compatibilité avec
@@ -80,18 +80,18 @@ export async function POST(request: Request) {
       paid_at: new Date().toISOString(),
     }
 
-    if (payment_type === 'ts') {
-      const { data: paidRows } = await supabase.from('ts_payments').select('id, amount').in('id', paymentIds)
+    if (payment_type === 'cs') {
+      const { data: paidRows } = await supabase.from('cs_payments').select('id, amount').in('id', paymentIds)
 
-      // stripe_amount_received est propre à CHAQUE ts_payment (son propre
+      // stripe_amount_received est propre à CHAQUE cs_payment (son propre
       // montant, pas le total du groupe payé en une fois) — sinon un
       // séjour de 20 € réglé avec un autre de 30 € afficherait 50 € reçus
       // sur les deux lignes.
       for (const row of paidRows ?? []) {
-        await supabase.from('ts_payments').update({
+        await supabase.from('cs_payments').update({
           ...updateData,
           stripe_amount_received: Math.round(Number(row.amount) * 100),
-        }).eq('id', row.id).then(check('ts_payments.update'))
+        }).eq('id', row.id).then(check('cs_payments.update'))
 
         await supabase.from('payment_events').insert({
           stripe_event_id: `${event.id}:${row.id}`,
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       // (voir transactionFeeLineItem dans src/lib/stripe.ts et
       // /api/stripe/checkout/route.ts), qui ne doivent jamais apparaître
       // dans les montants enregistrés en base — même principe que
-      // ts_payments ci-dessus.
+      // cs_payments ci-dessus.
       const { data: tmRow } = await supabase.from('tm_payments').select('amount').eq('id', payment_id).single()
       const officialAmountCents = tmRow ? Math.round(Number(tmRow.amount) * 100) : amountReceived
 
@@ -147,10 +147,10 @@ export async function POST(request: Request) {
       const failureReason = pi.last_payment_error?.message ?? 'Échec du paiement'
 
       // Même regroupement que checkout.session.completed ci-dessus : un
-      // paiement TS groupé qui échoue doit repasser TOUS ses ts_payments
+      // paiement CS groupé qui échoue doit repasser TOUS ses cs_payments
       // en "overdue", pas seulement le premier de la liste.
       let failedIds: string[] = [payment_id]
-      if (payment_type === 'ts' && payment_ids) {
+      if (payment_type === 'cs' && payment_ids) {
         try {
           const parsed = JSON.parse(payment_ids)
           if (Array.isArray(parsed) && parsed.length > 0) failedIds = parsed
@@ -159,11 +159,11 @@ export async function POST(request: Request) {
         }
       }
 
-      if (payment_type === 'ts') {
-        await supabase.from('ts_payments')
+      if (payment_type === 'cs') {
+        await supabase.from('cs_payments')
           .update({ status: 'overdue', failure_reason: failureReason })
           .in('id', failedIds)
-          .then(check('ts_payments.update'))
+          .then(check('cs_payments.update'))
       } else if (payment_type === 'tm') {
         await supabase.from('tm_payments')
           .update({ status: 'overdue', failure_reason: failureReason })
@@ -171,7 +171,7 @@ export async function POST(request: Request) {
           .then(check('tm_payments.update'))
       }
 
-      for (const id of payment_type === 'ts' ? failedIds : [payment_id]) {
+      for (const id of payment_type === 'cs' ? failedIds : [payment_id]) {
         await supabase.from('payment_events').insert({
           stripe_event_id: `${event.id}:${id}`,
           stripe_event_type: event.type,

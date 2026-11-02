@@ -6,8 +6,8 @@ import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 // Crée ou met à jour un séjour saisi depuis le widget "Prochain séjour" de
 // la page d'accueil (celui du titulaire du compte, ou un séjour ajouté pour
-// un accompagnant via guestName). Gère aussi le recalcul du solde de taxe
-// de séjour (TS) si les dates changent après un premier paiement : le
+// un accompagnant via guestName). Gère aussi le recalcul du solde de contribution
+// séjour (CS) si les dates changent après un premier paiement : le
 // paiement déjà réglé n'est jamais modifié (traçabilité), un second
 // paiement "en attente" est créé/ajusté pour représenter le solde restant.
 // Si le solde est négatif (trop perçu), aucun paiement n'est créé — seul
@@ -17,7 +17,7 @@ import { findClosestNameMatch } from '@/lib/fuzzy-name'
 // le 18/09/2026, complété le 21/09/2026) : indique de quel côté de la
 // maison la personne dort, pour savoir sur quel compte bancaire (Canat ou
 // Lalande — Petite maison suit celui de Lalande, voir migration_house_
-// side_petite_maison.sql) verser la taxe de séjour de ce séjour.
+// side_petite_maison.sql) verser la contribution séjour de ce séjour.
 // Obligatoire pour enregistrer un séjour. Commentaire corrigé le
 // 29/09/2026 : migration_bookings_house_side.sql (colonne + 'canat'/
 // 'lalande') est déjà appliquée en production depuis le 19/09/2026 ;
@@ -266,11 +266,11 @@ export async function POST(request: Request) {
     }
 
     // Aucune accumulation possible : on écrase simplement les dates de la
-    // même ligne (pas de nouvelle ligne créée), et le total de TS ci-dessous
+    // même ligne (pas de nouvelle ligne créée), et le total de CS ci-dessous
     // est toujours recalculé en intégralité pour les nouvelles dates — rien
     // n'est jamais ajouté à ce qui existait pour les anciennes dates (voir
     // remarque de Nicolas du 21/09/2026 : modifier un séjour du 10-20 vers
-    // le 15-24 ne doit pas comptabiliser 2 taxes de séjour sur le 15-20).
+    // le 15-24 ne doit pas comptabiliser 2 contributions séjour sur le 15-20).
     const { error: updateError } = await supabase
       .from('bookings')
       .update({
@@ -311,7 +311,7 @@ export async function POST(request: Request) {
   }
 
   const { data: payments, error: paymentsError } = await supabase
-    .from('ts_payments')
+    .from('cs_payments')
     .select('*')
     .eq('booking_id', targetBookingId)
 
@@ -331,7 +331,7 @@ export async function POST(request: Request) {
   if (due > 0) {
     if (pendingRow) {
       const { data: updated, error: updateError } = await supabase
-        .from('ts_payments')
+        .from('cs_payments')
         .update({ amount: due })
         .eq('id', pendingRow.id)
         .select()
@@ -342,7 +342,7 @@ export async function POST(request: Request) {
       pendingPayment = updated
     } else {
       const { data: created, error: insertError } = await supabase
-        .from('ts_payments')
+        .from('cs_payments')
         .insert({ booking_id: targetBookingId, user_id: user.id, amount: due, status: 'pending' })
         .select()
         .single()
@@ -353,7 +353,7 @@ export async function POST(request: Request) {
     }
   } else if (pendingRow) {
     // Rien (ou plus rien) à régler : on retire le paiement en attente devenu obsolète.
-    await supabase.from('ts_payments').delete().eq('id', pendingRow.id)
+    await supabase.from('cs_payments').delete().eq('id', pendingRow.id)
     pendingPayment = null
   }
 
@@ -388,7 +388,7 @@ export async function DELETE(request: Request) {
   // séjour, ou un admin.
   const { data: existing, error: fetchError } = await supabase
     .from('bookings')
-    .select('id, user_id, ts_payments(status)')
+    .select('id, user_id, cs_payments(status)')
     .eq('id', bookingId)
     .single()
 
@@ -403,7 +403,7 @@ export async function DELETE(request: Request) {
     }
   }
 
-  const hasPaidPayment = (existing.ts_payments ?? []).some(
+  const hasPaidPayment = (existing.cs_payments ?? []).some(
     (p: { status: string }) => p.status === 'paid'
   )
   if (hasPaidPayment) {

@@ -8,7 +8,7 @@
 // ajoutera des catégories au vu des libellés réellement récurrents sur
 // les relevés de Guy/Guillaume (question ouverte 3 du prompt).
 export const BUDGET_CATEGORIES = [
-  { id: 'taxe_sejour', label: 'Taxe de séjour' },
+  { id: 'contribution_sejour', label: 'Contribution séjour' },
   { id: 'cotisation', label: 'Cotisation' },
   { id: 'taxe_fonciere', label: 'Taxe foncière' },
   { id: 'assurance', label: 'Assurance' },
@@ -31,7 +31,7 @@ export const BUDGET_CATEGORY_LABELS: Record<string, string> = Object.fromEntries
 
 // Les deux comptes de la maison (voir claude/prompt-onglet-budget.md) --
 // Guy pour Lalande, Guillaume pour Canat, déjà connus du site comme les
-// deux comptes Stripe pour la taxe de séjour. Pas de vue fusionnée par
+// deux comptes Stripe pour la contribution séjour. Pas de vue fusionnée par
 // défaut (décision prise dans le prompt).
 export const BUDGET_ACCOUNTS = [
   { id: 'lalande', label: 'Lalande' },

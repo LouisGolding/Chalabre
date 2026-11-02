@@ -34,7 +34,7 @@ const ENTREES_CATS_LALANDE: BudgetCategoryBreakdown[] = [
   { id: 'cotisation', label: 'Cotisations mensuelles', amount: 13023.5, color: '#0B3D24' },
   { id: 'aide_harry', label: 'Aide Harry', amount: 8500.0, color: '#25523B' },
   { id: 'remboursement', label: 'Remboursement', amount: 4009.5, color: '#3E6752' },
-  { id: 'taxe_sejour', label: 'Taxe de séjour', amount: 3210.0, color: '#587C69' },
+  { id: 'contribution_sejour', label: 'Contribution séjour', amount: 3210.0, color: '#587C69' },
   { id: 'fil_nathan', label: 'Fil Nathan', amount: 1570.0, color: '#729180' },
   { id: 'assurance', label: 'Assurance', amount: 1442.51, color: '#8BA697' },
   { id: 'fil_nathan_annule', label: 'Fil Nathan (virement annulé)', amount: 1250.0, color: '#A5BBAE' },
@@ -194,7 +194,7 @@ export function BudgetBoard({
   const [notice, setNotice] = useState<string | null>(null)
   const [pastStatementsOpen, setPastStatementsOpen] = useState(false)
 
-  // Widget dépliable "Transactions Stripe" (cotisations + taxes de
+  // Widget dépliable "Transactions Stripe" (cotisations + contributions
   // séjour réellement encaissées) -- visible par admin ET famille.
   // Filtré sur le compte actuellement sélectionné en haut de page
   // (`account`), comme le reste du tableau de bord -- demande de
@@ -454,7 +454,7 @@ export function BudgetBoard({
         </div>
       )}
 
-      {/* Transactions Stripe (cotisations + taxes de séjour réellement
+      {/* Transactions Stripe (cotisations + contributions séjour réellement
           encaissées) -- widget dépliable, réservé aux admins depuis le
           23/10/2026 (demande d'Aurélie, revient sur la décision du
           17/10/2026 qui l'ouvrait aussi à la famille). Compte Lalande et

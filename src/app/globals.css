@@ -212,7 +212,7 @@
      (webkit) pour Safari/iOS, comme la texture papier du corps de page
      plus haut dans ce fichier.
   */
-  /* Pastille "Payer ici ses taxes de sejour" (accueil, TaxeSejourPill.tsx)
+  /* Pastille "Payer ici ses contributions sejour" (accueil, ContributionSejourPill.tsx)
      : anime en boucle entre "texte blanc sur fond transparent" et
      "texte fonce sur fond blanc casse" (var(--background)/var(--foreground)),
      demande par Aurelie le 26/10/2026 pour qu'on la remarque sans
@@ -221,7 +221,7 @@
      a 2,5s puis a 1,5s le 26/10/2026, meme demande) : l'aller (vers
      l'etat plein) et le retour (vers transparent) prennent chacun 1,5
      seconde, en boucle infinie. */
-  @keyframes ts-pill-pulse {
+  @keyframes cs-pill-pulse {
     0% {
       color: #fff;
       background-color: transparent;
@@ -231,8 +231,8 @@
       background-color: var(--background);
     }
   }
-  .ts-pill-pulse {
-    animation: ts-pill-pulse 1.5s ease-in-out infinite alternate;
+  .cs-pill-pulse {
+    animation: cs-pill-pulse 1.5s ease-in-out infinite alternate;
   }
 
   .icon-croix-occitane {

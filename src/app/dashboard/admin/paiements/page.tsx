@@ -24,8 +24,8 @@ export default async function AdminPaiementsPage() {
   // -- le detail complet (profils, sejours...) a demenage avec le
   // tableau "Listes des sejours" dans l'onglet "Membres" le 07/10/2026,
   // demande par Nicolas (voir dashboard/admin/page.tsx).
-  const { data: tsPayments } = await supabase
-    .from('ts_payments')
+  const { data: csPayments } = await supabase
+    .from('cs_payments')
     .select('amount, status')
 
   // Tous les paiements TM
@@ -42,12 +42,12 @@ export default async function AdminPaiementsPage() {
   const events = (eventsRaw ?? []) as unknown as PaymentEventRow[]
 
   const totalPaid = [
-    ...(tsPayments?.filter(p => p.status === 'paid') ?? []),
+    ...(csPayments?.filter(p => p.status === 'paid') ?? []),
     ...(tmPayments?.filter(p => p.status === 'paid') ?? []),
   ].reduce((s, p) => s + Number(p.amount), 0)
 
   const totalPending = [
-    ...(tsPayments?.filter(p => p.status !== 'paid') ?? []),
+    ...(csPayments?.filter(p => p.status !== 'paid') ?? []),
     ...(tmPayments?.filter(p => p.status !== 'paid') ?? []),
   ].reduce((s, p) => s + Number(p.amount), 0)
 

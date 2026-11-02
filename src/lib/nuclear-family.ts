@@ -7,7 +7,7 @@ export interface NuclearFamilyMember {
   // Ajoutés le 30/10/2026 pour le widget "Option famille" (NextStayCard.tsx) :
   // préremplir automatiquement la tranche d'âge et la couleur d'un
   // accompagnant membre de la même famille nucléaire, sans rien changer
-  // pour les appelants existants (ts-balance.ts, planning/page.tsx) qui
+  // pour les appelants existants (cs-balance.ts, planning/page.tsx) qui
   // ignorent simplement ces champs.
   date_of_birth: string | null
   color_hue: number | null
@@ -19,7 +19,7 @@ export interface NuclearFamilyMember {
   // compte (has_login = false, voir profile.ts) -- pour celui-ci, le
   // widget "Historique de <prenom>" apparait plutot chez chacun de ses
   // parents ayant un vrai compte. Ignore sans consequence par les
-  // appelants existants (ts-balance.ts, checkout/route.ts).
+  // appelants existants (cs-balance.ts, checkout/route.ts).
   has_login: boolean
 }
 
@@ -33,7 +33,7 @@ export interface NuclearFamilyMember {
 // partagent 'lal-nicolas-aurelie', Guillaume/Eva/Viktor/Sofia
 // 'can-guillaume') voient et peuvent régler les mêmes séjours
 // d'accompagnants (enfants), quel que soit celui des deux qui les a
-// saisis -- voir src/lib/ts-balance.ts (computeTsBalance) et
+// saisis -- voir src/lib/cs-balance.ts (computeCsBalance) et
 // /api/stripe/checkout/route.ts (autorisation de paiement).
 //
 // Rectification du 27/10/2026 (toujours Aurélie) : un enfant qui a son
@@ -44,7 +44,7 @@ export interface NuclearFamilyMember {
 // (first_name/last_name) renvoyés ici servent aux appelants à exclure en
 // plus le cas d'un compte qui a saisi SON PROPRE séjour en renseignant
 // par erreur son propre nom comme guest_name (jamais un "accompagnant"
-// pour autant, donc jamais partagé) -- voir computeTsBalance.
+// pour autant, donc jamais partagé) -- voir computeCsBalance.
 //
 // Renvoie les AUTRES comptes (jamais userId lui-même) qui partagent la
 // même famille nucléaire que `userId` -- [] si ce compte n'a pas

@@ -11,19 +11,19 @@ export default async function MesPaiementsPage() {
   const { supabase, user } = await getCurrentUserAndProfile()
   if (!user) redirect('/auth/login')
 
-  // Select enrichi (bookings + ts_payments imbriqués), différent du profil
+  // Select enrichi (bookings + cs_payments imbriqués), différent du profil
   // "générique" mis en cache par getCurrentUserAndProfile() -- requête
   // séparée, mais le getUser() ci-dessus reste partagé avec le layout.
   const { data: profile } = await supabase
     .from('profiles')
-    .select('*, bookings(*, ts_payments(*))')
+    .select('*, bookings(*, cs_payments(*))')
     .eq('id', user.id)
     .single()
 
   if (!profile) redirect('/auth/login')
 
-  const { data: tsPayments } = await supabase
-    .from('ts_payments')
+  const { data: csPayments } = await supabase
+    .from('cs_payments')
     .select('*, bookings(check_in, check_out)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
@@ -35,13 +35,13 @@ export default async function MesPaiementsPage() {
     .order('month', { ascending: false })
 
   const isFriend = profile.role === 'friend'
-  const tsPending = tsPayments?.filter(p => p.status !== 'paid') ?? []
-  const tsPaid = tsPayments?.filter(p => p.status === 'paid') ?? []
+  const csPending = csPayments?.filter(p => p.status !== 'paid') ?? []
+  const csPaid = csPayments?.filter(p => p.status === 'paid') ?? []
   const tmPending = tmPayments?.filter(p => p.status !== 'paid') ?? []
   const tmPaid = tmPayments?.filter(p => p.status === 'paid') ?? []
 
   const totalDue =
-    tsPending.reduce((s, p) => s + Number(p.amount), 0) +
+    csPending.reduce((s, p) => s + Number(p.amount), 0) +
     tmPending.reduce((s, p) => s + Number(p.amount), 0)
 
   return (
@@ -60,31 +60,31 @@ export default async function MesPaiementsPage() {
         )}
       </div>
 
-      {/* TS en attente */}
-      {tsPending.length > 0 && (
+      {/* CS en attente */}
+      {csPending.length > 0 && (
         <Card className="border-red-200">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <Clock className="h-4 w-4 text-red-500" />
-              Taxes de séjour à régler
+              Contributions séjour à régler
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {tsPending.map(p => (
+            {csPending.map(p => (
               <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
                 <div>
                   <p className="font-medium text-sm">
                     Séjour du {formatDate(p.bookings?.check_in)} au {formatDate(p.bookings?.check_out)}
                   </p>
-                  <p className="text-xs text-stone-400">Taxe de séjour</p>
+                  <p className="text-xs text-stone-400">Contribution séjour</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-semibold text-red-600">{formatCurrency(p.amount)}</span>
                   <PayButton
-                    type="ts"
+                    type="cs"
                     paymentId={p.id}
                     amount={Number(p.amount)}
-                    label={`TS — séjour du ${formatDate(p.bookings?.check_in)}`}
+                    label={`CS — séjour du ${formatDate(p.bookings?.check_in)}`}
                     variant="default"
                   />
                 </div>
@@ -126,14 +126,14 @@ export default async function MesPaiementsPage() {
         </Card>
       )}
 
-      {/* TS payées */}
-      {tsPaid.length > 0 && (
+      {/* CS payées */}
+      {csPaid.length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base text-stone-500">Taxes de séjour payées</CardTitle>
+            <CardTitle className="text-base text-stone-500">Contributions séjour payées</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {tsPaid.map(p => (
+            {csPaid.map(p => (
               <div key={p.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
                 <div>
                   <p className="text-sm text-stone-600">
@@ -174,7 +174,7 @@ export default async function MesPaiementsPage() {
         </Card>
       )}
 
-      {tsPayments?.length === 0 && (isFriend || tmPayments?.length === 0) && (
+      {csPayments?.length === 0 && (isFriend || tmPayments?.length === 0) && (
         <p className="text-stone-400 text-sm">Aucun paiement pour le moment.</p>
       )}
     </div>

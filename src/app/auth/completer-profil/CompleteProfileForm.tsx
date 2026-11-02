@@ -78,7 +78,7 @@ export function CompleteProfileForm({ profile }: { profile: Profile }) {
             <CardTitle>Compléter mon profil</CardTitle>
             <CardDescription>
               Il manque votre date de naissance ou votre groupe sur votre profil.
-              Ces informations servent à calculer votre taxe de séjour.
+              Ces informations servent à calculer votre contribution séjour.
             </CardDescription>
           </CardHeader>
           <CardContent>

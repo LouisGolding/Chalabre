@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { CreditCard, Loader2 } from 'lucide-react'
 
 interface PayButtonProps {
-  type: 'ts' | 'tm'
+  type: 'cs' | 'tm'
   paymentId: string
   amount: number
   label: string
@@ -24,7 +24,7 @@ export function PayButton({ type, paymentId, amount, label, variant = 'default',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, id: paymentId, amount, label }),
       })
-      // Même correctif que TSBalancePayButton.tsx le 09/10/2026 : une
+      // Même correctif que CSBalancePayButton.tsx le 09/10/2026 : une
       // erreur ici restait auparavant invisible (console.error seul),
       // ce qui a donné l'impression d'un bouton qui "ne fait rien" sur
       // mobile. L'erreur s'affiche désormais via alert().

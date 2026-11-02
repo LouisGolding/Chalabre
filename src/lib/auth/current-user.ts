@@ -20,7 +20,7 @@ import type { Profile } from '@/types'
 // profil, partagés entre eux -- c'est le pattern recommandé par Supabase
 // lui-même pour Next.js App Router. Les pages qui ont besoin d'un select
 // différent sur `profiles` (ex. mes-paiements/page.tsx, qui embarque
-// `bookings(*, ts_payments(*))`) continuent d'appeler leur propre
+// `bookings(*, cs_payments(*))`) continuent d'appeler leur propre
 // requête, mais profitent quand même du `getUser()` partagé.
 export const getCurrentUserAndProfile = cache(async () => {
   const supabase = await createClient()

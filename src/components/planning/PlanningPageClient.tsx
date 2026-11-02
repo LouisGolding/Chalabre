@@ -5,8 +5,8 @@ import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/plann
 import { ReserverSejour } from '@/components/planning/ReserverSejour'
 import { SavedStayInfo, FamilyMemberOption, DelegatedStay } from '@/components/dashboard/NextStayCard'
 import { colorForName, colorForPaletteIndex } from '@/lib/colors'
-import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
-import type { TsBalanceResult } from '@/lib/ts-balance'
+import type { FamilyGroup, HouseSide, Profile, CSPayment } from '@/types'
+import type { CsBalanceResult } from '@/lib/cs-balance'
 
 interface BookingData {
   id: string
@@ -14,7 +14,7 @@ interface BookingData {
   check_out: string
   guest_name?: string | null
   house_side?: HouseSide | null
-  ts_payments?: TSPayment[]
+  cs_payments?: CSPayment[]
   // Couleur de cet occupant (voir src/lib/colors.ts -- depuis le
   // 29/09/2026, color_hue est un index de palette, a lire avec
   // color_family), resolue cote serveur (planning/page.tsx) -- sert a
@@ -32,7 +32,7 @@ interface PlanningPageClientProps {
   profile: Profile
   myOwnBookings: BookingData[]
   guestFutureBookings: BookingData[]
-  initialTsBalance: TsBalanceResult
+  initialCsBalance: CsBalanceResult
   initialPlanningBookings: PlanningBooking[]
   planningEvents: PlanningEvent[]
   currentUserId: string
@@ -60,7 +60,7 @@ export function PlanningPageClient({
   profile,
   myOwnBookings,
   guestFutureBookings,
-  initialTsBalance,
+  initialCsBalance,
   initialPlanningBookings,
   planningEvents,
   currentUserId,
@@ -93,8 +93,8 @@ export function PlanningPageClient({
     [myOwnBookingsState, selectedOwnBookingId]
   )
   // Incrémenté à chaque glisser persisté sur le planning : signale à
-  // ReserverSejour qu'il doit rappeler /api/ts-balance, puisque le montant de
-  // taxe de séjour a pu changer sans passer par le widget "Prochain séjour".
+  // ReserverSejour qu'il doit rappeler /api/cs-balance, puisque le montant de
+  // contribution séjour a pu changer sans passer par le widget "Prochain séjour".
   const [calendarSyncSignal, setCalendarSyncSignal] = useState(0)
 
   // Séjours déjà validés mais en cours de modification dans une bannière du
@@ -165,9 +165,9 @@ export function PlanningPageClient({
   // Glisser fait directement sur une bande colorée du planning (voir
   // PlanningView.tsx, persistDates) : répercute les nouvelles dates sur la
   // bannière correspondante du widget "Prochain séjour" (titulaire ou
-  // accompagnant), et déclenche un rafraîchissement du solde TS -- demandé
+  // accompagnant), et déclenche un rafraîchissement du solde CS -- demandé
   // par Nicolas le 02/10/2026 ("si je réduis la bande d'Otto ... son widget
-  // doit automatiquement changer, sa taxe de séjour aussi").
+  // doit automatiquement changer, sa contribution séjour aussi").
   const handleDatesPersistedFromCalendar = (bookingId: string, checkIn: string, checkOut: string) => {
     setMyOwnBookingsState((prev) => prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkIn, check_out: checkOut } : b)))
     setGuestFutureBookingsState((prev) => prev.map((b) => (b.id === bookingId ? { ...b, check_in: checkIn, check_out: checkOut } : b)))
@@ -188,11 +188,11 @@ export function PlanningPageClient({
         profile={profile}
         booking={nextBookingState}
         guestBookings={guestFutureBookingsState}
-        initialTsBalance={initialTsBalance}
+        initialCsBalance={initialCsBalance}
         onBookingSaved={handleBookingSaved}
         onBookingDeleted={handleBookingDeleted}
         onHiddenBookingIdsChange={setHiddenBookingIds}
-        externalTsRefreshSignal={calendarSyncSignal}
+        externalCsRefreshSignal={calendarSyncSignal}
         guestDefaults={guestDefaults}
         familyMembers={familyMembers}
         delegatedStays={delegatedStays}

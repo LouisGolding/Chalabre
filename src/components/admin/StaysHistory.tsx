@@ -21,19 +21,19 @@ const STATUS_LABEL: Record<StayRow['status'], { label: string; color: string }> 
   paid:    { label: 'Payé',          color: 'bg-green-100 text-green-700' },
   pending: { label: 'En attente',    color: 'bg-yellow-100 text-yellow-700' },
   overdue: { label: 'Échoué',        color: 'bg-red-100 text-red-700' },
-  // "Aucune TS due" : séjour sans ts_payment associé (montant à 0 ou déjà
+  // "Aucune CS due" : séjour sans cs_payment associé (montant à 0 ou déjà
   // entièrement couvert sans solde restant au moment de la saisie) --
   // voir le commentaire au-dessus du composant.
-  none:    { label: 'Aucune TS due', color: 'bg-stone-100 text-stone-500' },
+  none:    { label: 'Aucune CS due', color: 'bg-stone-100 text-stone-500' },
 }
 
 // Historique complet des séjours (onglet "Membres", tout en bas) -- un
-// séjour = une ligne, y compris ceux sans taxe de séjour due, demandé par
+// séjour = une ligne, y compris ceux sans contribution séjour due, demandé par
 // Nicolas le 07/10/2026 : "la liste des séjours doit être un historique
 // de chaque séjour enregistré". Ce composant reçoit directement les
 // séjours (table `bookings`, voir admin/page.tsx) plutôt que les
-// paiements (`ts_payments`) comme avant le 07/10/2026 : un séjour sans
-// aucun ts_payment (montant nul) apparaît donc désormais lui aussi, et un
+// paiements (`cs_payments`) comme avant le 07/10/2026 : un séjour sans
+// aucun cs_payment (montant nul) apparaît donc désormais lui aussi, et un
 // séjour supprimé disparaît de cette liste dès le prochain chargement de
 // page puisqu'il ne vit plus dans `bookings`, sans dépendre d'une
 // suppression en cascade sur une autre table.

@@ -16,8 +16,8 @@ import { occupantDisplayName, properCase } from '@/lib/utils'
 // (commit 445c291 du 05/04/2026) : jamais relié dans la navigation,
 // esthétique différente du reste du site, basé sur une table
 // `budget_entries` vide et non référencée ailleurs -- confirmé avec
-// Nicolas le 15/10/2026 avant de le remplacer. `tm_payments`/`ts_payments`
-// (cotisations/taxes de séjour, déjà utilisées par Suivi paiements/Mes
+// Nicolas le 15/10/2026 avant de le remplacer. `tm_payments`/`cs_payments`
+// (cotisations/contributions séjour, déjà utilisées par Suivi paiements/Mes
 // paiements/le webhook Stripe) restent une piste fiable à réutiliser plus
 // tard pour la partie "entrées" du tableau de bord, sans dépendre de l'IA
 // pour cette partie-là.
@@ -79,7 +79,7 @@ export default async function BudgetPage() {
     }))
   }
 
-  // Transactions Stripe réellement encaissées (cotisations + taxes de
+  // Transactions Stripe réellement encaissées (cotisations + contributions
   // séjour, statut "paid") -- widget dépliable visible par admin ET
   // famille (demande de Nicolas, 17/10/2026), donc chargé ici
   // inconditionnellement, contrairement aux relevés déposés plus haut.
@@ -93,7 +93,7 @@ export default async function BudgetPage() {
     paid_at: string | null
     profiles: { family_group: string; first_name: string; last_name: string } | null
   }
-  type TsPaymentRow = {
+  type CsPaymentRow = {
     id: string
     amount: number
     paid_at: string | null
@@ -107,14 +107,14 @@ export default async function BudgetPage() {
     .eq('status', 'paid')
     .order('paid_at', { ascending: false })
 
-  const { data: tsPaymentsRaw } = await supabase
-    .from('ts_payments')
+  const { data: csPaymentsRaw } = await supabase
+    .from('cs_payments')
     .select('id, amount, paid_at, profiles(first_name, last_name), bookings(house_side, guest_name)')
     .eq('status', 'paid')
     .order('paid_at', { ascending: false })
 
   const tmPayments = (tmPaymentsRaw ?? []) as unknown as TmPaymentRow[]
-  const tsPayments = (tsPaymentsRaw ?? []) as unknown as TsPaymentRow[]
+  const csPayments = (csPaymentsRaw ?? []) as unknown as CsPaymentRow[]
 
   const stripeTransactions: BudgetStripeTransaction[] = []
 
@@ -132,23 +132,23 @@ export default async function BudgetPage() {
     })
   }
 
-  // Taxe de séjour -- rattachée au côté de la maison OÙ le séjour a eu
+  // Contribution séjour -- rattachée au côté de la maison OÙ le séjour a eu
   // lieu (pas forcément celui du payeur), "petite_maison" routée sur
   // Lalande (voir le commentaire sur BudgetStripeTransaction,
   // src/types/index.ts). Un séjour sans `house_side` renseigné (créé
   // avant l'ajout de ce champ) n'est rattaché à aucun des deux comptes.
-  for (const p of tsPayments) {
+  for (const p of csPayments) {
     const side = p.bookings?.house_side
     const account = side === 'petite_maison' ? 'lalande' : side
     if (account !== 'lalande' && account !== 'canat') continue
     stripeTransactions.push({
-      id: `ts-${p.id}`,
+      id: `cs-${p.id}`,
       account,
-      kind: 'taxe_sejour',
+      kind: 'contribution_sejour',
       // Nom de l'occupant réel du séjour (ex. "Otto Lalande"), pas
       // forcément celui du compte qui a payé -- voir occupantDisplayName
       // (demandé par Aurélie le 26/10/2026).
-      label: `Taxe de séjour — ${occupantDisplayName(p.bookings?.guest_name, p.profiles)}`,
+      label: `Contribution séjour — ${occupantDisplayName(p.bookings?.guest_name, p.profiles)}`,
       amount: Number(p.amount),
       paidAt: p.paid_at ?? '',
     })

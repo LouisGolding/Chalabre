@@ -1,55 +1,55 @@
 import { createClient } from '@/lib/supabase/server'
-import { tsPeriodFromCheckOut, MONTHS_3, type TsPeriod } from '@/lib/utils'
+import { csPeriodFromCheckOut, MONTHS_3, type CsPeriod } from '@/lib/utils'
 import { findClosestNameMatch } from '@/lib/fuzzy-name'
 import { otherNuclearFamilyMembers } from '@/lib/nuclear-family'
 
-export interface TsBalanceItem {
+export interface CsBalanceItem {
   id: string
   amount: number
   checkOut: string
-  period: TsPeriod
-  label: string // ex. "2026/JUN", pour affichage/debug — voir buildTsStatementDescriptorSuffix pour le libellé bancaire
+  period: CsPeriod
+  label: string // ex. "2026/JUN", pour affichage/debug — voir buildCsStatementDescriptorSuffix pour le libellé bancaire
   // Séjour d'origine de ce paiement (02/11/2026, demande de Nicolas : le
   // widget "Votre prochain séjour" ne doit plus payer le CUMUL de tous
   // ses séjours -- on a désormais un historique pour ça -- mais
-  // seulement la taxe de séjour de CE séjour précis) -- permet de
-  // filtrer tsBalance.own.items à un seul séjour, voir NextStayCard.tsx.
+  // seulement la contribution séjour de CE séjour précis) -- permet de
+  // filtrer csBalance.own.items à un seul séjour, voir NextStayCard.tsx.
   bookingId: string
 }
 
-export interface TsBalanceBucket {
+export interface CsBalanceBucket {
   pending: number
-  items: TsBalanceItem[]
+  items: CsBalanceItem[]
 }
 
-export interface TsGuestBalance extends TsBalanceBucket {
+export interface CsGuestBalance extends CsBalanceBucket {
   name: string
   // Paiement délégué (02/11/2026, cas Alexandre -> Guy, signalé par
-  // Nicolas : "ne compte pas sa taxe de séjour dans le décompte de la
+  // Nicolas : "ne compte pas sa contribution séjour dans le décompte de la
   // mienne [...] Alexandre est le seul cas particulier où moi je
   // pourrais l'inscrire sur le planning, et Guy le payer séparément") --
   // true quand cet accompagnant a lui-même délégué le paiement de sa
-  // taxe de séjour à un AUTRE compte (profiles.ts_payer_id, voir
+  // contribution séjour à un AUTRE compte (profiles.cs_payer_id, voir
   // supabase/migration_profiles_ts_payer_delegate.sql). Le solde reste
   // ici (ex. pour que Nicolas, qui a saisi ce séjour, garde la main sur
   // ses dates et puisse toujours le régler lui-même au besoin) mais ne
   // doit plus entrer dans un total cumulé "tous accompagnants confondus"
-  // (voir dashboard/page.tsx, tsTotalPending) -- ce total-là est déjà
+  // (voir dashboard/page.tsx, csTotalPending) -- ce total-là est déjà
   // géré séparément, par la personne désignée comme payeur (voir
   // DelegatedStay dans NextStayCard.tsx et planning/page.tsx).
   isDelegated: boolean
 }
 
-export interface TsBalanceResult {
-  own: TsBalanceBucket
-  guests: TsGuestBalance[]
+export interface CsBalanceResult {
+  own: CsBalanceBucket
+  guests: CsGuestBalance[]
 }
 
-type RawTsPayment = { id: string; amount: number; status: string }
-type RawBooking = { id: string; guest_name: string | null; check_out: string; ts_payments: RawTsPayment[] | null }
+type RawCsPayment = { id: string; amount: number; status: string }
+type RawBooking = { id: string; guest_name: string | null; check_out: string; cs_payments: RawCsPayment[] | null }
 
-// Solde de taxe de séjour "à la manière d'un solde bancaire" (demandé par
-// Aurélie le 22/09/2026) : additionne TOUTES les taxes de séjour dues d'une
+// Solde de contribution séjour "à la manière d'un solde bancaire" (demandé par
+// Aurélie le 22/09/2026) : additionne TOUTES les contributions séjour dues d'une
 // personne (tous ses séjours, passés ou à venir) et retire celles déjà
 // réglées — jamais remis à zéro d'un séjour à l'autre. "own" est le solde
 // du titulaire du compte connecté ; "guests" un solde par accompagnant
@@ -65,9 +65,9 @@ type RawBooking = { id: string; guest_name: string | null; check_out: string; ts
 // déjà tolérante côté couleurs/famille, une incohérence signalée à Louis)
 // voit ce séjour compté dans SON PROPRE "own" ici, en plus
 // de chez la personne qui l'a saisi : les deux comptes partagent les mêmes
-// lignes ts_payments en base, donc le solde des deux se met à jour
+// lignes cs_payments en base, donc le solde des deux se met à jour
 // ensemble dès que l'un règle (au prochain chargement de page — voir
-// /api/ts-balance, pas de synchronisation instantanée entre deux comptes
+// /api/cs-balance, pas de synchronisation instantanée entre deux comptes
 // ouverts en même temps, non demandée).
 //
 // Familles nucléaires (27/10/2026, demande d'Aurélie : "si un des deux
@@ -99,7 +99,7 @@ type RawBooking = { id: string; guest_name: string | null; check_out: string; ts
 // 'pending' OU 'overdue', ex. un paiement Stripe qui a échoué) — même
 // convention que la vue admin public.user_balances (status != 'paid'),
 // voir migration_payment_tracking.sql.
-export async function computeTsBalance(
+export async function computeCsBalance(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   // Évite un aller-retour Supabase supplémentaire quand l'appelant a déjà
@@ -107,7 +107,7 @@ export async function computeTsBalance(
   // profil du titulaire est déjà chargé par getCurrentUserAndProfile()).
   // undefined (valeur par défaut) : on va la chercher nous-mêmes.
   knownNuclearFamily?: string | null
-): Promise<TsBalanceResult> {
+): Promise<CsBalanceResult> {
   // Latence (26/10/2026, demande d'Aurélie : "il y a toujours un temps
   // de latence [...] a revérifier pour que tout soit tres tres
   // rapide") : `profile` et `myBookings` ne dépendent pas l'un de
@@ -119,14 +119,14 @@ export async function computeTsBalance(
     supabase.from('profiles').select('first_name, last_name, nuclear_family').eq('id', userId).single(),
     supabase
       .from('bookings')
-      .select('id, guest_name, check_out, ts_payments(id, amount, status)')
+      .select('id, guest_name, check_out, cs_payments(id, amount, status)')
       .eq('user_id', userId),
     // Paiement délégué (02/11/2026, voir le commentaire sur
-    // TsGuestBalance.isDelegated plus haut) : tous les comptes qui
-    // délèguent leur taxe de séjour à un autre (actuellement Alexandre
+    // CsGuestBalance.isDelegated plus haut) : tous les comptes qui
+    // délèguent leur contribution séjour à un autre (actuellement Alexandre
     // -> Guy uniquement), pour reconnaître leur nom parmi les
     // accompagnants ci-dessous.
-    supabase.from('profiles').select('id, first_name, last_name').not('ts_payer_id', 'is', null),
+    supabase.from('profiles').select('id, first_name, last_name').not('cs_payer_id', 'is', null),
   ])
 
   const myFullName = profile ? `${profile.first_name} ${profile.last_name}` : null
@@ -143,7 +143,7 @@ export async function computeTsBalance(
   const myNameCandidates = profile ? [profile.first_name, myFullName as string] : null
   const nuclearFamily = knownNuclearFamily !== undefined ? knownNuclearFamily : profile?.nuclear_family ?? null
 
-  // Voir le commentaire sur TsGuestBalance.isDelegated plus haut --
+  // Voir le commentaire sur CsGuestBalance.isDelegated plus haut --
   // tolérant aux fautes de frappe, même mécanisme que myNameCandidates.
   const delegateNameCandidatesList = (delegateProfiles ?? []).map((p) => [p.first_name, `${p.first_name} ${p.last_name}`])
   const isDelegatedGuestName = (guestName: string): boolean =>
@@ -153,7 +153,7 @@ export async function computeTsBalance(
     myFullName
       ? supabase
           .from('bookings')
-          .select('id, guest_name, user_id, check_out, ts_payments(id, amount, status)')
+          .select('id, guest_name, user_id, check_out, cs_payments(id, amount, status)')
           .neq('user_id', userId)
           .not('guest_name', 'is', null)
       : Promise.resolve({ data: [] as RawBooking[] }),
@@ -171,21 +171,21 @@ export async function computeTsBalance(
     familyMemberIds.length > 0
       ? await supabase
           .from('bookings')
-          .select('id, guest_name, user_id, check_out, ts_payments(id, amount, status)')
+          .select('id, guest_name, user_id, check_out, cs_payments(id, amount, status)')
           .in('user_id', familyMemberIds)
           .not('guest_name', 'is', null)
       : { data: [] as (RawBooking & { user_id: string })[] }
 
-  const ownItems: TsBalanceItem[] = []
+  const ownItems: CsBalanceItem[] = []
   let ownPending = 0
   const guestOrder: string[] = []
-  const guestMap = new Map<string, TsGuestBalance>()
+  const guestMap = new Map<string, CsGuestBalance>()
 
-  // Ajoute un ts_payment non réglé à une liste d'items, et renvoie son
+  // Ajoute un cs_payment non réglé à une liste d'items, et renvoie son
   // montant (0 si déjà payé, pour ne rien ajouter au solde).
-  const addUnpaid = (items: TsBalanceItem[], payment: RawTsPayment, checkOut: string, bookingId: string): number => {
+  const addUnpaid = (items: CsBalanceItem[], payment: RawCsPayment, checkOut: string, bookingId: string): number => {
     if (payment.status === 'paid') return 0
-    const period = tsPeriodFromCheckOut(checkOut)
+    const period = csPeriodFromCheckOut(checkOut)
     const amount = Number(payment.amount)
     items.push({
       id: payment.id,
@@ -198,7 +198,7 @@ export async function computeTsBalance(
     return amount
   }
 
-  const addToGuestBucket = (guestName: string, payments: RawTsPayment[], checkOut: string, bookingId: string) => {
+  const addToGuestBucket = (guestName: string, payments: RawCsPayment[], checkOut: string, bookingId: string) => {
     if (!guestMap.has(guestName)) {
       guestMap.set(guestName, { name: guestName, pending: 0, items: [], isDelegated: isDelegatedGuestName(guestName) })
       guestOrder.push(guestName)
@@ -209,17 +209,17 @@ export async function computeTsBalance(
 
   for (const booking of (myBookings ?? []) as RawBooking[]) {
     const guestName = booking.guest_name?.trim()
-    const payments = booking.ts_payments ?? []
+    const payments = booking.cs_payments ?? []
     // Correctif du 02/11/2026 (signalé par Aurélie : déjà avec un séjour
     // en cours dans le widget principal, elle a dû passer par "Ajouter
     // un séjour" -- donc taper SON PROPRE nom comme accompagnant -- pour
     // saisir un second séjour personnel, faute d'un autre moyen de le
-    // faire ; elle attend alors "le cumul des taxes de séjour" des deux
+    // faire ; elle attend alors "le cumul des contributions séjour" des deux
     // dans UN SEUL total) : jusqu'ici, seul un guest_name vide tombait
     // dans "own" -- un séjour auto-étiqueté à son propre nom (même
     // tolérance myNameCandidates qu'ailleurs dans ce fichier, déjà
     // utilisée plus bas pour le même cas chez un AUTRE compte) tombait
-    // par erreur dans un bucket "guests" séparé (ex. "TS - Aurelie"),
+    // par erreur dans un bucket "guests" séparé (ex. "CS - Aurelie"),
     // jamais fusionné avec son propre solde "own" malgré que ce soit
     // bien le même et unique solde d'une seule personne.
     const isSelfTagged = !!guestName && !!myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1
@@ -247,14 +247,14 @@ export async function computeTsBalance(
     // déjà compté dans "own" via otherBookings plus bas, jamais compté
     // deux fois.
     if (myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1) continue
-    addToGuestBucket(guestName, booking.ts_payments ?? [], booking.check_out, booking.id)
+    addToGuestBucket(guestName, booking.cs_payments ?? [], booking.check_out, booking.id)
   }
 
   if (myNameCandidates) {
     for (const booking of (otherBookings ?? []) as RawBooking[]) {
       const guestName = booking.guest_name?.trim()
       if (!guestName || findClosestNameMatch(guestName, myNameCandidates) === -1) continue
-      const payments = booking.ts_payments ?? []
+      const payments = booking.cs_payments ?? []
       for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out, booking.id)
     }
   }

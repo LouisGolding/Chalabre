@@ -20,7 +20,7 @@ const canat = process.env.STRIPE_SECRET_KEY_CANAT
   : null
 
 // Le compte qui encaisse, selon le côté de la maison : profiles.family_group
-// pour une cotisation, bookings.house_side pour une taxe de séjour (même
+// pour une cotisation, bookings.house_side pour une contribution séjour (même
 // règle que BudgetStripeTransaction, src/types/index.ts : "petite_maison"
 // et un séjour sans côté vont sur Lalande).
 export function accountFor(side: string | null | undefined): StripeAccount {
@@ -56,7 +56,7 @@ export function constructWebhookEvent(
 // Commission Stripe (~1,5 % prélevés par Stripe sur chaque paiement par
 // carte, demandé par Aurélie le 26/10/2026) : "lorsque quelqu'un verse
 // 10€, le compte ne perçoit que 9,85€". Pour que le compte bancaire
-// reçoive bien le montant officiel (taxe de séjour ou cotisation,
+// reçoive bien le montant officiel (contribution séjour ou cotisation,
 // toujours un chiffre rond, jamais modifié dans l'app ni en base), on
 // facture systématiquement ce montant + 1,5 % — calculé automatiquement,
 // jamais saisi à la main — en tant que ligne séparée sur la session

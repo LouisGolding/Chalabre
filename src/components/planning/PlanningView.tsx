@@ -28,7 +28,7 @@ import {
 import { fr } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn, calculateTotalTS, firstNameOnly, properCase } from '@/lib/utils'
+import { cn, calculateTotalCS, firstNameOnly, properCase } from '@/lib/utils'
 import { colorForName, coloredTextureStyle, shouldUseWhiteText } from '@/lib/colors'
 import { BookingEditModal } from '@/components/planning/BookingEditModal'
 import type { HouseSide } from '@/types'
@@ -112,7 +112,7 @@ interface PlanningViewProps {
   currentUserId: string
   // Remonte un changement de dates fait directement sur la bande colorée
   // (glisser) au parent (PlanningPageClient.tsx), pour qu'il resynchronise le
-  // widget "Prochain séjour" correspondant (NextStayCard) et sa taxe de séjour
+  // widget "Prochain séjour" correspondant (NextStayCard) et sa contribution séjour
   // -- demandé par Nicolas le 02/10/2026. N'est pas appelé pour une
   // modification faite depuis la modale (désactivée pour le moment, voir
   // SHOW_BOOKING_EDIT_MODAL_ON_CLICK), uniquement pour le glisser direct.
@@ -229,7 +229,7 @@ function canEditBooking(booking: PlanningBooking, currentUserId: string): boolea
   return !!booking.user_id && booking.user_id === currentUserId
 }
 
-// Tranche d'âge par défaut pour recalculer la taxe de séjour d'un séjour
+// Tranche d'âge par défaut pour recalculer la contribution séjour d'un séjour
 // existant (glisser ou modale) : déduite de la date de naissance du
 // titulaire du compte, comme sur la page d'accueil (NextStayCard.tsx) ; à
 // défaut (accompagnant sans compte, ou date de naissance absente) —
@@ -720,7 +720,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     setSavingBookingId(bookingId)
     setModalError(null)
     const ageRate = inferAgeRate(booking)
-    const amount = calculateTotalTS(newCheckIn, newCheckOut, ageRate, true)
+    const amount = calculateTotalCS(newCheckIn, newCheckOut, ageRate, true)
     const checkInStr = format(newCheckIn, 'yyyy-MM-dd')
     const checkOutStr = format(newCheckOut, 'yyyy-MM-dd')
     try {
@@ -763,7 +763,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
     if (!booking) return
     setSavingBookingId(bookingId)
     setModalError(null)
-    const amount = calculateTotalTS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
+    const amount = calculateTotalCS(new Date(checkIn), new Date(checkOut), ageBracket === 'child' ? 10 : 20, true)
     try {
       const res = await fetch('/api/bookings/quick', {
         method: 'POST',
@@ -959,7 +959,7 @@ export function PlanningView({ bookings, onBookingsChange, events, currentUserId
           {/* Pastilles de vue. Réécrites le 28/09/2026 à la demande de
               Nicolas : simples libellés texte (majuscules, gris clair,
               gris foncé une fois sélectionné), même traitement que
-              "Taxe de séjour" dans le widget "Prochain séjour" (voir
+              "Contribution séjour" dans le widget "Prochain séjour" (voir
               NextStayCard.tsx) — plus de bouton encadré/rempli. "Mois" et
               "Année" ne sont plus proposés sur mobile (repliés en
               hidden/md:inline) : sur petit écran il ne reste que

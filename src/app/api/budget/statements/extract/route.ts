@@ -68,7 +68,7 @@ const SYSTEM_PROMPT =
   `Catégories :\n` +
   BUDGET_CATEGORIES.map((c) => `- ${c.id} : ${c.label}`).join('\n') +
   `\n\nRepères : "cotisation" pour les virements mensuels des membres de la famille ` +
-  `vers le compte ; "taxe_sejour" pour les taxes de séjour encaissées ou reversées ; ` +
+  `vers le compte ; "contribution_sejour" pour les contributions séjour encaissées ou reversées ; ` +
   `"abonnements" pour le téléphone et internet récurrents (ex. Orange fibre) ; ` +
   `"remboursement" pour une somme versée à un particulier ou reçue d'un particulier, ` +
   `en particulier un membre de la famille, hors cotisation ; "autre" pour tout ce ` +
