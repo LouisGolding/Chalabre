@@ -177,7 +177,20 @@ export async function computeTsBalance(
   for (const booking of (myBookings ?? []) as RawBooking[]) {
     const guestName = booking.guest_name?.trim()
     const payments = booking.ts_payments ?? []
-    if (!guestName) {
+    // Correctif du 02/11/2026 (signalé par Aurélie : déjà avec un séjour
+    // en cours dans le widget principal, elle a dû passer par "Ajouter
+    // un séjour" -- donc taper SON PROPRE nom comme accompagnant -- pour
+    // saisir un second séjour personnel, faute d'un autre moyen de le
+    // faire ; elle attend alors "le cumul des taxes de séjour" des deux
+    // dans UN SEUL total) : jusqu'ici, seul un guest_name vide tombait
+    // dans "own" -- un séjour auto-étiqueté à son propre nom (même
+    // tolérance myNameCandidates qu'ailleurs dans ce fichier, déjà
+    // utilisée plus bas pour le même cas chez un AUTRE compte) tombait
+    // par erreur dans un bucket "guests" séparé (ex. "TS - Aurelie"),
+    // jamais fusionné avec son propre solde "own" malgré que ce soit
+    // bien le même et unique solde d'une seule personne.
+    const isSelfTagged = !!guestName && !!myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1
+    if (!guestName || isSelfTagged) {
       for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out)
       continue
     }

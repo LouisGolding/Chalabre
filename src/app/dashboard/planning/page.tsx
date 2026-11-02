@@ -232,13 +232,32 @@ export default async function PlanningPage() {
   // d'arrivée.
   const todayISOForReserver = new Date().toISOString().slice(0, 10)
   const myFutureBookings = (myBookings ?? []).filter((b) => b.check_out >= todayISOForReserver)
+  // Candidats de correspondance pour "c'est en réalité SON PROPRE
+  // séjour" -- même tolérance (accents/fautes de frappe) que partout
+  // ailleurs (ts-balance.ts, checkout/route.ts, dashboard/page.tsx).
+  // Remonté ici (avant myOwnBookings) depuis sa place d'origine plus bas,
+  // pour pouvoir aussi s'en servir dans le calcul de myOwnBookings.
+  const myNameCandidatesForFamily = [profile.first_name, `${profile.first_name} ${profile.last_name}`]
+  // Correctif du 02/11/2026 (signalé par Aurélie : déjà avec un séjour en
+  // cours dans le widget principal, elle a dû passer par "Ajouter un
+  // séjour" -- donc taper SON PROPRE nom comme accompagnant -- pour
+  // saisir un second séjour personnel, faute d'un autre moyen de le
+  // faire) : un séjour "auto-étiqueté" à son propre nom reste bien SON
+  // séjour -- jamais un accompagnant -- voir isMyOwnBooking.
+  const isMyOwnBooking = (b: { guest_name?: string | null }) =>
+    !b.guest_name || findClosestNameMatch(b.guest_name, myNameCandidatesForFamily) !== -1
   // Tous les séjours à venir (ou en cours) du titulaire lui-même, pas
   // seulement le premier (demandé par Aurélie le 26/10/2026 : cliquer sur
   // la bande colorée d'un de ses autres séjours, ex. celui de décembre,
   // doit faire basculer le widget sur celui-ci -- voir
   // PlanningPageClient.tsx, selectedOwnBookingId). Déjà triés par
-  // check_in croissant (ordre de la requête myBookings plus haut).
-  const myOwnBookings = myFutureBookings.filter((b) => !b.guest_name)
+  // check_in croissant (ordre de la requête myBookings plus haut). Inclut
+  // désormais aussi un séjour auto-étiqueté (isMyOwnBooking ci-dessus) :
+  // une fois le séjour en cours (ex. octobre) terminé, celui-ci (ex.
+  // décembre) devient le nouveau "myOwnBookings[0]" -- donc la nouvelle
+  // "Votre prochain séjour" par défaut -- au lieu de rester invisible,
+  // confondu avec un accompagnant.
+  const myOwnBookings = myFutureBookings.filter(isMyOwnBooking)
   // Même séjours d'accompagnants que ci-dessus, mais saisis par un autre
   // membre de la famille nucléaire plutôt que par le titulaire lui-même
   // (voir familyGuestBookings et le commentaire qui l'accompagne plus
@@ -249,7 +268,6 @@ export default async function PlanningPage() {
   // partagé), et ceux dont le nom correspond au titulaire DU COMPTE QUI
   // REGARDE (déjà son propre séjour, voir myOwnBookings/sa propre
   // pastille TS, jamais compté comme "accompagnant" en plus).
-  const myNameCandidatesForFamily = [profile.first_name, `${profile.first_name} ${profile.last_name}`]
   const familyGuestFutureBookings = (familyGuestBookings ?? []).filter((b) => {
     if (b.check_out < todayISOForReserver) return false
     const g = b.guest_name?.trim()
@@ -258,7 +276,15 @@ export default async function PlanningPage() {
     if (registrantCandidates && findClosestNameMatch(g, registrantCandidates) !== -1) return false
     return findClosestNameMatch(g, myNameCandidatesForFamily) === -1
   })
-  const guestFutureBookings = [...myFutureBookings.filter((b) => b.guest_name), ...familyGuestFutureBookings]
+  // Correctif du 02/11/2026 : un séjour auto-étiqueté à son propre nom
+  // (isMyOwnBooking) est désormais exclu d'ici -- déjà compté dans
+  // myOwnBookings ci-dessus, jamais affiché en plus comme un
+  // accompagnant (même principe que l'exclusion symétrique ci-dessus
+  // pour familyGuestFutureBookings).
+  const guestFutureBookings = [
+    ...myFutureBookings.filter((b) => b.guest_name && !isMyOwnBooking(b)),
+    ...familyGuestFutureBookings,
+  ]
     .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
     .map((b) => {
       const ref = b.guest_name ? resolvePaletteRef(b.guest_name) : null
@@ -316,7 +342,11 @@ export default async function PlanningPage() {
 
   const ownPastStays = sortPastDesc(
     ((myBookings ?? []) as RawHistoryBooking[])
-      .filter((b) => !b.guest_name && b.check_out < todayISOForReserver)
+      // isMyOwnBooking (02/11/2026) : couvre aussi un séjour auto-étiqueté
+      // à son propre nom (voir le grand correctif plus haut) -- doit
+      // atterrir dans SON historique, pas disparaître ni être compté
+      // ailleurs.
+      .filter((b) => isMyOwnBooking(b) && b.check_out < todayISOForReserver)
       .map(toHistoryStay)
   )
   const ownHistoryColor = colorForPaletteIndex(

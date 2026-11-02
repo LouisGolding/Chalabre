@@ -15,6 +15,7 @@ import { computeTsBalance } from '@/lib/ts-balance'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isPeriodCurrent } from '@/lib/task-periods'
 import { firstNameOnly, properCase, stayPhase } from '@/lib/utils'
+import { findClosestNameMatch } from '@/lib/fuzzy-name'
 
 // "25 décembre 2026" -> "25 DÉCEMBRE 2026", comme sur le visuel Photoshop
 // de Nicolas (27/09/2026) pour les dates du prochain séjour.
@@ -210,14 +211,31 @@ export default async function DashboardPage() {
   // check_out >= aujourd'hui (pas check_in) pour garder un séjour en
   // cours affiché ici tant qu'il n'est pas terminé, même logique que
   // là-bas.
-  const nextBooking = (bookings ?? []).find((b) => !b.guest_name && b.check_out >= todayISO) ?? null
+  //
+  // Correctif du 02/11/2026 (signalé par Aurélie : elle a dû saisir un
+  // second séjour pour elle-même, déjà le sien en cours dans le widget
+  // principal, via "Ajouter un séjour" -- faute d'un autre moyen d'en
+  // ajouter un second -- et a donc tapé son PROPRE nom comme si elle
+  // réservait pour un accompagnant) : un séjour "auto-étiqueté" (le nom
+  // tapé correspond en réalité au titulaire lui-même, tolérant aux
+  // accents/fautes de frappe) reste bien SON séjour, jamais un
+  // accompagnant -- même règle, même tolérance que isSelfTagged dans
+  // /api/stripe/checkout/route.ts et computeTsBalance (ts-balance.ts).
+  // Une fois le séjour d'octobre terminé (check_out < aujourd'hui), ce
+  // correctif fait que celui de décembre (jusqu'ici invisible ici,
+  // relégué dans les accompagnants de l'onglet Planning) redevient "Votre
+  // prochain séjour" comme n'importe lequel des siens.
+  const myNameCandidatesForSelfTag = [profile.first_name, `${profile.first_name} ${profile.last_name}`]
+  const isMyOwnBooking = (b: { guest_name?: string | null }) =>
+    !b.guest_name || findClosestNameMatch(b.guest_name, myNameCandidatesForSelfTag) !== -1
+  const nextBooking = (bookings ?? []).find((b) => isMyOwnBooking(b) && b.check_out >= todayISO) ?? null
 
   const pastBookings = bookings?.filter(b => new Date(b.check_out) < today) ?? []
   // Séjour du titulaire du compte (widgets principaux) vs séjours ajoutés
   // pour des accompagnants (guest_name renseigné) via le bouton "+" : pour
   // "Vous n'êtes pas venu depuis...", seuls les séjours du titulaire
   // lui-même comptent.
-  const myPastBookings = pastBookings.filter(b => !b.guest_name)
+  const myPastBookings = pastBookings.filter(isMyOwnBooking)
   const lastBooking = myPastBookings[myPastBookings.length - 1]
 
   // Widget "Vous n'êtes pas venu depuis X jours" (demandé par Aurélie le
@@ -233,10 +251,17 @@ export default async function DashboardPage() {
       : null
 
   // Solde de taxe de séjour du titulaire (voir src/lib/ts-balance.ts),
-  // pour la pastille "TOTAL TAXE DE SÉJOUR" à côté du prochain séjour —
-  // calculé uniquement quand il y a un prochain séjour à afficher, pour
-  // ne pas ajouter cette requête à chaque chargement de l'accueil sinon.
-  const tsBalance = nextBooking ? await computeTsBalance(supabase, user.id, profile.nuclear_family) : null
+  // pour la pastille "Payer ici ses taxes de séjour" de l'accueil.
+  //
+  // Correctif du 02/11/2026 (signalé par Aurélie : "on doit toujours
+  // avoir la pastille de taxe de séjour visible [...] même si il n'y a
+  // pas de séjour en cours ou à venir") : calculé désormais
+  // systématiquement, plus seulement quand il y a un prochain séjour --
+  // une taxe de séjour peut rester due (ex. un séjour passé jamais réglé)
+  // même sans aucun séjour à venir au planning, et doit rester payable
+  // depuis l'accueil dans ce cas-là aussi.
+  const tsBalance = await computeTsBalance(supabase, user.id, profile.nuclear_family)
+  const tsTotalPending = tsBalance.own.pending + tsBalance.guests.reduce((sum, g) => sum + g.pending, 0)
 
   // currentBookings vient désormais du Promise.all plus haut (même
   // requête, juste déplacée pour partir en parallèle avec les 3 autres).
@@ -347,35 +372,41 @@ export default async function DashboardPage() {
             <p className="mt-2 text-sm font-extrabold uppercase tracking-[0.12em] text-background md:text-base">
               {formatDateLong(nextBooking.check_in)} - {formatDateLong(nextBooking.check_out)}
             </p>
-            {tsBalance && (
-              <div className="mt-6">
-                {/* Pastille unique qui règle TOUT d'un coup (27/10/2026,
-                    demande d'Aurélie : "la pastille 'payer vos ts'
-                    additionne toutes ces taxes de séjour pour les payer
-                    en une seule fois") -- additionne le solde propre du
-                    titulaire ET celui de tous ses accompagnants (enfants
-                    saisis par lui, ou par l'autre parent si même famille
-                    nucléaire, voir computeTsBalance) en un seul montant
-                    et une seule session Stripe. Côté "gestion" comme sur
-                    la page Stripe elle-même, chaque personne garde sa
-                    propre ligne (voir /api/stripe/checkout/route.ts :
-                    un libellé par accompagnant, un ts_payments.update
-                    distinct par personne) -- rien ne change de ce
-                    côté-là, seul le geste de paiement est unifié ici. */}
-                <TaxeSejourPill
-                  amount={tsBalance.own.pending + tsBalance.guests.reduce((sum, g) => sum + g.pending, 0)}
-                  ids={[
-                    ...tsBalance.own.items.map((item) => item.id),
-                    ...tsBalance.guests.flatMap((g) => g.items.map((item) => item.id)),
-                  ]}
-                />
-              </div>
-            )}
           </div>
         ) : (
           lastStaySentence && (
             <p className="mt-6 text-sm font-light text-background md:text-base">{lastStaySentence}</p>
           )
+        )}
+
+        {/* Pastille unique qui règle TOUT d'un coup (27/10/2026, demande
+            d'Aurélie : "la pastille 'payer vos ts' additionne toutes ces
+            taxes de séjour pour les payer en une seule fois") --
+            additionne le solde propre du titulaire ET celui de tous ses
+            accompagnants (enfants saisis par lui, ou par l'autre parent
+            si même famille nucléaire, voir computeTsBalance) en un seul
+            montant et une seule session Stripe. Côté "gestion" comme sur
+            la page Stripe elle-même, chaque personne garde sa propre
+            ligne (voir /api/stripe/checkout/route.ts : un libellé par
+            accompagnant, un ts_payments.update distinct par personne) --
+            rien ne change de ce côté-là, seul le geste de paiement est
+            unifié ici.
+            Correctif du 02/11/2026 : affichée désormais indépendamment de
+            nextBooking (voir tsBalance plus haut) -- un solde dû (ex. un
+            séjour passé jamais réglé) doit rester payable depuis
+            l'accueil même sans aucun séjour en cours ou à venir. Masquée
+            seulement quand il n'y a vraiment rien à payer (0€), pour ne
+            pas afficher en permanence une pastille de paiement inactive. */}
+        {tsTotalPending > 0 && (
+          <div className="mt-6">
+            <TaxeSejourPill
+              amount={tsTotalPending}
+              ids={[
+                ...tsBalance.own.items.map((item) => item.id),
+                ...tsBalance.guests.flatMap((g) => g.items.map((item) => item.id)),
+              ]}
+            />
+          </div>
         )}
 
         {/* "Aujourd'hui" / "Demain" / "À suivre" — branché le
