@@ -273,6 +273,9 @@ export default async function AdminPage() {
           hasLogin: p.has_login,
           tsTotalYear: ts.total,
           tsPaidYear: ts.paid,
+          // Ordre de l'arbre généalogique (02/11/2026, voir MemberRow.treeOrder
+          // dans MembersTable.tsx) -- null pour qui n'est pas encore placé.
+          treeOrder: p.family_tree_order ?? null,
         }
       })
 
@@ -296,6 +299,11 @@ export default async function AdminPage() {
         hasLogin: false,
         tsTotalYear: g.total,
         tsPaidYear: g.paid,
+        // Un accompagnant reconstitué depuis un nom de séjour (voir le
+        // commentaire juste au-dessus) n'a pas de fiche profiles, donc
+        // pas de place connue dans l'arbre -- classé en dernier, comme
+        // les comptes pas encore placés (voir MemberRow.treeOrder).
+        treeOrder: null,
       }))
 
     return [...accountRows, ...guestRows]

@@ -568,6 +568,28 @@ export function NextStayCard({
       ]
     : undefined
 
+  // Correctif du 02/11/2026 (demande de Nicolas : "dans le widget
+  // 'votre prochain séjour', on devrait simplement avoir à payer la
+  // taxe de séjour qui correspond à CE séjour, et non le cumul de
+  // toutes les taxes de séjour de nos séjours précédents, puisque mtn
+  // on a un historique [...] pour le cas des séjours famille, tu peux
+  // en faire le cumul, seule exception") : jusqu'ici, pendant/ids de ce
+  // widget reprenaient tsBalance.own en entier -- TOUT ce qui reste dû
+  // sur TOUS les séjours propres du titulaire, passés compris (voir le
+  // grand commentaire de computeTsBalance dans ts-balance.ts, "jamais
+  // remis à zéro d'un séjour à l'autre"). Ce cumul-là reste affiché,
+  // mais seulement sur la pastille de la page d'accueil (voir
+  // dashboard/page.tsx, TaxeSejourPill) -- ici, on filtre tsBalance.own.items
+  // à ceux du SEUL séjour affiché par ce widget (primaryBooking.id, voir
+  // TsBalanceItem.bookingId dans ts-balance.ts). Sans effet quand
+  // familyOn (familyPendingOverride/idsOverride ci-dessus prennent le
+  // relais, cumul volontairement conservé pour ce cas précis).
+  const primaryStayItems = primaryBooking
+    ? tsBalance.own.items.filter((i) => i.bookingId === primaryBooking.id)
+    : []
+  const primaryStayPending = primaryStayItems.reduce((sum, i) => sum + i.amount, 0)
+  const primaryStayIds = primaryStayItems.map((i) => i.id)
+
   return (
     <div className="space-y-3">
       <StayEntry
@@ -581,14 +603,14 @@ export function NextStayCard({
         titleWhenEmpty="Réserver votre séjour"
         titleWhenUpcoming="Votre prochain séjour"
         titleWhenOngoing="Votre séjour en cours"
-        pending={tsBalance.own.pending}
-        ids={tsBalance.own.items.map((i) => i.id)}
+        pending={primaryStayPending}
+        ids={primaryStayIds}
         bgColor={ownerColor}
         onSaved={onBookingSaved}
         onDeleted={handlePrimaryDeleted}
         onHiddenChange={(id) => setEntryHidden('primary', id)}
         familyToggle={familyToggleAvailable ? { on: familyOn, onToggle: handleFamilyToggle, disabled: !primaryBooking } : undefined}
-        pillLabel={familyOn ? 'Total taxe de séjour famille :' : undefined}
+        pillLabel={familyOn ? 'Total taxe de séjour famille :' : 'Payer ici sa taxe de séjour :'}
         pendingOverride={familyPendingOverride}
         idsOverride={familyIdsOverride}
       />

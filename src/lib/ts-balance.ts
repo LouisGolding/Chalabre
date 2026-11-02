@@ -9,6 +9,12 @@ export interface TsBalanceItem {
   checkOut: string
   period: TsPeriod
   label: string // ex. "2026/JUN", pour affichage/debug — voir buildTsStatementDescriptorSuffix pour le libellé bancaire
+  // Séjour d'origine de ce paiement (02/11/2026, demande de Nicolas : le
+  // widget "Votre prochain séjour" ne doit plus payer le CUMUL de tous
+  // ses séjours -- on a désormais un historique pour ça -- mais
+  // seulement la taxe de séjour de CE séjour précis) -- permet de
+  // filtrer tsBalance.own.items à un seul séjour, voir NextStayCard.tsx.
+  bookingId: string
 }
 
 export interface TsBalanceBucket {
@@ -177,7 +183,7 @@ export async function computeTsBalance(
 
   // Ajoute un ts_payment non réglé à une liste d'items, et renvoie son
   // montant (0 si déjà payé, pour ne rien ajouter au solde).
-  const addUnpaid = (items: TsBalanceItem[], payment: RawTsPayment, checkOut: string): number => {
+  const addUnpaid = (items: TsBalanceItem[], payment: RawTsPayment, checkOut: string, bookingId: string): number => {
     if (payment.status === 'paid') return 0
     const period = tsPeriodFromCheckOut(checkOut)
     const amount = Number(payment.amount)
@@ -187,17 +193,18 @@ export async function computeTsBalance(
       checkOut,
       period,
       label: `${period.year}/${MONTHS_3[period.monthIndex]}`,
+      bookingId,
     })
     return amount
   }
 
-  const addToGuestBucket = (guestName: string, payments: RawTsPayment[], checkOut: string) => {
+  const addToGuestBucket = (guestName: string, payments: RawTsPayment[], checkOut: string, bookingId: string) => {
     if (!guestMap.has(guestName)) {
       guestMap.set(guestName, { name: guestName, pending: 0, items: [], isDelegated: isDelegatedGuestName(guestName) })
       guestOrder.push(guestName)
     }
     const bucket = guestMap.get(guestName)!
-    for (const payment of payments) bucket.pending += addUnpaid(bucket.items, payment, checkOut)
+    for (const payment of payments) bucket.pending += addUnpaid(bucket.items, payment, checkOut, bookingId)
   }
 
   for (const booking of (myBookings ?? []) as RawBooking[]) {
@@ -217,10 +224,10 @@ export async function computeTsBalance(
     // bien le même et unique solde d'une seule personne.
     const isSelfTagged = !!guestName && !!myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1
     if (!guestName || isSelfTagged) {
-      for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out)
+      for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out, booking.id)
       continue
     }
-    addToGuestBucket(guestName, payments, booking.check_out)
+    addToGuestBucket(guestName, payments, booking.check_out, booking.id)
   }
 
   // Séjours d'accompagnants saisis par un autre membre de la même
@@ -240,7 +247,7 @@ export async function computeTsBalance(
     // déjà compté dans "own" via otherBookings plus bas, jamais compté
     // deux fois.
     if (myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1) continue
-    addToGuestBucket(guestName, booking.ts_payments ?? [], booking.check_out)
+    addToGuestBucket(guestName, booking.ts_payments ?? [], booking.check_out, booking.id)
   }
 
   if (myNameCandidates) {
@@ -248,7 +255,7 @@ export async function computeTsBalance(
       const guestName = booking.guest_name?.trim()
       if (!guestName || findClosestNameMatch(guestName, myNameCandidates) === -1) continue
       const payments = booking.ts_payments ?? []
-      for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out)
+      for (const payment of payments) ownPending += addUnpaid(ownItems, payment, booking.check_out, booking.id)
     }
   }
 

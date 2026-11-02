@@ -10,9 +10,14 @@ interface TaxeSejourPillProps {
   ids: string[]
 }
 
-// Pastille "Payer ici ses taxes de séjour" (texte et comportement
-// simplifiés le 26/10/2026 à la demande d'Aurélie : "on va faire
-// finalement beaucoup plus simple"). L'ancien effet "texte creusé dans
+// Pastille "Payer ici le total de ses taxes de séjour" (texte et
+// comportement simplifiés le 26/10/2026 à la demande d'Aurélie : "on va
+// faire finalement beaucoup plus simple"). Libellé précisé le
+// 02/11/2026 (demande de Nicolas, pour la distinguer de la pastille du
+// widget "Votre prochain séjour" -- NextStayCard.tsx -- qui ne paye
+// plus que CE séjour précis depuis ce jour-là) : "le total de ses
+// taxes" marque bien que CELLE-CI couvre le cumul de tout ce qui reste
+// dû, tous séjours confondus. L'ancien effet "texte creusé dans
 // la photo de fond" au survol est retiré -- remplacé par une animation
 // ambiante en boucle (voir .ts-pill-pulse dans globals.css) qui fait
 // passer la pastille de "texte blanc sur fond transparent" à "texte
@@ -33,7 +38,7 @@ export function TaxeSejourPill({ amount, ids }: TaxeSejourPillProps) {
       ids={ids}
       className="ts-pill-pulse inline-flex items-center border border-white px-3 py-1.5 text-xs uppercase tracking-[0.12em] md:text-sm"
     >
-      Payer ici ses taxes de séjour : {formatted}€
+      Payer ici le total de ses taxes de séjour : {formatted}€
     </TSBalancePayButton>
   )
 }

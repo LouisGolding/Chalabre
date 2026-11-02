@@ -11,27 +11,70 @@ import { Contact } from '@/types'
 // champ de saisie, l'enregistrement se fait à la perte du focus ou sur
 // Entrée (Échap annule) — même interaction que la pastille "Cotisation
 // mensuelle" du tableau de bord.
+//
+// Variante "multiline" (02/11/2026, demande de Nicolas pour la colonne
+// "Historique" -- ex-"Commentaire" -- "il ne faut pas que les textes
+// soient tronqués [...] si on fait un passage à la ligne [...] cela
+// crée une nouvelle ligne également, de sorte à pouvoir faire des
+// listes d'interventions") : affichage en `whitespace-pre-wrap` au lieu
+// de `truncate` (plus de texte coupé, la cellule grandit en hauteur
+// selon son contenu comme le reste du tableau), et édition dans un
+// <textarea> plutôt qu'un <input> -- Entrée y insère un retour à la
+// ligne normalement (comportement natif, aucune interception
+// particulière, à la différence de la variante <input> ci-dessous qui
+// valide sur Entrée) ; Échap annule toujours, et l'enregistrement se
+// fait à la perte du focus, comme pour les autres colonnes.
 function EditableCell({
   value,
   editable,
   placeholder,
   onSave,
   type = 'text',
+  multiline = false,
 }: {
   value: string
   editable: boolean
   placeholder: string
   onSave: (next: string) => void
   type?: 'text' | 'tel' | 'email'
+  multiline?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
 
   if (!editable) {
-    return <span className={cn('block truncate', value ? 'text-foreground' : 'text-muted-foreground/60')}>{value || '—'}</span>
+    return (
+      <span
+        className={cn('block', multiline ? 'whitespace-pre-wrap break-words' : 'truncate', value ? 'text-foreground' : 'text-muted-foreground/60')}
+      >
+        {value || '—'}
+      </span>
+    )
   }
 
   if (editing) {
+    if (multiline) {
+      return (
+        <textarea
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            setEditing(false)
+            if (draft !== value) onSave(draft)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setDraft(value)
+              setEditing(false)
+            }
+          }}
+          placeholder={placeholder}
+          rows={Math.max(2, draft.split('\n').length)}
+          className="w-full min-w-[100px] resize-y rounded-md border border-border bg-background px-1.5 py-1 text-sm text-foreground outline-none"
+        />
+      )
+    }
     return (
       <input
         type={type}
@@ -62,7 +105,7 @@ function EditableCell({
         setDraft(value)
         setEditing(true)
       }}
-      className="w-full truncate rounded px-1.5 py-1 text-left text-sm hover:bg-muted"
+      className={cn('w-full rounded px-1.5 py-1 text-left text-sm hover:bg-muted', multiline ? 'whitespace-pre-wrap break-words' : 'truncate')}
     >
       {value ? <span className="text-foreground">{value}</span> : <span className="text-muted-foreground/60">{placeholder}</span>}
     </button>
@@ -82,7 +125,7 @@ const COLUMNS: { key: SortKey; label: string }[] = [
   { key: 'name', label: 'Nom' },
   { key: 'role', label: 'Type de service' },
   { key: 'phone', label: 'Téléphone' },
-  { key: 'notes', label: 'Commentaire' },
+  { key: 'notes', label: 'Historique' },
   { key: 'address', label: 'Adresse' },
   { key: 'email', label: 'Email' },
 ]
@@ -460,8 +503,12 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
                       <span className="text-muted-foreground/60">—</span>
                     )}
                   </td>
-                  <td className="overflow-hidden px-3 py-2.5">
-                    <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Commentaire" onSave={(v) => patch(c.id, 'notes', v)} />
+                  {/* Pas d'overflow-hidden ici (contrairement aux autres
+                      cellules) : la colonne "Historique" doit pouvoir
+                      grandir en hauteur sur plusieurs lignes sans que
+                      rien ne la rogne (demande de Nicolas le 02/11/2026). */}
+                  <td className="px-3 py-2.5 align-top">
+                    <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Historique" onSave={(v) => patch(c.id, 'notes', v)} multiline />
                   </td>
                   <td className="overflow-hidden px-3 py-2.5">
                     <EditableCell value={c.address ?? ''} editable={canEdit} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />

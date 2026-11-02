@@ -46,6 +46,14 @@ export interface MemberRow {
   // recalculé à l'affichage (tsTotalYear - tsPaidYear), pas stocké.
   tsTotalYear: number
   tsPaidYear: number
+  // Ordre par défaut du tableau (02/11/2026, demande de Nicolas :
+  // "classer dans l'ordre où je te les ai donnés, c'est l'ordre de
+  // l'arbre généalogique") -- profiles.family_tree_order, voir la
+  // migration add_family_tree_order.sql pour qui est numéroté et
+  // pourquoi certains ne le sont pas encore. null pour tout le monde
+  // qui n'est pas (encore) placé dans l'arbre (voir sortValue plus bas :
+  // ceux-là restent classés en dernier, par nom de famille comme avant).
+  treeOrder: number | null
 }
 
 // Une ligne d'accompagnant sans compte (voir MemberRow.role ci-dessus) :
@@ -82,7 +90,7 @@ function remainingOf(row: MemberRow): number {
   return row.tsTotalYear - row.tsPaidYear
 }
 
-type SortKey = 'lastName' | 'firstName' | 'role' | 'tsTotalYear' | 'tsPaidYear' | 'remaining' | 'email' | 'dateOfBirth' | 'createdAt'
+type SortKey = 'treeOrder' | 'lastName' | 'firstName' | 'role' | 'tsTotalYear' | 'tsPaidYear' | 'remaining' | 'email' | 'dateOfBirth' | 'createdAt'
 type SortDir = 'asc' | 'desc'
 
 // Colonnes numériques (alignées à droite, triées par valeur et non par
@@ -91,6 +99,10 @@ const NUMERIC_KEYS: SortKey[] = ['tsTotalYear', 'tsPaidYear', 'remaining']
 
 function sortValue(row: MemberRow, key: SortKey): string | number {
   switch (key) {
+    case 'treeOrder':
+      // Pas encore placé dans l'arbre (voir MemberRow.treeOrder) --
+      // toujours classé après tout le monde qui l'est.
+      return row.treeOrder ?? Number.MAX_SAFE_INTEGER
     case 'lastName':
       return row.lastName
     case 'firstName':
@@ -197,7 +209,12 @@ function EditableDob({
 // Total TS <année en cours>, Payé, Reste dû, Email, Créé le.
 export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
   const [rows, setRows] = useState(initialRows)
-  const [sortKey, setSortKey] = useState<SortKey>('lastName')
+  // Tri par défaut (02/11/2026, demande de Nicolas) : l'ordre de l'arbre
+  // généalogique (profiles.family_tree_order) plutôt que l'ordre
+  // alphabétique -- toujours disponible en cliquant "Nom" pour y
+  // revenir. Pas de colonne dédiée pour celui-ci (voir `columns` plus
+  // bas) : c'est uniquement l'état initial du tableau.
+  const [sortKey, setSortKey] = useState<SortKey>('treeOrder')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [pending, setPending] = useState<string | null>(null)
 
