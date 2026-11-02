@@ -212,6 +212,10 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [adding, setAdding] = useState(false)
   const [movingId, setMovingId] = useState<string | null>(null)
+  // Carte dépliée dans la pile "Wallet" de la version mobile
+  // (02/11/2026, demande de Nicolas) -- une seule à la fois, voir
+  // MobileContactCard.
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // --- Largeur des colonnes (27/10/2026, demande d'Aurelie) : voir le
   //     grand commentaire au-dessus de MIN_COL_WIDTH plus haut. ---
@@ -442,7 +446,12 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
   return (
     <div className="space-y-3">
       {sorted.length > 0 ? (
-        <div ref={scrollRef} className="overflow-x-auto rounded-lg border border-border">
+        <>
+        {/* Version ordinateur : tableau existant, inchangé, md+
+            uniquement (02/11/2026, demande de Nicolas : la version
+            mobile ci-dessous remplace ce tableau sous md, le tableau
+            desktop ne change pas). */}
+        <div ref={scrollRef} className="hidden overflow-x-auto rounded-lg border border-border md:block">
           <table className="text-left text-sm" style={{ tableLayout: 'fixed', width: totalTableWidth }}>
             <colgroup>
               {COLUMNS.map((col) => (
@@ -569,6 +578,41 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
             </tbody>
           </table>
         </div>
+
+        {/* Version mobile : pile de cartes façon Wallet (02/11/2026,
+            demande de Nicolas, maquette validée en amont) -- la carte du
+            dessus reste toujours visible (nom, type de service,
+            téléphone), le reste (email, adresse, historique) est caché,
+            recouvert par la carte suivante ; on touche une carte pour la
+            déplier. Voir MobileContactCard. */}
+        <div className="md:hidden">
+          {sorted.map((c, i) => {
+            const isExpanded = expandedId === c.id
+            const isFirst = i === 0
+            const isLast = i === sorted.length - 1
+            const prevExpanded = i > 0 && sorted[i - 1].id === expandedId
+            const nextExpanded = i < sorted.length - 1 && sorted[i + 1].id === expandedId
+            return (
+              <MobileContactCard
+                key={c.id}
+                contact={c}
+                isExpanded={isExpanded}
+                onToggle={() => setExpandedId(isExpanded ? null : c.id)}
+                topRound={isFirst || isExpanded || prevExpanded}
+                bottomRound={isLast || isExpanded || nextExpanded}
+                flushTop={!(isFirst || isExpanded || prevExpanded)}
+                canEdit={canEdit}
+                categoryId={categoryId}
+                patch={patch}
+                remove={remove}
+                moveToCategory={moveToCategory}
+                movingId={movingId}
+                setMovingId={setMovingId}
+              />
+            )
+          })}
+        </div>
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">Aucun contact dans cette catégorie pour l’instant.</p>
       )}
@@ -581,6 +625,169 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
         <button type="button" onClick={addRow} disabled={adding} className={actionPillClass}>
           <Plus className="h-3.5 w-3.5" />
           Ajouter une ligne
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Carte "Wallet" d'un contact, version mobile (02/11/2026, demande de
+// Nicolas, maquette validée en amont -- "exactement comme dans Wallet") :
+// repliée, elle ne montre que le haut (nom, type de service, téléphone)
+// -- le reste (email, adresse, historique) est caché, recouvert par la
+// carte suivante. Les cartes d'une catégorie forment un seul bloc (coins
+// arrondis seulement en haut de la première et en bas de la dernière,
+// jointes par une bordure commune entre les autres -- topRound/
+// bottomRound/flushTop calculés par l'appelant) ; la carte dépliée se
+// détache du tas (coins arrondis, ombre) et ses voisines regagnent
+// l'arrondi du côté qui la touche.
+function MobileContactCard({
+  contact: c,
+  isExpanded,
+  onToggle,
+  topRound,
+  bottomRound,
+  flushTop,
+  canEdit,
+  categoryId,
+  patch,
+  remove,
+  moveToCategory,
+  movingId,
+  setMovingId,
+}: {
+  contact: Contact
+  isExpanded: boolean
+  onToggle: () => void
+  topRound: boolean
+  bottomRound: boolean
+  flushTop: boolean
+  canEdit: boolean
+  categoryId: string
+  patch: (id: string, field: keyof Contact, next: string) => void
+  remove: (id: string) => void
+  moveToCategory: (id: string, newCategory: string) => void
+  movingId: string | null
+  setMovingId: (id: string | null) => void
+}) {
+  return (
+    <div
+      className={cn('relative border border-border bg-card px-4 py-3 transition-shadow', isExpanded ? 'z-10 shadow-md' : 'shadow-none')}
+      style={{
+        borderTopLeftRadius: topRound ? 16 : 0,
+        borderTopRightRadius: topRound ? 16 : 0,
+        borderBottomLeftRadius: bottomRound ? 16 : 0,
+        borderBottomRightRadius: bottomRound ? 16 : 0,
+        marginTop: flushTop ? -1 : 0,
+      }}
+    >
+      {isExpanded ? (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1 space-y-1">
+              <EditableCell value={c.name} editable={canEdit} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
+              <EditableCell value={c.role} editable={canEdit} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
+            </div>
+            <button type="button" onClick={onToggle} aria-label="Replier" className="mt-1 shrink-0 text-muted-foreground">
+              <ChevronDown className="h-4 w-4 rotate-180" />
+            </button>
+          </div>
+          <div className="mt-3 space-y-2 border-t border-border pt-3 text-sm">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Téléphone</div>
+              {canEdit ? (
+                <EditableCell
+                  value={formatPhoneFR(c.phone ?? '')}
+                  editable
+                  type="tel"
+                  placeholder="Téléphone"
+                  onSave={(v) => patch(c.id, 'phone', v)}
+                />
+              ) : c.phone ? (
+                <a href={`tel:${c.phone}`} className="flex items-center gap-1 text-primary">
+                  <Phone className="h-3.5 w-3.5" />
+                  {formatPhoneFR(c.phone)}
+                </a>
+              ) : (
+                <span className="text-muted-foreground/60">—</span>
+              )}
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Email</div>
+              {canEdit ? (
+                <EditableCell value={c.email ?? ''} editable type="email" placeholder="Email" onSave={(v) => patch(c.id, 'email', v)} />
+              ) : c.email ? (
+                <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-primary">
+                  <Mail className="h-3.5 w-3.5" />
+                  {c.email}
+                </a>
+              ) : (
+                <span className="text-muted-foreground/60">—</span>
+              )}
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Adresse</div>
+              <EditableCell value={c.address ?? ''} editable={canEdit} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Historique</div>
+              <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Historique" onSave={(v) => patch(c.id, 'notes', v)} multiline />
+            </div>
+            {canEdit && (
+              <div className="flex items-center gap-4 pt-1">
+                {movingId === c.id ? (
+                  <select
+                    autoFocus
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) moveToCategory(c.id, e.target.value)
+                      else setMovingId(null)
+                    }}
+                    onBlur={() => setMovingId(null)}
+                    className="h-8 max-w-[180px] rounded-md border border-border bg-background px-1.5 text-xs text-foreground outline-none"
+                  >
+                    <option value="" disabled>
+                      Déplacer vers…
+                    </option>
+                    {CONTACT_CATEGORIES.filter((cat) => cat.id !== categoryId).map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setMovingId(c.id)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5" />
+                    Déplacer
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => remove(c.id)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Supprimer
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        <button type="button" onClick={onToggle} className="flex w-full items-start justify-between gap-2 text-left">
+          <div className="min-w-0">
+            <div className="truncate font-medium text-foreground">
+              {c.name || <span className="text-muted-foreground/60">Nom</span>}
+            </div>
+            <div className="truncate text-xs text-muted-foreground">
+              {c.role || <span className="text-muted-foreground/40">Type de service</span>}
+            </div>
+          </div>
+          <div className="shrink-0 text-xs text-primary">{c.phone ? formatPhoneFR(c.phone) : ''}</div>
         </button>
       )}
     </div>
