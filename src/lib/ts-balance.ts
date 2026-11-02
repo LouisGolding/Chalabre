@@ -18,6 +18,20 @@ export interface TsBalanceBucket {
 
 export interface TsGuestBalance extends TsBalanceBucket {
   name: string
+  // Paiement délégué (02/11/2026, cas Alexandre -> Guy, signalé par
+  // Nicolas : "ne compte pas sa taxe de séjour dans le décompte de la
+  // mienne [...] Alexandre est le seul cas particulier où moi je
+  // pourrais l'inscrire sur le planning, et Guy le payer séparément") --
+  // true quand cet accompagnant a lui-même délégué le paiement de sa
+  // taxe de séjour à un AUTRE compte (profiles.ts_payer_id, voir
+  // supabase/migration_profiles_ts_payer_delegate.sql). Le solde reste
+  // ici (ex. pour que Nicolas, qui a saisi ce séjour, garde la main sur
+  // ses dates et puisse toujours le régler lui-même au besoin) mais ne
+  // doit plus entrer dans un total cumulé "tous accompagnants confondus"
+  // (voir dashboard/page.tsx, tsTotalPending) -- ce total-là est déjà
+  // géré séparément, par la personne désignée comme payeur (voir
+  // DelegatedStay dans NextStayCard.tsx et planning/page.tsx).
+  isDelegated: boolean
 }
 
 export interface TsBalanceResult {
@@ -95,12 +109,18 @@ export async function computeTsBalance(
   // de front ici. `otherBookings` et la famille nucléaire restent de
   // vraies dépendances séquentielles (besoin de myFullName/profile) --
   // mais lancées de front ENTRE ELLES juste en dessous.
-  const [{ data: profile }, { data: myBookings }] = await Promise.all([
+  const [{ data: profile }, { data: myBookings }, { data: delegateProfiles }] = await Promise.all([
     supabase.from('profiles').select('first_name, last_name, nuclear_family').eq('id', userId).single(),
     supabase
       .from('bookings')
       .select('id, guest_name, check_out, ts_payments(id, amount, status)')
       .eq('user_id', userId),
+    // Paiement délégué (02/11/2026, voir le commentaire sur
+    // TsGuestBalance.isDelegated plus haut) : tous les comptes qui
+    // délèguent leur taxe de séjour à un autre (actuellement Alexandre
+    // -> Guy uniquement), pour reconnaître leur nom parmi les
+    // accompagnants ci-dessous.
+    supabase.from('profiles').select('id, first_name, last_name').not('ts_payer_id', 'is', null),
   ])
 
   const myFullName = profile ? `${profile.first_name} ${profile.last_name}` : null
@@ -116,6 +136,12 @@ export async function computeTsBalance(
   // candidats.
   const myNameCandidates = profile ? [profile.first_name, myFullName as string] : null
   const nuclearFamily = knownNuclearFamily !== undefined ? knownNuclearFamily : profile?.nuclear_family ?? null
+
+  // Voir le commentaire sur TsGuestBalance.isDelegated plus haut --
+  // tolérant aux fautes de frappe, même mécanisme que myNameCandidates.
+  const delegateNameCandidatesList = (delegateProfiles ?? []).map((p) => [p.first_name, `${p.first_name} ${p.last_name}`])
+  const isDelegatedGuestName = (guestName: string): boolean =>
+    delegateNameCandidatesList.some((candidates) => findClosestNameMatch(guestName, candidates) !== -1)
 
   const [{ data: otherBookings }, familyMembers] = await Promise.all([
     myFullName
@@ -167,7 +193,7 @@ export async function computeTsBalance(
 
   const addToGuestBucket = (guestName: string, payments: RawTsPayment[], checkOut: string) => {
     if (!guestMap.has(guestName)) {
-      guestMap.set(guestName, { name: guestName, pending: 0, items: [] })
+      guestMap.set(guestName, { name: guestName, pending: 0, items: [], isDelegated: isDelegatedGuestName(guestName) })
       guestOrder.push(guestName)
     }
     const bucket = guestMap.get(guestName)!

@@ -261,7 +261,17 @@ export default async function DashboardPage() {
   // même sans aucun séjour à venir au planning, et doit rester payable
   // depuis l'accueil dans ce cas-là aussi.
   const tsBalance = await computeTsBalance(supabase, user.id, profile.nuclear_family)
-  const tsTotalPending = tsBalance.own.pending + tsBalance.guests.reduce((sum, g) => sum + g.pending, 0)
+  // Paiement délégué (02/11/2026, signalé par Nicolas : "ne compte pas
+  // [la taxe de séjour d'Alexandre] dans le décompte de la mienne [...]
+  // Guy le payer séparément") -- un accompagnant qui délègue lui-même
+  // son paiement à un AUTRE compte (voir TsGuestBalance.isDelegated dans
+  // ts-balance.ts) reste affiché au niveau de son propre séjour (ex. sur
+  // l'entrée Planning que Nicolas a saisie pour lui), mais ne doit plus
+  // gonfler le total cumulé de la pastille d'accueil -- ce total-là est
+  // géré séparément, par la personne désignée comme payeur (voir
+  // DelegatedStay dans NextStayCard.tsx).
+  const nonDelegatedGuests = tsBalance.guests.filter((g) => !g.isDelegated)
+  const tsTotalPending = tsBalance.own.pending + nonDelegatedGuests.reduce((sum, g) => sum + g.pending, 0)
 
   // currentBookings vient désormais du Promise.all plus haut (même
   // requête, juste déplacée pour partir en parallèle avec les 3 autres).
@@ -403,7 +413,7 @@ export default async function DashboardPage() {
               amount={tsTotalPending}
               ids={[
                 ...tsBalance.own.items.map((item) => item.id),
-                ...tsBalance.guests.flatMap((g) => g.items.map((item) => item.id)),
+                ...nonDelegatedGuests.flatMap((g) => g.items.map((item) => item.id)),
               ]}
             />
           </div>

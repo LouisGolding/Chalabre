@@ -162,18 +162,67 @@ export default async function PlanningPage() {
   // actionnable, pas d'édition des dates d'Alexandre depuis le compte de
   // Guy.
   const delegatePayerIds = (delegatePayerProfiles ?? []).map((p) => p.id)
-  const { data: delegatedBookingsRaw } =
+  type DelegateBookingRow = {
+    id: string
+    user_id: string
+    check_in: string
+    check_out: string
+    house_side: HouseSide | null
+    notes: string | null
+    guest_name: string | null
+    ts_payments: { id: string; amount: number; status: string }[] | null
+  }
+  const delegateNameCandidatesById = new Map(
+    (delegatePayerProfiles ?? []).map((p) => [p.id, [p.first_name, `${p.first_name} ${p.last_name}`]])
+  )
+  // Correctif du 02/11/2026 (signalé par Nicolas, cas concret : le séjour
+  // d'Alexandre n'est PAS saisi par Alexandre lui-même -- il est saisi
+  // par Nicolas, via "Ajouter un séjour", guest_name = "Alexandre
+  // Lalande", exactement comme un accompagnant ordinaire). La requête
+  // d'origine (bookings.user_id IN delegatePayerIds) ne voyait donc QUE
+  // le cas où Alexandre se serait réservé lui-même -- jamais celui qui
+  // se produit réellement. On cherche désormais aussi, parmi TOUS les
+  // séjours du site portant un guest_name (même principe que
+  // otherBookings dans ts-balance.ts), ceux dont le nom correspond
+  // (tolérant aux fautes de frappe) à un compte qui délègue son paiement
+  // à CE titulaire -- peu importe qui les a saisis.
+  const [{ data: delegateOwnBookingsRaw }, { data: delegateGuestBookingsRaw }] =
     delegatePayerIds.length > 0
-      ? await supabase
-          .from('bookings')
-          .select('id, user_id, check_in, check_out, house_side, notes, ts_payments(id, amount, status)')
-          .in('user_id', delegatePayerIds)
-          .order('check_in', { ascending: true })
-      : { data: [] as { id: string; user_id: string; check_in: string; check_out: string; house_side: HouseSide | null; notes: string | null; ts_payments: { id: string; amount: number; status: string }[] | null }[] }
+      ? await Promise.all([
+          supabase
+            .from('bookings')
+            .select('id, user_id, check_in, check_out, house_side, notes, guest_name, ts_payments(id, amount, status)')
+            .in('user_id', delegatePayerIds)
+            .order('check_in', { ascending: true }),
+          supabase
+            .from('bookings')
+            .select('id, user_id, check_in, check_out, house_side, notes, guest_name, ts_payments(id, amount, status)')
+            .not('guest_name', 'is', null)
+            .order('check_in', { ascending: true }),
+        ])
+      : [{ data: [] as DelegateBookingRow[] }, { data: [] as DelegateBookingRow[] }]
+
+  const delegatedBookingsRaw: (DelegateBookingRow & { ownerId: string })[] = [
+    // Le séjour propre du délégant sur son propre compte (guest_name vide
+    // -- cas prévu à l'origine, jamais observé en pratique jusqu'ici).
+    ...((delegateOwnBookingsRaw ?? []) as DelegateBookingRow[])
+      .filter((b) => !b.guest_name?.trim())
+      .map((b) => ({ ...b, ownerId: b.user_id })),
+    // Le séjour saisi par un AUTRE compte sous le nom du délégant (cas
+    // réel observé : Nicolas saisit Alexandre).
+    ...((delegateGuestBookingsRaw ?? []) as DelegateBookingRow[]).flatMap((b) => {
+      const guestName = b.guest_name?.trim()
+      if (!guestName) return []
+      for (const [ownerId, candidates] of delegateNameCandidatesById) {
+        if (findClosestNameMatch(guestName, candidates) !== -1) return [{ ...b, ownerId }]
+      }
+      return []
+    }),
+  ]
 
   const delegateProfileById = new Map((delegatePayerProfiles ?? []).map((p) => [p.id, p]))
-  const delegatedStays = (delegatedBookingsRaw ?? []).flatMap((b) => {
-    const owner = delegateProfileById.get(b.user_id)
+  const delegatedStays = delegatedBookingsRaw.flatMap((b) => {
+    const owner = delegateProfileById.get(b.ownerId)
     if (!owner) return []
     const ownerFamily = (owner.family_group as FamilyGroup | null) ?? 'friend'
     const ownerIndex = typeof owner.color_hue === 'number' ? owner.color_hue : fallbackIndexForName(`${owner.first_name} ${owner.last_name}`)

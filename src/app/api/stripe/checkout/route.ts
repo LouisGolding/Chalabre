@@ -208,6 +208,19 @@ async function handleCheckout(request: Request) {
   // dans src/lib/ts-balance.ts, même mécanisme.
   const familyMemberIds = new Set((await otherNuclearFamilyMembers(supabase, user.id, caller?.nuclear_family ?? null)).map((m) => m.id))
 
+  // Paiement délégué (01/11/2026, cas Alexandre -> Guy, profiles.ts_payer_id) :
+  // tous les comptes qui délèguent leur taxe de séjour à un AUTRE compte,
+  // pour pouvoir retrouver le bon ci-dessous, avec leur nom pour la
+  // correspondance tolérante aux fautes de frappe.
+  const { data: delegateProfiles } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, ts_payer_id')
+    .not('ts_payer_id', 'is', null)
+  const delegateProfilesList = (delegateProfiles ?? []).map((p) => ({
+    candidates: [p.first_name, `${p.first_name} ${p.last_name}`],
+    ts_payer_id: p.ts_payer_id as string,
+  }))
+
   let resolvedFirstName: string | null = null
   for (const payment of payments) {
     const booking = asSingle(payment.bookings)
@@ -234,13 +247,21 @@ async function handleCheckout(request: Request) {
     // (ou à un admin), jamais payable par les autres.
     const isFamilyMember = !!guestName && !isSelfTagged && familyMemberIds.has(booking.user_id)
     // Paiement delegue (01/11/2026, cas unique Alexandre -> Guy, voir
-    // profiles.ts_payer_id et NextStayCard.tsx/DelegatedStay) :
-    // s'applique au propre sejour du titulaire (guestName absent, a la
-    // difference de isFamilyMember ci-dessus qui ne vaut que pour un
-    // accompagnant) -- Guy doit pouvoir regler le sejour d'Alexandre
-    // meme si ce n'est pas un "accompagnant" saisi par quelqu'un
-    // d'autre, mais le sejour propre d'Alexandre sur son propre compte.
-    const isDelegatedPayer = registrantProfile?.ts_payer_id === user.id
+    // profiles.ts_payer_id et NextStayCard.tsx/DelegatedStay).
+    // Corrigé le 02/11/2026 (signalé par Nicolas : dans son cas concret,
+    // le séjour d'Alexandre n'est PAS saisi par Alexandre lui-même --
+    // c'est Nicolas qui l'a saisi, via "Ajouter un séjour", guest_name =
+    // "Alexandre Lalande", exactement comme un accompagnant ordinaire).
+    // L'ancienne version ne vérifiait que `registrantProfile.ts_payer_id`
+    // -- le délégant QUI A SAISI son propre séjour sur son propre
+    // compte -- donc ne reconnaissait jamais ce cas réel (le
+    // `registrantProfile` est alors celui de Nicolas, pas d'Alexandre,
+    // et Nicolas ne délègue rien). On cherche désormais le délégant par
+    // son NOM (guestName quand présent, sinon le titulaire lui-même),
+    // peu importe quel compte a saisi le séjour.
+    const isDelegatedPayer = guestName
+      ? delegateProfilesList.some((d) => d.ts_payer_id === user.id && findClosestNameMatch(guestName, d.candidates) !== -1)
+      : registrantProfile?.ts_payer_id === user.id
     if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isDelegatedPayer && !isAdmin) {
       return NextResponse.json({ error: 'Ce paiement ne vous appartient pas' }, { status: 403 })
     }
