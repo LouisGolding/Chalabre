@@ -308,6 +308,7 @@ export function StayBanner({
   onToggle,
   children,
   bgColor,
+  familyToggle,
 }: {
   title: string
   pill: React.ReactNode
@@ -320,6 +321,13 @@ export function StayBanner({
   // "Ajouter un sejour" (personne encore identifiee), qui garde le fond
   // "canson" opaque par defaut (.card-canson).
   bgColor?: string
+  // Bascule "Famille" (02/11/2026, demande de Nicolas : "il faut que la
+  // pastille 'famille' soit affichee sur la meme ligne que le titre du
+  // widget lorsque celui-ci est deploye") -- affichee a droite de
+  // l'entete, a la place de la pastille de solde, uniquement quand la
+  // banniere est depliee. Absente des bannieres sans option famille
+  // (accompagnants, banniere generique).
+  familyToggle?: React.ReactNode
 }) {
   // Bascule le titre en blanc quand la couleur de fond de la banniere est
   // sombre (demande par Nicolas le 09/10/2026, apres le test du compte de
@@ -347,6 +355,7 @@ export function StayBanner({
           <span className="truncate">{title}</span>
         </button>
         {!isOpen && pill}
+        {isOpen && familyToggle}
       </div>
       {/* Plus de ligne de separation ni de padding haut uniforme : l'espace
           entre le titre et la pastille "Total contribution sejour" fait
@@ -1068,8 +1077,44 @@ function StayEntry({
     cn(viewTogglePillClass(selected), darkBg && (selected ? 'text-white' : 'text-white/60'), darkBg && 'hover:text-white')
   const pill = <BalancePill pending={pending} ids={ids} light={light} darkBg={darkBg} />
 
+  // "Option famille" (30/10/2026, demande d'Aurelie) -- deplacee sur la
+  // ligne du titre de la banniere (02/11/2026, demande de Nicolas :
+  // "la pastille 'famille' [...] sur la meme ligne que le titre [...]
+  // quand celui-ci est deploye"), a la place de la pastille de solde
+  // (qui de toute facon ne s'affiche que repliee). N'existe que pour le
+  // widget du titulaire (familyToggle undefined pour les accompagnants).
+  const familyTogglePill = familyToggle && (
+    <button
+      type="button"
+      disabled={familyToggle.disabled}
+      onClick={familyToggle.onToggle}
+      aria-pressed={familyToggle.on}
+      className={cn(
+        'inline-flex items-center gap-2 whitespace-nowrap text-xs font-normal uppercase tracking-wide disabled:opacity-40',
+        darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground'
+      )}
+    >
+      <span
+        className={cn(
+          'relative h-5 w-[34px] shrink-0 rounded-full border',
+          darkBg ? 'border-white' : 'border-current',
+          familyToggle.on && (darkBg ? 'bg-white' : 'bg-current')
+        )}
+      >
+        <span
+          className={cn(
+            'absolute left-0.5 top-0.5 h-3.5 w-3.5 rounded-full transition-transform',
+            familyToggle.on ? 'translate-x-3.5' : 'translate-x-0',
+            familyToggle.on ? (darkBg ? 'bg-foreground' : 'bg-background') : darkBg ? 'bg-white' : 'bg-current'
+          )}
+        />
+      </span>
+      Famille
+    </button>
+  )
+
   return (
-    <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor}>
+    <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={handleToggle} bgColor={bgColor} familyToggle={familyTogglePill}>
       <TotalContributionSejourStayPill
         pending={pendingOverride ?? pending}
         ids={idsOverride ?? ids}
@@ -1144,40 +1189,6 @@ function StayEntry({
             </span>
           </>
         )}
-        {familyToggle && (
-          // "Option famille" (30/10/2026, demande d'Aurélie) : alignée
-          // horizontalement avec les champs de dates, sur le widget du
-          // titulaire uniquement -- voir NextStayCard. Désactivée tant
-          // que son propre séjour n'est pas encore enregistré (les dates
-          // de référence des accompagnants n'existent pas encore).
-          <button
-            type="button"
-            disabled={familyToggle.disabled}
-            onClick={familyToggle.onToggle}
-            aria-pressed={familyToggle.on}
-            className={cn(
-              'ml-auto inline-flex items-center gap-2 whitespace-nowrap font-bold disabled:opacity-40',
-              darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground'
-            )}
-          >
-            <span
-              className={cn(
-                'relative h-5 w-[34px] shrink-0 rounded-full border',
-                darkBg ? 'border-white' : 'border-current',
-                familyToggle.on && (darkBg ? 'bg-white' : 'bg-current')
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute left-0.5 top-0.5 h-3.5 w-3.5 rounded-full transition-transform',
-                  familyToggle.on ? 'translate-x-3.5' : 'translate-x-0',
-                  familyToggle.on ? (darkBg ? 'bg-foreground' : 'bg-background') : darkBg ? 'bg-white' : 'bg-current'
-                )}
-              />
-            </span>
-            Famille
-          </button>
-        )}
       </div>
 
       {/* Champ "Note" : plus de libelle ni de soulignement -- demande par
@@ -1200,8 +1211,11 @@ function StayEntry({
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Heure et gare ou aéroport d'arrivée"
           className={cn(
-            'w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground',
-            darkBg ? 'text-white border-white/30' : 'text-foreground'
+            'w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm',
+            // Placeholder en gris clair (plutot que text-muted-foreground,
+            // trop sombre) sur les bannieres a fond colore fonce --
+            // demande par Nicolas le 02/11/2026, illisible sinon.
+            darkBg ? 'text-white border-white/30 placeholder:text-white/60' : 'text-foreground placeholder:text-muted-foreground'
           )}
         />
       )}
