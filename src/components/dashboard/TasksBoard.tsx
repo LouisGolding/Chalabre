@@ -31,6 +31,16 @@ import { TaskContactTag, TaskNote } from '@/types'
 //   ci-dessous) : pas de tâche planifiée côté serveur pour l'instant,
 //   donc une tâche jardin ne réapparaît vraiment que quand quelqu'un
 //   rouvre cette page après l'échéance — suffisant pour l'usage prévu.
+//   Correctif du 02/11/2026 (demande d'Aurélie : "ramasser les feuilles
+//   [...] si la tâche est cochée, tu la fera réapparaître à l'automne
+//   prochain") : quand une période (mois/saison) est renseignée, le
+//   réveil n'utilise plus un simple décalage fixe depuis la coche
+//   (+1 mois/+1 an, qui pouvait retomber en plein hiver pour une tâche
+//   d'automne cochée tard) mais le vrai début du cycle suivant
+//   (periodCycleStart ci-dessous -- même principe que la fonction
+//   équivalente period_cycle_start() côté base, voir
+//   supabase/migration_period_cycle_start.sql). Sans période renseignée
+//   (récurrence seule), l'ancien calcul à décalage fixe reste utilisé.
 // - Tri au choix, par urgence ou par catégorie, appliqué aux 4 listes.
 //
 // Refonte du 19/10/2026 (demandée par Aurélie, maquette Artifact
@@ -249,6 +259,41 @@ function nextDueTime(completedAt: string, recurrence: Recurrence): number {
   return d.getTime()
 }
 
+// Début du cycle (mois ou saison) contenant `reference` -- portage JS
+// exact de public.period_cycle_start() côté base (voir
+// supabase/migration_period_cycle_start.sql), utilisé ci-dessous pour
+// réveiller une tâche jardin périodique au bon moment (le début de son
+// prochain cycle) plutôt qu'à un décalage fixe depuis la coche. Saisons
+// météorologiques, alignées sur currentSeason() de task-periods.ts
+// (hiver = déc/jan/fév, etc.) -- mois 0-indexés comme tout Date JS.
+const MONTH_INDEX_BY_PERIOD: Partial<Record<TaskPeriod, number>> = {
+  janvier: 0, fevrier: 1, mars: 2, avril: 3, mai: 4, juin: 5,
+  juillet: 6, aout: 7, septembre: 8, octobre: 9, novembre: 10, decembre: 11,
+  printemps: 2, ete: 5, automne: 8, hiver: 11,
+}
+
+function periodCycleStart(period: TaskPeriod, reference: Date): Date | null {
+  const month = MONTH_INDEX_BY_PERIOD[period]
+  if (month === undefined) return null
+  const year = reference.getFullYear()
+  const start = new Date(year, month, 1)
+  return start.getTime() > reference.getTime() ? new Date(year - 1, month, 1) : start
+}
+
+// Une tâche jardin cochée et périodique doit-elle réapparaître
+// maintenant ? Avec une période renseignée (mois/saison) : dès que le
+// cycle en cours a changé depuis la coche (periodCycleStart ci-dessus).
+// Sans période (récurrence seule) : ancien calcul à décalage fixe
+// (nextDueTime), inchangé.
+function isDueForReactivation(completedAt: string, recurrence: Recurrence, period: string | null): boolean {
+  if (recurrence === 'once') return false
+  if (period && period in MONTH_INDEX_BY_PERIOD) {
+    const cycleStart = periodCycleStart(period as TaskPeriod, new Date())
+    return cycleStart !== null && new Date(completedAt).getTime() < cycleStart.getTime()
+  }
+  return Date.now() >= nextDueTime(completedAt, recurrence)
+}
+
 function sortTasks(list: TaskItem[], mode: SortMode): TaskItem[] {
   const copy = [...list]
   if (mode === 'urgence') {
@@ -323,7 +368,7 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
         t.recurrence &&
         t.recurrence !== 'once' &&
         t.completedAt &&
-        Date.now() >= nextDueTime(t.completedAt, t.recurrence)
+        isDueForReactivation(t.completedAt, t.recurrence, t.period)
     )
     if (due.length === 0) return
     setTasks((prev) =>

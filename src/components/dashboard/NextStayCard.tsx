@@ -125,6 +125,31 @@ interface NextStayCardProps {
   // Absent ou vide => pas de bascule "Famille" affichee (compte sans
   // famille nucleaire enregistree, ou seul dans la sienne).
   familyMembers?: FamilyMemberOption[]
+  // Paiement delegue (01/11/2026, cas unique Alexandre -> Guy, voir
+  // DelegatedStay plus haut) : un widget en lecture seule par sejour
+  // affiche en plus des siens propres, pour que ce compte puisse regler
+  // la taxe de sejour d'un autre a sa place. Absent ou vide => rien
+  // n'est affiche (cas normal, tout le monde sauf Guy).
+  delegatedStays?: DelegatedStay[]
+}
+
+// Paiement delegue (01/11/2026, demande d'Aurelie : "le sejour
+// d'Alexandre doit apparaitre comme un widget entier sur le tableau de
+// bord de Guy [...] pour que Guy puisse payer a sa place") -- voir
+// profiles.ts_payer_id (supabase/migration_profiles_ts_payer_delegate.sql)
+// et planning/page.tsx pour le calcul cote serveur. Traite comme un cas
+// unique (pas de bascule "famille" generale) : contrairement a
+// FamilyMemberOption plus haut, chaque sejour (passe, en cours ou a
+// venir) d'Alexandre devient ici son propre widget, pas seulement le
+// prochain -- voir DelegatedStayBanner ci-dessous, en LECTURE SEULE (pas
+// d'edition des dates depuis le compte de Guy, seul le reglement de la
+// taxe de sejour est actionnable).
+export interface DelegatedStay {
+  ownerFullName: string
+  ownerColor: string
+  booking: { id: string; check_in: string; check_out: string; house_side: HouseSide | null; notes: string | null }
+  pending: number
+  ids: string[]
 }
 
 function findGuestBucket(tsBalance: TsBalanceResult, fullName: string | null): TsGuestBalance | null {
@@ -171,7 +196,7 @@ function soldeLabel(pending: number) {
 // style commun "pastille d'action" (actionPillClass, voir utils.ts),
 // harmonise ce jour-la avec 4 autres pastilles du site (Entretien,
 // Realisations). Les deux styles n'ont plus rien en commun.
-const balancePillOuterClass =
+export const balancePillOuterClass =
   'pill-canson-hover group inline-flex w-fit items-center gap-1.5 whitespace-nowrap border border-foreground/30 px-3 py-1.5 text-xs uppercase tracking-[0.08em] transition-colors disabled:pointer-events-none disabled:opacity-50 md:text-sm'
 
 // Demande par Nicolas le 04/10/2026 : plus de decoupage photo au survol
@@ -276,7 +301,7 @@ function TotalTaxeSejourStayPill({
 // cette distinction. Le reste du contenu deplie (pastilles de solde,
 // champs, boutons) garde sa propre logique "light" via StayEntry
 // -- inchangee, portee volontairement limitee au titre.
-function StayBanner({
+export function StayBanner({
   title,
   pill,
   isOpen,
@@ -344,6 +369,7 @@ export function NextStayCard({
   onHiddenBookingIdsChange,
   guestDefaults,
   familyMembers = [],
+  delegatedStays = [],
 }: NextStayCardProps) {
   const computedAge = differenceInYears(new Date(), parseISO(profile.date_of_birth))
 
@@ -375,6 +401,17 @@ export function NextStayCard({
     }))
   )
   const [primaryBooking, setPrimaryBooking] = useState<BookingData | null>(booking)
+
+  // Pastilles 0-16/17+ masquees sur la banniere du titulaire quand sa
+  // propre date de naissance est connue et plausible (demande d'Aurelie
+  // le 02/11/2026 : "pas besoin d'afficher le choix" quand on a deja
+  // l'info pour calculer la taxe de sejour) -- meme garde-fou
+  // (plausibleAgeAt, bornes 0-110) que pour les membres de la famille
+  // plus bas, qui exclut deja naturellement le sentinel 1900-01-01 (age
+  // calcule > 110 ans). Calculee par rapport au prochain sejour s'il y en
+  // a un (coherent avec le reste du widget), sinon par rapport a
+  // aujourd'hui.
+  const ownerKnownAge = plausibleAgeAt(profile.date_of_birth, primaryBooking?.check_in ?? new Date().toISOString().slice(0, 10))
   const [primaryResetKey, setPrimaryResetKey] = useState(0)
   const [addSlotResetKey, setAddSlotResetKey] = useState(0)
 
@@ -488,14 +525,31 @@ export function NextStayCard({
   // "famille" en plus -- une fois enregistrée (onSaved plus bas), sa
   // bannière rejoint guestEntries et sort naturellement d'ici au rendu
   // suivant.
+  //
+  // Bug corrigé le 02/11/2026 (signalé par Aurélie : "j'ai vu la ligne
+  // otto 2 fois") : la comparaison ne se faisait qu'avec le NOM COMPLET
+  // (ex. "Otto Lalande"), alors qu'un séjour d'enfant saisi à la main est
+  // quasi toujours entré avec le seul PRÉNOM (ex. "Otto" -- voir la même
+  // convention dans admin/page.tsx, firstNameOnly(g.guestName)). L'écart
+  // entre "otto lalande" et "otto" dépasse largement la tolérance aux
+  // fautes de frappe de findClosestNameMatch (8 caractères d'écart), donc
+  // aucune correspondance n'était trouvée : Otto ressortait à la fois
+  // dans guestEntries (son séjour déjà enregistré) ET dans
+  // activeFamilyMembers (régénéré par le toggle Famille) -- d'où le
+  // doublon à l'écran. On teste désormais le nom complet ET le seul
+  // prénom contre les noms déjà saisis, pour couvrir les deux façons dont
+  // un accompagnant a pu être enregistré avant l'option Famille.
   const existingGuestNames = guestEntries.map((e) => e.booking?.guest_name?.trim()).filter((n): n is string => !!n)
+  const isAlreadyRepresented = (m: FamilyMemberOption) => {
+    const fullName = `${m.first_name} ${m.last_name}`.trim()
+    return (
+      findClosestNameMatch(fullName, existingGuestNames) !== -1 ||
+      findClosestNameMatch(m.first_name, existingGuestNames) !== -1
+    )
+  }
   const activeFamilyMembers =
     familyOn && primaryBooking
-      ? familyMembers.filter((m) => {
-          if (removedFamilyIds.has(m.id)) return false
-          const fullName = `${m.first_name} ${m.last_name}`.trim()
-          return findClosestNameMatch(fullName, existingGuestNames) === -1
-        })
+      ? familyMembers.filter((m) => !removedFamilyIds.has(m.id) && !isAlreadyRepresented(m))
       : []
 
   // Pastille "Total taxe de séjour famille" (30/10/2026) sur le titulaire :
@@ -521,6 +575,7 @@ export function NextStayCard({
         entryKey="primary"
         booking={primaryBooking}
         defaultAgeBracket={computedAge >= 16 ? 'adult' : 'child'}
+        knownAgeBracket={ownerKnownAge !== null ? (ownerKnownAge >= 16 ? 'adult' : 'child') : undefined}
         defaultHouseSide={profile.family_group === 'canat' || profile.family_group === 'lalande' ? profile.family_group : undefined}
         showNameField={false}
         titleWhenEmpty="Réserver votre séjour"
@@ -566,6 +621,7 @@ export function NextStayCard({
             ids={bucket?.items.map((i) => i.id) ?? []}
             bgColor={memberColor}
             lockedDates={primaryBooking ? { checkIn: primaryBooking.check_in, checkOut: primaryBooking.check_out } : undefined}
+            hideLogistics
             onRemoved={() => setRemovedFamilyIds((prev) => new Set(prev).add(m.id))}
             onSaved={(saved) => {
               onBookingSaved?.(saved)
@@ -637,6 +693,10 @@ export function NextStayCard({
         )
       })}
 
+      {delegatedStays.map((d) => (
+        <DelegatedStayBanner key={d.booking.id} stay={d} />
+      ))}
+
       <StayEntry
         key={`add-${addSlotResetKey}`}
         entryKey="add-slot"
@@ -655,6 +715,40 @@ export function NextStayCard({
         hideDeleteWhenEmpty
       />
     </div>
+  )
+}
+
+// Widget en lecture seule pour un sejour "delegue" (voir DelegatedStay) --
+// meme habillage visuel que StayEntry (StayBanner, pastilles de solde)
+// mais sans aucun champ editable ni bouton Supprimer/Modifier : ce
+// sejour appartient a quelqu'un d'autre (Alexandre), seul le reglement
+// de sa taxe de sejour est a faire depuis ce compte (Guy).
+function DelegatedStayBanner({ stay }: { stay: DelegatedStay }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const { booking, ownerFullName, ownerColor, pending, ids } = stay
+  const darkBg = shouldUseWhiteText(ownerColor)
+  const phase = stayPhase(booking.check_in, booking.check_out)
+  const title = phase === 'ongoing' ? `Séjour ${ownerFullName} en cours` : `Séjour ${ownerFullName}`
+  const pill = <BalancePill pending={pending} ids={ids} light darkBg={darkBg} />
+  const houseSideLabel =
+    booking.house_side === 'canat' ? 'Canat' : booking.house_side === 'lalande' ? 'Lalande' : booking.house_side === 'petite_maison' ? 'Petite maison' : null
+
+  return (
+    <StayBanner title={title} pill={pill} isOpen={isOpen} onToggle={() => setIsOpen((o) => !o)} bgColor={ownerColor}>
+      <TotalTaxeSejourStayPill pending={pending} ids={ids} light darkBg={darkBg} />
+      <div
+        className={cn(
+          'flex flex-wrap items-center gap-x-4 gap-y-1 text-xs uppercase tracking-[0.08em] md:text-sm',
+          darkBg ? 'text-white' : 'text-foreground/60'
+        )}
+      >
+        <span className="font-extrabold">
+          Du {formatFrenchDateInput(booking.check_in)} au {formatFrenchDateInput(booking.check_out)}
+        </span>
+        {houseSideLabel && <span className="font-extrabold">{houseSideLabel}</span>}
+      </div>
+      {booking.notes && <p className={cn('text-sm', darkBg ? 'text-white/80' : 'text-foreground/70')}>{booking.notes}</p>}
+    </StayBanner>
   )
 }
 
@@ -697,6 +791,16 @@ interface StayEntryProps {
   pillLabel?: string
   pendingOverride?: number
   idsOverride?: string[]
+  // Masque le champ "Note" (heure/gare d'arrivee) et les pastilles de
+  // cote de maison sur une banniere "Option famille" (demande d'Aurelie
+  // le 02/11/2026 : "tu n'as plus besoin d'afficher l'encadre heure
+  // d'arrivee, ni le cote de la maison") -- uniquement pour ces
+  // bannieres-la : le titulaire et les accompagnants saisis a la main
+  // (bouton "+") gardent les deux, ils en ont besoin. Le cote de maison
+  // garde de toute facon sa valeur par defaut (defaultHouseSide) meme
+  // sans pastilles visibles, donc l'enregistrement du sejour n'est pas
+  // bloque.
+  hideLogistics?: boolean
 }
 
 function fieldsSnapshot(
@@ -745,6 +849,7 @@ function StayEntry({
   pillLabel,
   pendingOverride,
   idsOverride,
+  hideLogistics,
 }: StayEntryProps) {
   const initialSnapshot = fieldsSnapshot(booking, defaultAgeBracket, defaultHouseSide, fixedGuestName, knownAgeBracket, lockedDates)
 
@@ -1066,16 +1171,18 @@ function StayEntry({
           pour la banniere generique "Ajouter un sejour") plutot qu'un
           fond gris plat qui jurait avec les bannieres colorees
           (Otto/invites). */}
-      <input
-        type="text"
-        value={notes}
-        onChange={(e) => setNotes(e.target.value)}
-        placeholder="Heure et gare ou aéroport d'arrivée"
-        className={cn(
-          'w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground',
-          darkBg ? 'text-white border-white/30' : 'text-foreground'
-        )}
-      />
+      {!hideLogistics && (
+        <input
+          type="text"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Heure et gare ou aéroport d'arrivée"
+          className={cn(
+            'w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground',
+            darkBg ? 'text-white border-white/30' : 'text-foreground'
+          )}
+        />
+      )}
 
       {/* gap-x-2 (8px) + tracking reduit a 0.02em (au lieu de gap-x-3/16px et
           0.08em) : sur un ecran mobile reel (375px, iPhone standard) le
@@ -1093,42 +1200,54 @@ function StayEntry({
           faire tenir les 5 libelles sur une seule ligne a 375px) -- a
           surveiller sur mobile reel si ca redevient trop juste en largeur
           avec le tracking uniforme a 0.08em. */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        {knownAgeBracket === undefined && (
-          // Choix manuel 0-16/17+ : masqué quand la tranche d'âge est
-          // déjà connue avec certitude (date de naissance plausible,
-          // voir knownAgeBracket/plausibleAgeAt) -- demandé par Aurélie
-          // le 29/10/2026 pour les bannières "Option famille" : "tu ne
-          // proposeras plus le choix" pour un profil dont la date de
-          // naissance est renseignée.
-          <>
-            <button type="button" className={pillClass(ageBracket === 'child')} onClick={() => setAgeBracket('child')}>
-              0-16 ans
-            </button>
-            <button type="button" className={pillClass(ageBracket === 'adult')} onClick={() => setAgeBracket('adult')}>
-              17 ans et +
-            </button>
-          </>
-        )}
-        <button type="button" className={pillClass(houseSide === 'canat')} onClick={() => setHouseSide('canat')}>
-          Canat
-        </button>
-        <button type="button" className={pillClass(houseSide === 'lalande')} onClick={() => setHouseSide('lalande')}>
-          Lalande
-        </button>
-        <button type="button" className={pillClass(houseSide === 'petite_maison')} onClick={() => setHouseSide('petite_maison')}>
-          Petite maison
-        </button>
-      </div>
+      {(knownAgeBracket === undefined || !hideLogistics) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {knownAgeBracket === undefined && (
+            // Choix manuel 0-16/17+ : masqué quand la tranche d'âge est
+            // déjà connue avec certitude (date de naissance plausible,
+            // voir knownAgeBracket/plausibleAgeAt) -- demandé par Aurélie
+            // le 29/10/2026 pour les bannières "Option famille" : "tu ne
+            // proposeras plus le choix" pour un profil dont la date de
+            // naissance est renseignée.
+            <>
+              <button type="button" className={pillClass(ageBracket === 'child')} onClick={() => setAgeBracket('child')}>
+                0-16 ans
+              </button>
+              <button type="button" className={pillClass(ageBracket === 'adult')} onClick={() => setAgeBracket('adult')}>
+                17 ans et +
+              </button>
+            </>
+          )}
+          {/* Pastilles de cote de maison masquees sur une banniere
+              "Option famille" (hideLogistics, demande d'Aurelie le
+              02/11/2026) -- la valeur par defaut (defaultHouseSide) reste
+              appliquee au sejour meme sans ces pastilles visibles. */}
+          {!hideLogistics && (
+            <>
+              <button type="button" className={pillClass(houseSide === 'canat')} onClick={() => setHouseSide('canat')}>
+                Canat
+              </button>
+              <button type="button" className={pillClass(houseSide === 'lalande')} onClick={() => setHouseSide('lalande')}>
+                Lalande
+              </button>
+              <button type="button" className={pillClass(houseSide === 'petite_maison')} onClick={() => setHouseSide('petite_maison')}>
+                Petite maison
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {nights > 0 && (
+        // Ligne simplifiee le 02/11/2026 (demande d'Aurelie) : plus de
+        // prefixe "Taxe de sejour :", on affiche directement
+        // "8 nuits : 85€ (10€/nuit)".
         <div
           className={cn(
             'flex flex-wrap items-baseline gap-x-1.5 text-xs uppercase tracking-[0.08em] md:text-sm',
             darkBg ? 'text-white' : light ? 'text-foreground/60' : 'text-foreground'
           )}
         >
-          <span>Taxe de séjour :</span>
           <span className="font-extrabold">
             {nights} nuit{nights > 1 ? 's' : ''} : {formatCurrency(amount)}
           </span>

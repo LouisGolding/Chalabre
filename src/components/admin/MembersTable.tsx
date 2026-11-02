@@ -13,6 +13,22 @@ export interface MemberRow {
   // création à afficher.
   email: string | null
   role: 'admin' | 'family' | 'friend' | null
+  // true pour un vrai compte, false pour une fiche "membre sans compte"
+  // (migration profiles_member_without_login.sql, 30/10/2026 -- feuille de
+  // route "Option famille") : une fiche créée pour préremplir les séjours
+  // d'un enfant ou d'un conjoint qui n'a jamais lui-même créé de compte.
+  // Contrairement à isGuestRow ci-dessous (role === null, un "invité"
+  // reconstitué depuis un nom de séjour, sans fiche du tout), cette ligne
+  // a bien une vraie fiche `profiles` -- juste pas encore de connexion.
+  // Ajouté le 02/11/2026 (demande d'Aurélie, voir le marqueur "sans
+  // compte" plus bas) pour que ces lignes restent visuellement
+  // distinguables d'un compte confirmé dans ce tableau : avant ça, rien
+  // ne les différenciait (même cellule email "—", même date de naissance
+  // vide -- déjà géré par admin/page.tsx via UNKNOWN_DATE_OF_BIRTH --, même
+  // date de création vide -- déjà géré par la fiche elle-même, created_at
+  // mis à null en base -- mais aucune indication explicite que ce n'est
+  // PAS un compte réel).
+  hasLogin: boolean
   // Date de naissance ISO (ou null : accompagnant sans compte, ou compte
   // dont la date n'a jamais ete renseignee -- ex. inscription via
   // "Continuer avec Google", voir UNKNOWN_DATE_OF_BIRTH dans
@@ -280,7 +296,20 @@ export function MembersTable({ rows: initialRows }: { rows: MemberRow[] }) {
             return (
               <tr key={row.id} className="border-b border-border last:border-0">
                 <td className="px-3 py-2.5 font-medium uppercase text-foreground">{row.lastName}</td>
-                <td className="px-3 py-2.5 text-foreground">{row.firstName}</td>
+                <td className="px-3 py-2.5 text-foreground">
+                  {row.firstName}
+                  {/* Marqueur "sans compte" (02/11/2026, demande d'Aurélie) :
+                      distingue une fiche "membre sans compte" (hasLogin
+                      false, mais une vraie ligne profiles -- voir
+                      MemberRow.hasLogin) d'un compte réellement créé, pour
+                      que ce tableau continue à servir à savoir "qui a
+                      réellement créé un compte". Pas affiché pour une ligne
+                      invité (isGuestRow) : celle-ci est déjà visuellement
+                      distincte (pas de bouton Autorisations). */}
+                  {!isGuestRow(row) && !row.hasLogin && (
+                    <span className="ml-1.5 text-xs italic text-muted-foreground">(sans compte)</span>
+                  )}
+                </td>
                 {/* Case vide pour un accompagnant sans compte (27/10/2026,
                     demande d'Aurélie) -- pas de bouton "Autorisations" à
                     afficher, puisqu'il n'y a pas de vrai profil derrière

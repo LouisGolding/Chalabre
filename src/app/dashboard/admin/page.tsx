@@ -267,6 +267,10 @@ export default async function AdminPage() {
           // vide et editable plutot qu'une fausse date de 1900.
           dateOfBirth: p.date_of_birth === UNKNOWN_DATE_OF_BIRTH ? null : p.date_of_birth,
           createdAt: p.created_at,
+          // Fiche "membre sans compte" (migration profiles_member_without_login.sql,
+          // 30/10/2026) vs vrai compte -- voir MemberRow.hasLogin dans
+          // MembersTable.tsx pour pourquoi (02/11/2026, demande d'Aurélie).
+          hasLogin: p.has_login,
           tsTotalYear: ts.total,
           tsPaidYear: ts.paid,
         }
@@ -289,6 +293,7 @@ export default async function AdminPage() {
         role: null,
         dateOfBirth: null,
         createdAt: null,
+        hasLogin: false,
         tsTotalYear: g.total,
         tsPaidYear: g.paid,
       }))

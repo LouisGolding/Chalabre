@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { PlanningView, PlanningBooking, PlanningEvent } from '@/components/planning/PlanningView'
 import { ReserverSejour } from '@/components/planning/ReserverSejour'
-import { SavedStayInfo, FamilyMemberOption } from '@/components/dashboard/NextStayCard'
+import { SavedStayInfo, FamilyMemberOption, DelegatedStay } from '@/components/dashboard/NextStayCard'
 import { colorForName, colorForPaletteIndex } from '@/lib/colors'
 import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 import type { TsBalanceResult } from '@/lib/ts-balance'
@@ -42,6 +42,9 @@ interface PlanningPageClientProps {
   // "Option famille" (30/10/2026) -- simple passe-plat ici aussi, voir
   // NextStayCard.tsx (FamilyMemberOption).
   familyMembers?: FamilyMemberOption[]
+  // Paiement délégué (01/11/2026, cas unique Alexandre -> Guy) -- simple
+  // passe-plat ici aussi, voir NextStayCard.tsx (DelegatedStay).
+  delegatedStays?: DelegatedStay[]
 }
 
 // Pont côté client entre le widget "Prochain séjour" (ReserverSejour /
@@ -63,6 +66,7 @@ export function PlanningPageClient({
   currentUserId,
   guestDefaults,
   familyMembers,
+  delegatedStays,
 }: PlanningPageClientProps) {
   const [planningBookings, setPlanningBookings] = useState(initialPlanningBookings)
 
@@ -191,6 +195,7 @@ export function PlanningPageClient({
         externalTsRefreshSignal={calendarSyncSignal}
         guestDefaults={guestDefaults}
         familyMembers={familyMembers}
+        delegatedStays={delegatedStays}
       />
       <PlanningView
         bookings={visiblePlanningBookings}

@@ -90,7 +90,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen">
-      <TopBanner profile={profile} />
+      <TopBanner profile={profile} canSeeGestion={canAccessMembresTab(profile)} />
       {/* Padding-bas du <main> = la place prise par TileNav + BottomNav,
           épinglées en fixed par-dessus le bas de l'écran (250px mobile /
           302px bureau — même calcul que celui documenté dans TileNav.tsx :
@@ -132,7 +132,7 @@ export default async function DashboardLayout({
           (TopBanner) avec les autres onglets. Rendu pour tout le monde
           depuis le 18/09/2026, d'où le padding-bas du <main> toujours
           actif, plus seulement pour les admins. */}
-      <BottomNav role={profile.role} canSeeMembres={canAccessMembresTab(profile)} />
+      <BottomNav role={profile.role} />
     </div>
   )
 }

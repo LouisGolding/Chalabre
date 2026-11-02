@@ -34,7 +34,10 @@ interface TsRowBooking {
   // last_name ajoute le 27/10/2026 (voir isSelfTagged plus bas) -- pour
   // pouvoir reconstruire le nom complet du titulaire de CE sejour, pas
   // seulement son prenom.
-  profiles: { first_name: string; last_name: string } | { first_name: string; last_name: string }[] | null
+  profiles:
+    | { first_name: string; last_name: string; ts_payer_id: string | null }
+    | { first_name: string; last_name: string; ts_payer_id: string | null }[]
+    | null
 }
 
 type TsRow = {
@@ -171,7 +174,7 @@ async function handleCheckout(request: Request) {
   // -------------------------------------------------------------
   const { data: rows } = await supabase
     .from('ts_payments')
-    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, house_side, profiles(first_name, last_name))')
+    .select('id, amount, status, booking_id, bookings(user_id, guest_name, check_out, house_side, profiles(first_name, last_name, ts_payer_id))')
     .in('id', ids)
 
   const requested = (rows ?? []) as TsRow[]
@@ -230,7 +233,15 @@ async function handleCheckout(request: Request) {
     // autre membre de la famille nucléaire reste réservé à son titulaire
     // (ou à un admin), jamais payable par les autres.
     const isFamilyMember = !!guestName && !isSelfTagged && familyMemberIds.has(booking.user_id)
-    if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isAdmin) {
+    // Paiement delegue (01/11/2026, cas unique Alexandre -> Guy, voir
+    // profiles.ts_payer_id et NextStayCard.tsx/DelegatedStay) :
+    // s'applique au propre sejour du titulaire (guestName absent, a la
+    // difference de isFamilyMember ci-dessus qui ne vaut que pour un
+    // accompagnant) -- Guy doit pouvoir regler le sejour d'Alexandre
+    // meme si ce n'est pas un "accompagnant" saisi par quelqu'un
+    // d'autre, mais le sejour propre d'Alexandre sur son propre compte.
+    const isDelegatedPayer = registrantProfile?.ts_payer_id === user.id
+    if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isDelegatedPayer && !isAdmin) {
       return NextResponse.json({ error: 'Ce paiement ne vous appartient pas' }, { status: 403 })
     }
     if (!resolvedFirstName) {

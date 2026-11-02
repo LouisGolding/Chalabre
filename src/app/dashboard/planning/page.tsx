@@ -2,6 +2,7 @@ import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { PlanningBooking } from '@/components/planning/PlanningView'
 import { PlanningPageClient } from '@/components/planning/PlanningPageClient'
+import { StaysHistoryWidget } from '@/components/dashboard/StaysHistoryWidget'
 import { colorForName, colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
 import type { FamilyGroup, HouseSide } from '@/types'
 import { computeTsBalance } from '@/lib/ts-balance'
@@ -67,6 +68,7 @@ export default async function PlanningPage() {
     { data: events },
     initialTsBalance,
     otherFamilyMembers,
+    { data: delegatePayerProfiles },
   ] = await Promise.all([
     // Résolution des couleurs par nom (voir buildColorResolver plus haut) :
     // remontée ici, avant le calcul de guestFutureBookings, pour pouvoir
@@ -112,6 +114,17 @@ export default async function PlanningPage() {
     // src/lib/nuclear-family.ts. Indépendante de tout le reste ci-dessus,
     // lancée de front avec le reste du Promise.all.
     otherNuclearFamilyMembers(supabase, user.id, profile.nuclear_family),
+    // Paiement délégué (cas unique, 01/11/2026, décision d'Aurélie) :
+    // Alexandre paie souvent sa taxe de séjour en cash à Guy --
+    // profiles.ts_payer_id (voir supabase/migration_profiles_ts_payer_delegate.sql)
+    // marque un compte dont la taxe de séjour doit être réglable depuis
+    // un AUTRE compte, désigné ici. Indépendant du reste, lancé de front.
+    // Écrit en général (n'importe quel profil pourrait un jour avoir ce
+    // champ renseigné), même si pour l'instant seul Alexandre l'a.
+    supabase
+      .from('profiles')
+      .select('id, first_name, last_name, family_group, color_hue')
+      .eq('ts_payer_id', profile.id),
   ])
 
   // Séjours d'accompagnants saisis par un AUTRE membre de cette même
@@ -138,6 +151,44 @@ export default async function PlanningPage() {
           .in('user_id', otherFamilyIds)
           .not('guest_name', 'is', null)
       : { data: [] as typeof myBookings }
+
+  // Tous les séjours (passés, en cours ou à venir -- pas de filtre de
+  // date, à la différence de myFutureBookings plus bas) de chaque compte
+  // qui délègue le paiement de sa taxe de séjour à CE titulaire (voir
+  // delegatePayerProfiles plus haut) -- un widget entier par séjour,
+  // "comme si c'était un de ses propres séjours" (demande d'Aurélie),
+  // affiché en lecture seule (voir DelegatedStayBanner dans
+  // NextStayCard.tsx) : seul le règlement de la taxe de séjour est
+  // actionnable, pas d'édition des dates d'Alexandre depuis le compte de
+  // Guy.
+  const delegatePayerIds = (delegatePayerProfiles ?? []).map((p) => p.id)
+  const { data: delegatedBookingsRaw } =
+    delegatePayerIds.length > 0
+      ? await supabase
+          .from('bookings')
+          .select('id, user_id, check_in, check_out, house_side, notes, ts_payments(id, amount, status)')
+          .in('user_id', delegatePayerIds)
+          .order('check_in', { ascending: true })
+      : { data: [] as { id: string; user_id: string; check_in: string; check_out: string; house_side: HouseSide | null; notes: string | null; ts_payments: { id: string; amount: number; status: string }[] | null }[] }
+
+  const delegateProfileById = new Map((delegatePayerProfiles ?? []).map((p) => [p.id, p]))
+  const delegatedStays = (delegatedBookingsRaw ?? []).flatMap((b) => {
+    const owner = delegateProfileById.get(b.user_id)
+    if (!owner) return []
+    const ownerFamily = (owner.family_group as FamilyGroup | null) ?? 'friend'
+    const ownerIndex = typeof owner.color_hue === 'number' ? owner.color_hue : fallbackIndexForName(`${owner.first_name} ${owner.last_name}`)
+    const payments = b.ts_payments ?? []
+    const unpaid = payments.filter((p) => p.status !== 'paid')
+    return [
+      {
+        ownerFullName: `${owner.first_name} ${owner.last_name}`,
+        ownerColor: colorForPaletteIndex(ownerFamily, ownerIndex),
+        booking: { id: b.id, check_in: b.check_in, check_out: b.check_out, house_side: b.house_side, notes: b.notes },
+        pending: unpaid.reduce((sum, p) => sum + Number(p.amount), 0),
+        ids: unpaid.map((p) => p.id),
+      },
+    ]
+  })
 
   const colorByName = new Map<string, PaletteRef>()
   // Famille de chaque compte, par id -- sert de repli ci-dessous pour un
@@ -236,6 +287,72 @@ export default async function PlanningPage() {
     guestNameDefaults[key] = { ageBracket: b.age_bracket ?? 'adult', houseSide: b.house_side }
   }
 
+  // Widget "Votre historique" (01/11/2026, demande d'Aurelie) : un
+  // widget par personne (jamais un seul regroupe pour toute la famille),
+  // couleur = color_hue de la personne, listant ses sejours PASSES
+  // (check_out < aujourd'hui) du plus recent au plus ancien, en lecture
+  // seule -- seule la pastille TS de chaque ligne est actionnable (voir
+  // StaysHistoryWidget.tsx).
+  type RawHistoryBooking = {
+    id: string
+    check_in: string
+    check_out: string
+    guest_name?: string | null
+    ts_payments?: { id: string; amount: number; status: string }[] | null
+  }
+  const toHistoryStay = (b: RawHistoryBooking) => {
+    const payments = b.ts_payments ?? []
+    const unpaid = payments.filter((p) => p.status !== 'paid')
+    return {
+      id: b.id,
+      checkIn: b.check_in,
+      checkOut: b.check_out,
+      pending: unpaid.reduce((sum, p) => sum + Number(p.amount), 0),
+      ids: unpaid.map((p) => p.id),
+    }
+  }
+  const sortPastDesc = (stays: ReturnType<typeof toHistoryStay>[]) =>
+    stays.sort((a, b) => b.checkOut.localeCompare(a.checkOut))
+
+  const ownPastStays = sortPastDesc(
+    ((myBookings ?? []) as RawHistoryBooking[])
+      .filter((b) => !b.guest_name && b.check_out < todayISOForReserver)
+      .map(toHistoryStay)
+  )
+  const ownHistoryColor = colorForPaletteIndex(
+    profile.family_group,
+    typeof profile.color_hue === 'number' ? profile.color_hue : fallbackIndexForName(`${profile.first_name} ${profile.last_name}`)
+  )
+
+  // Enfants sans compte (has_login = false) de la meme famille nucleaire :
+  // leur "sejour" n'existe qu'en tant qu'accompagnant (guest_name) saisi
+  // par le titulaire lui-meme OU par un autre membre de la famille
+  // nucleaire -- voir guestHistoryBookings ci-dessus, qui couvre deja les
+  // deux. "Historique de <prenom>" apparait ainsi chez CHAQUE parent
+  // ayant un vrai compte (puisque ce calcul tourne independamment sur la
+  // page de chacun), sans lien ni table supplementaire.
+  const loginlessChildren = otherFamilyMembers.filter((m) => !m.has_login)
+  const historyWidgets = [
+    { key: 'own', label: 'Votre historique', color: ownHistoryColor, stays: ownPastStays },
+    ...loginlessChildren.map((child) => {
+      const nameCandidates = [child.first_name, `${child.first_name} ${child.last_name}`]
+      const stays = sortPastDesc(
+        (guestHistoryBookings as RawHistoryBooking[])
+          .filter((b) => {
+            const g = b.guest_name?.trim()
+            return !!g && b.check_out < todayISOForReserver && findClosestNameMatch(g, nameCandidates) !== -1
+          })
+          .map(toHistoryStay)
+      )
+      const childFamily = (child.family_group as FamilyGroup | null) ?? profile.family_group
+      const childColor = colorForPaletteIndex(
+        childFamily,
+        typeof child.color_hue === 'number' ? child.color_hue : fallbackIndexForName(`${child.first_name} ${child.last_name}`)
+      )
+      return { key: child.id, label: `Historique de ${child.first_name}`, color: childColor, stays }
+    }),
+  ]
+
   const realBookings: PlanningBooking[] = (bookings ?? []).map((b) => {
     const roomsField = (b as { rooms?: { name: string } | { name: string }[] | null }).rooms
     const roomLabel = Array.isArray(roomsField) ? roomsField[0]?.name ?? null : roomsField?.name ?? null
@@ -304,7 +421,17 @@ export default async function PlanningPage() {
         currentUserId={user.id}
         guestDefaults={guestNameDefaults}
         familyMembers={otherFamilyMembers}
+        delegatedStays={delegatedStays}
       />
+
+      {/* Widget "Votre historique" (01/11/2026, demande d'Aurelie) : un
+          par personne (titulaire + chaque enfant sans compte de sa
+          famille nucleaire), voir historyWidgets plus haut et
+          StaysHistoryWidget.tsx -- place sous le widget "Reserver un
+          sejour", dans l'ordre meme ou chacun a ete demande. */}
+      {historyWidgets.map((w) => (
+        <StaysHistoryWidget key={w.key} label={w.label} personColor={w.color} stays={w.stays} />
+      ))}
     </div>
   )
 }

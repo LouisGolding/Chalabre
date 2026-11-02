@@ -12,6 +12,15 @@ export interface NuclearFamilyMember {
   date_of_birth: string | null
   color_hue: number | null
   family_group: string | null
+  // Ajoute le 02/11/2026 pour le widget "Votre historique"
+  // (StaysHistoryWidget.tsx, voir planning/page.tsx) : distingue un
+  // membre de la famille nucleaire ayant un vrai compte (son propre
+  // widget "Votre historique" sur SON tableau de bord) d'un enfant sans
+  // compte (has_login = false, voir profile.ts) -- pour celui-ci, le
+  // widget "Historique de <prenom>" apparait plutot chez chacun de ses
+  // parents ayant un vrai compte. Ignore sans consequence par les
+  // appelants existants (ts-balance.ts, checkout/route.ts).
+  has_login: boolean
 }
 
 // Familles nucléaires (27/10/2026, demande d'Aurélie : "si un des deux
@@ -59,7 +68,7 @@ export async function otherNuclearFamilyMembers(
 
   const { data: members } = await supabase
     .from('profiles')
-    .select('id, first_name, last_name, date_of_birth, color_hue, family_group')
+    .select('id, first_name, last_name, date_of_birth, color_hue, family_group, has_login')
     .eq('nuclear_family', nuclearFamily)
     .neq('id', userId)
 

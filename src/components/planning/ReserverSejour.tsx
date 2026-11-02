@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { PageTitle } from '@/components/layout/PageTitle'
-import { NextStayCard, SavedStayInfo, FamilyMemberOption } from '@/components/dashboard/NextStayCard'
+import { NextStayCard, SavedStayInfo, FamilyMemberOption, DelegatedStay } from '@/components/dashboard/NextStayCard'
 import type { TsBalanceResult } from '@/lib/ts-balance'
 import type { FamilyGroup, HouseSide, Profile, TSPayment } from '@/types'
 
@@ -46,6 +46,9 @@ interface ReserverSejourProps {
   // "Option famille" (30/10/2026) -- simple passe-plat ici aussi, voir
   // NextStayCard.tsx (FamilyMemberOption).
   familyMembers?: FamilyMemberOption[]
+  // Paiement délégué (01/11/2026, cas unique Alexandre -> Guy) -- simple
+  // passe-plat ici aussi, voir NextStayCard.tsx (DelegatedStay).
+  delegatedStays?: DelegatedStay[]
   // Change de valeur à chaque glisser persisté directement sur le planning
   // (voir PlanningPageClient.handleDatesPersistedFromCalendar) : rappelle
   // /api/ts-balance, puisque le montant de taxe de séjour a pu changer sans
@@ -70,6 +73,7 @@ export function ReserverSejour({
   externalTsRefreshSignal,
   guestDefaults,
   familyMembers,
+  delegatedStays,
 }: ReserverSejourProps) {
   const [tsBalance, setTsBalance] = useState<TsBalanceResult>(initialTsBalance)
 
@@ -137,6 +141,7 @@ export function ReserverSejour({
         onHiddenBookingIdsChange={onHiddenBookingIdsChange}
         guestDefaults={guestDefaults}
         familyMembers={familyMembers}
+        delegatedStays={delegatedStays}
       />
     </>
   )

@@ -121,8 +121,15 @@ function wrap(x: number, width: number): number {
  * côté base (voir la migration de la palette) pour que le calcul reste
  * identique partout.
  */
+// Correctif du 02/11/2026 (bug signale par Aurelie : "aurelie s'affiche,
+// mais pas avec la couleur de son profil") : "+ 1" ajoute pour que la
+// toute premiere unite d'une famille (unitIndex = 0) ne tombe plus
+// exactement sur l'index 0 -- une teinte quasi blanche dans les 3
+// palettes "Argile" (#E0DDD4 / #E0E1DC / #FEF0E8), indiscernable du fond
+// papier des cartes. Meme correctif applique cote base dans
+// handle_new_user() -- voir supabase/migration_fix_first_unit_color_index_near_white.sql.
 export function indexForUnit(unitIndex: number, size: number = PALETTE_SIZE): number {
-  return Math.floor(wrap(unitIndex * GOLDEN_ANGLE_CONJUGATE * size, size))
+  return Math.floor(wrap((unitIndex + 1) * GOLDEN_ANGLE_CONJUGATE * size, size))
 }
 
 /** Couleur CSS (hex) pour un index de palette donné, dans une famille donnée. Index hors bornes ramené dans la palette par modulo (jamais d'erreur). */

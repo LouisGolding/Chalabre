@@ -6,11 +6,13 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { UserRole } from '@/types'
 
+// "Gestion" (ex-"Membres") retiré de ce tableau le 02/11/2026, demande
+// d'Aurélie : vit désormais dans le bandeau du HAUT (voir TopBanner.tsx),
+// en rond vert foncé à gauche, miroir du médaillon "Mon profil" à droite
+// -- plus dans ce bandeau du bas du tout. Route /dashboard/admin et
+// logique d'accès (canAccessMembresTab, lib/members-access.ts) inchangées,
+// seul l'endroit où le lien s'affiche a changé.
 const ADMIN_ITEMS = [
-  // Libelle affiche renomme 'Membres' -> 'Gestion' le 26/10/2026
-  // (demande d'Aurelie) -- route et logique d'acces (canSeeMembres,
-  // canAccessMembresTab) inchangees, seul le texte visible change.
-  { href: '/dashboard/admin', label: 'Gestion' },
   { href: '/dashboard/admin/paiements', label: 'Suivi paiements' },
   { href: '/dashboard/documents', label: 'Documents' },
   { href: '/dashboard/activites', label: 'Activités' },
@@ -114,7 +116,7 @@ const SHOW_SUIVI_PAIEMENTS = false
 // ci-dessus : desormais reserve a ces 4 personnes precises, meme pour un
 // compte admin qui n'en fait pas partie (Suivi paiements/Documents/
 // Activites restent, eux, ouverts a tout admin comme avant).
-export function BottomNav({ role, canSeeMembres }: { role: UserRole; canSeeMembres: boolean }) {
+export function BottomNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
 
   // Bandeau retiré entièrement pour les comptes famille et amis
@@ -123,8 +125,11 @@ export function BottomNav({ role, canSeeMembres }: { role: UserRole; canSeeMembr
   // TopBanner pour tout le monde, voir plus haut).
   if (role !== 'admin') return null
 
+  // canSeeMembres n'est plus un paramètre de ce composant depuis le
+  // 02/11/2026 : il ne servait qu'à filtrer l'entrée "Gestion", désormais
+  // entièrement retirée de ADMIN_ITEMS ci-dessus (déplacée dans
+  // TopBanner.tsx).
   const items = ADMIN_ITEMS.filter((item) => {
-    if (item.href === '/dashboard/admin' && !canSeeMembres) return false
     if (item.href === '/dashboard/admin/paiements' && !SHOW_SUIVI_PAIEMENTS) return false
     return true
   })

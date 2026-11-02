@@ -66,7 +66,7 @@ import type { Profile } from '@/types'
 // voir globals.css) le 26/10/2026 à la demande d'Aurélie, qui trouvait le
 // noir trop appuyé — pas de bordure du tout sur l'accueil, où la photo
 // plein écran crée déjà une séparation nette.
-export function TopBanner({ profile }: { profile: Profile }) {
+export function TopBanner({ profile, canSeeGestion }: { profile: Profile; canSeeGestion: boolean }) {
   const pathname = usePathname()
   const hasPhotoBackground = pathname === '/dashboard'
 
@@ -132,6 +132,7 @@ export function TopBanner({ profile }: { profile: Profile }) {
       : colorForName('Séjour')
   const initial = profile.first_name.trim().charAt(0).toUpperCase()
   const maskId = useId()
+  const gestionMaskId = useId()
   // Assombrit badgeColor du même effet moyen que le mélange "multiply"
   // avec la texture papier, pour que ce rond PLEIN (un <svg>, pas un fond
   // CSS) rende la même teinte à l'œil que les séjours de Planning et la
@@ -167,6 +168,48 @@ export function TopBanner({ profile }: { profile: Profile }) {
           className="h-auto w-[25.6vw] max-w-[112px]"
         />
       </Link>
+      {/* Bouton "Gestion", bandeau du haut, à GAUCHE (demande d'Aurélie le
+          02/11/2026) : "Gestion" vivait jusqu'ici uniquement dans le bandeau
+          du bas (voir BottomNav.tsx, dont l'entrée a été retirée le même
+          jour) -- déplacé ici, en miroir exact du médaillon "Mon profil" à
+          droite (même zone cliquable 36px, même position verticale
+          top-[27.25px], même rond de 31px). Réservé aux mêmes 4 personnes
+          que la page /dashboard/admin elle-même (canAccessMembresTab, voir
+          lib/members-access.ts) -- calculé par dashboard/layout.tsx et
+          passé ici en prop, pas recalculé.
+          Rond "vert foncé" explicitement demandé par Aurélie, "comme la
+          pastille de connexion" -- #393F2F, le vert olive foncé déjà utilisé
+          pour le bouton "Se connecter" des pages d'authentification (voir
+          auth/login/page.tsx et auth/register/page.tsx), seule couleur
+          "de connexion" du site. Pictogramme "clé" en transparent : même
+          technique de masque SVG "en négatif" que l'initiale du médaillon
+          ci-dessus (rond plein découpé par les formes noires du mask, qui
+          laissent voir au travers plutôt que de dessiner une icône d'une
+          autre couleur par-dessus) -- clé simple (anneau + tige + deux
+          dents), pas d'icône de bibliothèque externe pour rester cohérent
+          avec le reste de ce bandeau (uniquement du SVG fait main). */}
+      {canSeeGestion && (
+        <Link
+          href="/dashboard/admin"
+          aria-label="Gestion"
+          className="absolute left-4 top-[27.25px] flex h-9 w-9 items-center justify-center transition-opacity hover:opacity-70"
+        >
+          <svg aria-hidden="true" width="31" height="31" viewBox="0 0 31 31" className="text-xs">
+            <mask id={gestionMaskId}>
+              <circle cx="15.5" cy="15.5" r="15.5" fill="white" />
+              {/* Anneau de la clé : disque noir (trou) + disque blanc plus
+                  petit par-dessus (remet le centre "plein", donc un anneau
+                  creux comme un vrai anneau de clé plutôt qu'un rond plein). */}
+              <circle cx="10" cy="15.5" r="4.2" fill="black" />
+              <circle cx="10" cy="15.5" r="2.3" fill="white" />
+              <rect x="13.8" y="14.3" width="10.5" height="2.4" rx="1" fill="black" />
+              <rect x="19" y="16.5" width="2" height="3.2" fill="black" />
+              <rect x="22.2" y="16.5" width="2" height="4.6" fill="black" />
+            </mask>
+            <circle cx="15.5" cy="15.5" r="15.5" fill="#393F2F" mask={`url(#${gestionMaskId})`} />
+          </svg>
+        </Link>
+      )}
       <Link
         href="/dashboard/profil"
         aria-label="Mon profil"
