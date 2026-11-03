@@ -31,6 +31,14 @@ function EditableCell({
   onSave,
   type = 'text',
   multiline = false,
+  // Zone cliquable reduite au texte lui-meme plutot qu'a toute la
+  // largeur du conteneur (03/11/2026, demande de Nicolas, carte contact
+  // mobile depliee : "si on clique sur la zone rouge [le nom], elle
+  // devient editable. Si on clique sur la zone verte [l'espace vide a
+  // cote], rien ne se passe") -- par defaut false (comportement inchange
+  // partout ailleurs, ex. les cellules du tableau desktop, qui veulent
+  // au contraire toute la largeur de la colonne cliquable).
+  fitContent = false,
 }: {
   value: string
   editable: boolean
@@ -38,6 +46,7 @@ function EditableCell({
   onSave: (next: string) => void
   type?: 'text' | 'tel' | 'email'
   multiline?: boolean
+  fitContent?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -105,7 +114,11 @@ function EditableCell({
         setDraft(value)
         setEditing(true)
       }}
-      className={cn('w-full rounded px-1.5 py-1 text-left text-sm hover:bg-muted', multiline ? 'whitespace-pre-wrap break-words' : 'truncate')}
+      className={cn(
+        fitContent ? 'inline-block w-auto max-w-full' : 'w-full',
+        'rounded px-1.5 py-1 text-left text-sm hover:bg-muted',
+        multiline ? 'whitespace-pre-wrap break-words' : 'truncate'
+      )}
     >
       {value ? <span className="text-foreground">{value}</span> : <span className="text-muted-foreground/60">{placeholder}</span>}
     </button>
@@ -382,6 +395,27 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
     return copy
   }, [rows, sortKey, sortDir])
 
+  // Tri dedie a la pile de cartes mobile (03/11/2026, demande de
+  // Nicolas : "classe les cartes par ordre alphabetique de service") --
+  // independant de `sorted` ci-dessus (tri cliquable du tableau
+  // desktop, inchange, toujours Nom par defaut).
+  const mobileSorted = useMemo(() => {
+    const copy = [...rows]
+    copy.sort((a, b) => {
+      const aVal = a.role.trim()
+      const bVal = b.role.trim()
+      const aEmpty = aVal === ''
+      const bEmpty = bVal === ''
+      if (aEmpty !== bEmpty) return aEmpty ? 1 : -1
+      if (!aEmpty) {
+        const primary = aVal.localeCompare(bVal)
+        if (primary !== 0) return primary
+      }
+      return a.name.localeCompare(b.name)
+    })
+    return copy
+  }, [rows])
+
   const patch = async (id: string, field: keyof Contact, next: string) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: next } : r)))
     try {
@@ -586,12 +620,12 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
             recouvert par la carte suivante ; on touche une carte pour la
             déplier. Voir MobileContactCard. */}
         <div className="md:hidden">
-          {sorted.map((c, i) => {
+          {mobileSorted.map((c, i) => {
             const isExpanded = expandedId === c.id
             const isFirst = i === 0
-            const isLast = i === sorted.length - 1
-            const prevExpanded = i > 0 && sorted[i - 1].id === expandedId
-            const nextExpanded = i < sorted.length - 1 && sorted[i + 1].id === expandedId
+            const isLast = i === mobileSorted.length - 1
+            const prevExpanded = i > 0 && mobileSorted[i - 1].id === expandedId
+            const nextExpanded = i < mobileSorted.length - 1 && mobileSorted[i + 1].id === expandedId
             return (
               <MobileContactCard
                 key={c.id}
@@ -685,8 +719,14 @@ function MobileContactCard({
         <>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1 space-y-1">
-              <EditableCell value={c.name} editable={canEdit} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} />
-              <EditableCell value={c.role} editable={canEdit} placeholder="Type de service" onSave={(v) => patch(c.id, 'role', v)} />
+              {/* Seul le nom reste editable au clic ici -- le type de
+                  service est affiche en majuscules, en lecture seule
+                  (03/11/2026, demande de Nicolas : "il faut que la zone
+                  editable soit uniquement le nom de la personne"). */}
+              <EditableCell value={c.name} editable={canEdit} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} fitContent />
+              <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
+                {c.role || <span className="text-muted-foreground/40">Type de service</span>}
+              </div>
             </div>
             <button type="button" onClick={onToggle} aria-label="Replier" className="mt-1 shrink-0 text-muted-foreground">
               <ChevronDown className="h-4 w-4 rotate-180" />
@@ -783,7 +823,7 @@ function MobileContactCard({
             <div className="truncate font-medium text-foreground">
               {c.name || <span className="text-muted-foreground/60">Nom</span>}
             </div>
-            <div className="truncate text-xs text-muted-foreground">
+            <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
               {c.role || <span className="text-muted-foreground/40">Type de service</span>}
             </div>
           </div>
