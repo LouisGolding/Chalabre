@@ -43,3 +43,22 @@ create policy "item_seen_select" on public.item_seen for select to authenticated
 create policy "item_seen_insert" on public.item_seen for insert to authenticated with check (
   user_id = auth.uid()
 );
+
+-- Backfill : tout le contenu existant au moment du lancement de la
+-- fonctionnalite est marque "deja vu" par tout le monde, pour que seul
+-- le contenu reellement NOUVEAU (cree apres ce backfill) declenche une
+-- pastille -- sinon chaque compte verrait tout l'historique existant
+-- comme "nouveau" a la premiere ouverture. Applique directement en base
+-- juste apres la creation de la table (60 profils x 9 taches + 60 x 3
+-- realisations au moment du backfill, 03/11/2026).
+insert into public.item_seen (user_id, item_type, item_id)
+select p.id, 'task', t.id
+from public.profiles p
+cross join public.tasks t
+on conflict do nothing;
+
+insert into public.item_seen (user_id, item_type, item_id)
+select p.id, 'house_log', h.id
+from public.profiles p
+cross join public.house_log h
+on conflict do nothing;
