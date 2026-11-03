@@ -2,8 +2,9 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { TasksBoard, TaskItem } from '@/components/dashboard/TasksBoard'
-import { TaskContactTag, TaskNote } from '@/types'
+import { TaskContactTag, TaskNote, FamilyGroup } from '@/types'
 import { properCase } from '@/lib/utils'
+import { colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
 
 // Onglet renommé "Entretien" le 27/09/2026 à la demande de Nicolas
 // (auparavant "Tâches") — route inchangée (/dashboard/taches), voir
@@ -33,10 +34,21 @@ export default async function TachesPage() {
   const { data: tasks, error: tasksError } = await supabase
     .from('tasks')
     .select(
-      '*, profiles:profiles!tasks_created_by_fkey(first_name, last_name), completedByProfile:profiles!tasks_completed_by_fkey(first_name, last_name), task_notes(id, text, rdv_date, created_at, user_id, profile:profiles(first_name, last_name)), task_contacts(contact_id, contacts(id, name, role))'
+      '*, profiles:profiles!tasks_created_by_fkey(first_name, last_name, color_hue, family_group), completedByProfile:profiles!tasks_completed_by_fkey(first_name, last_name), task_notes(id, text, rdv_date, created_at, user_id, profile:profiles(first_name, last_name)), task_contacts(contact_id, contacts(id, name, role))'
     )
     .order('completed', { ascending: true })
     .order('created_at', { ascending: false })
+
+  // Pastille de nouveaute (design retenu du 03/11/2026, voir TileNav.tsx
+  // et TasksBoard.tsx) : taches deja vues par CE compte -- voir
+  // supabase/migration_item_seen.sql. Marquage "vu" fait cote client,
+  // au montage de TasksBoard (voir ce fichier).
+  const { data: seenRows } = await supabase
+    .from('item_seen')
+    .select('item_id')
+    .eq('user_id', user.id)
+    .eq('item_type', 'task')
+  const seenTaskIds = new Set((seenRows ?? []).map((r) => r.item_id))
 
   // Tant que migration_task_notes_contacts.sql n'est pas appliquée, les
   // tables task_notes/task_contacts n'existent pas et l'embed ci-dessus
@@ -49,7 +61,7 @@ export default async function TachesPage() {
   if (tasksError) {
     const { data: fallbackTasks } = await supabase
       .from('tasks')
-      .select('*, profiles:profiles!tasks_created_by_fkey(first_name, last_name), completedByProfile:profiles!tasks_completed_by_fkey(first_name, last_name)')
+      .select('*, profiles:profiles!tasks_created_by_fkey(first_name, last_name, color_hue, family_group), completedByProfile:profiles!tasks_completed_by_fkey(first_name, last_name)')
       .order('completed', { ascending: true })
       .order('created_at', { ascending: false })
     taskRows = ((fallbackTasks ?? []) as unknown as Omit<RawTaskRow, 'task_notes' | 'task_contacts'>[]).map(
@@ -71,7 +83,7 @@ export default async function TachesPage() {
     // qu'il a rentree (demande d'Aurelie) : voir TasksBoard.tsx et
     // migration_tasks_family_access.sql.
     created_by: string | null
-    profiles: { first_name: string; last_name: string } | null
+    profiles: { first_name: string; last_name: string; color_hue: number | null; family_group: FamilyGroup } | null
     // Qui a coché la tâche (26/10/2026, voir migration_tasks_completed_by.sql
     // et TasksBoard.tsx, "Fait le ... par ...") -- null si jamais cochée ou
     // décochée depuis.
@@ -121,6 +133,18 @@ export default async function TachesPage() {
       completedAt: t.completed_at ?? null,
       createdBy: t.created_by,
       authorName: t.profiles ? `${properCase(t.profiles.first_name)} ${properCase(t.profiles.last_name)}` : null,
+      // Design retenu du 03/11/2026 : "nouveau" seulement si quelqu'un
+      // d'autre l'a cree et que CE compte ne l'a pas encore vue --
+      // jamais pour son propre ajout (AskUserQuestion du meme jour).
+      isNew: t.created_by !== null && t.created_by !== user.id && !seenTaskIds.has(t.id),
+      authorColor: t.profiles
+        ? colorForPaletteIndex(
+            t.profiles.family_group,
+            typeof t.profiles.color_hue === 'number'
+              ? t.profiles.color_hue
+              : fallbackIndexForName(`${t.profiles.first_name} ${t.profiles.last_name}`)
+          )
+        : null,
       completedByName: t.completedByProfile
         ? `${properCase(t.completedByProfile.first_name)} ${properCase(t.completedByProfile.last_name)}`
         : null,

@@ -6,6 +6,7 @@ import { fr } from 'date-fns/locale'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChevronDown, MessageCircle, Pencil, Phone, Trash2, X } from 'lucide-react'
 import { actionPillClass, cn, properCase, viewTogglePillClass } from '@/lib/utils'
+import { withAlpha } from '@/lib/colors'
 import { MONTH_OPTIONS, SEASON_OPTIONS, PERIOD_LABELS, TaskPeriod, isPeriodCurrent } from '@/lib/task-periods'
 import { TaskContactTag, TaskNote } from '@/types'
 
@@ -132,6 +133,13 @@ export interface TaskItem {
   // -- null si jamais cochée, ou décochée depuis (voir
   // migration_tasks_completed_by.sql).
   completedByName: string | null
+  // Design retenu du 03/11/2026 (Artifact "notif-nouveaute-mockup",
+  // valide par Nicolas) : bande d'accent + fond teinte sur la ligne
+  // quand la tache a ete creee par quelqu'un d'autre et pas encore vue
+  // par CE compte (jamais pour son propre ajout, voir
+  // dashboard/taches/page.tsx et supabase/migration_item_seen.sql).
+  isNew: boolean
+  authorColor: string | null
   // Suivi & Contact (19/10/2026, demandé par Aurélie) -- remplacent
   // l'ancien champ unique `comment` : plusieurs notes datées (chacune
   // pouvant porter une date de RDV), et un contact associé (Services,
@@ -340,6 +348,25 @@ interface TasksBoardProps {
 
 export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUserId, currentUserName }: TasksBoardProps) {
   const [tasks, setTasks] = useState(initialTasks)
+
+  // Marquage "vu" automatique a l'ouverture de l'onglet (AskUserQuestion
+  // du 03/11/2026, "Automatique a l'ouverture (Recommande)") -- une
+  // seule fois au montage, sur les taches de ce premier chargement
+  // creees par quelqu'un d'autre. Idempotent cote serveur (upsert), donc
+  // sans risque de doublon ; la ligne reste visuellement "nouvelle"
+  // jusqu'au PROCHAIN chargement de la page (pas un disparaitre pendant
+  // la lecture), voir isNew calcule cote serveur dans
+  // dashboard/taches/page.tsx.
+  useEffect(() => {
+    const ids = initialTasks.filter((t) => t.createdBy && t.createdBy !== currentUserId).map((t) => t.id)
+    if (ids.length === 0) return
+    fetch('/api/notifications/seen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_type: 'task', item_ids: ids }),
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Widget "déroulant" (demandé par Nicolas le 27/09/2026) : replié par
   // défaut, un clic sur le titre du widget révèle le formulaire d'ajout.
   // Les listes elles-mêmes restent toujours visibles, indépendamment de
@@ -595,6 +622,8 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
           completedByName: null,
           notes: [],
           contacts: [],
+          isNew: false,
+          authorColor: null,
         },
         ...prev,
       ])
@@ -1266,8 +1295,18 @@ function TaskRow({
     setEditOpen(false)
   }
 
+  // Bande d'accent (bordure gauche) + fond teinte (design retenu du
+  // 03/11/2026, proposition D) -- uniquement les lignes, jamais les
+  // tuiles (voir le commentaire sur TaskItem.isNew plus haut).
+  const newRowStyle = task.isNew && task.authorColor
+    ? { borderLeft: `3px solid ${task.authorColor}`, backgroundColor: withAlpha(task.authorColor, 0.08) }
+    : undefined
+
   return (
-    <div className="py-2 border-b border-border last:border-0">
+    <div
+      className={cn('py-2 border-b border-border last:border-0', task.isNew && 'pl-2 -ml-2')}
+      style={newRowStyle}
+    >
       {/* Version bureau (md et plus) : une seule ligne, inchangee. */}
       <div className="hidden md:flex items-baseline gap-3">
         {/* Coche ouverte a tous depuis toujours cote API (voir route.ts) ;

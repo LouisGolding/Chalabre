@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { shouldUseWhiteText } from '@/lib/colors'
 import type { UserRole } from '@/types'
 
 interface Tile {
@@ -76,8 +77,42 @@ const TILES: Tile[] = [
 // sur tous les autres onglets mais réfléchit encore à une version
 // réduite et à sa cohabitation avec BottomNav — à étendre une fois ce
 // point tranché.
+// Pastille de nouveaute sur les tuiles Entretien/Réalisations (design
+// retenu du 03/11/2026, Artifact "notif-nouveaute-mockup", valide par
+// Nicolas : "le chiffre aligné de la proposition B, coloré selon le
+// profil de la personne") -- voir src/app/api/notifications/badges/route.ts
+// et supabase/migration_item_seen.sql.
+type TileBadge = { count: number; color: string } | null
+
 export function TileNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
+  // Comptes "friend" n'ont jamais ces deux tuiles (hiddenForFriend) --
+  // pas la peine d'interroger l'API pour elles.
+  const skipBadges = role === 'friend'
+  const [badges, setBadges] = useState<{ taches: TileBadge; realisations: TileBadge }>({
+    taches: null,
+    realisations: null,
+  })
+  // Refait a chaque changement d'onglet (pas seulement au montage) :
+  // ouvrir Entretien ou Réalisations marque ses elements "vus" cote
+  // serveur (voir TasksBoard.tsx / RealisationsBoard.tsx) -- revenir
+  // ensuite sur un autre onglet doit refleter immediatement la pastille
+  // mise a jour, sans attendre un rechargement complet de la page
+  // (TileNav vit dans le layout partage, jamais remonte entre deux
+  // onglets du tableau de bord).
+  useEffect(() => {
+    if (skipBadges) return
+    let cancelled = false
+    fetch('/api/notifications/badges')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setBadges({ taches: data.taches ?? null, realisations: data.realisations ?? null })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [pathname, skipBadges])
   // Comme TopBanner : seule l'accueil a une photo plein écran en fond
   // (voir dashboard/page.tsx) — les espaces entre les tuiles y restent
   // transparents pour laisser voir la photo, comme prévu à l'origine.
@@ -319,18 +354,33 @@ export function TileNav({ role }: { role: UserRole }) {
               isExpanded ? 'opacity-100' : 'opacity-0'
             )}
           >
-            {tiles.map((tile) => (
-              <Link
-                key={tile.href}
-                href={tile.href}
-                // Texte centré (horizontalement et verticalement) dans chaque
-                // tuile, demandé par Nicolas le 27/09/2026 — auparavant aligné à
-                // gauche (pl-4 pr-2 + items-center ne centrait que verticalement).
-                className="flex min-h-[90px] items-center justify-center bg-card px-2 text-center text-sm uppercase tracking-wide text-foreground hover:opacity-70 transition-opacity md:min-h-28 md:text-base"
-              >
-                {tile.label}
-              </Link>
-            ))}
+            {tiles.map((tile) => {
+              const badge = tile.href === '/dashboard/taches' ? badges.taches : tile.href === '/dashboard/realisations' ? badges.realisations : null
+              return (
+                <Link
+                  key={tile.href}
+                  href={tile.href}
+                  // Texte centré (horizontalement et verticalement) dans chaque
+                  // tuile, demandé par Nicolas le 27/09/2026 — auparavant aligné à
+                  // gauche (pl-4 pr-2 + items-center ne centrait que verticalement).
+                  className="relative flex min-h-[90px] items-center justify-center bg-card px-2 text-center text-sm uppercase tracking-wide text-foreground hover:opacity-70 transition-opacity md:min-h-28 md:text-base"
+                >
+                  {tile.label}
+                  {badge && (
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-semibold',
+                        shouldUseWhiteText(badge.color) ? 'text-white' : 'text-foreground'
+                      )}
+                      style={{ backgroundColor: badge.color }}
+                    >
+                      {badge.count}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
           </nav>
         </div>
       </div>

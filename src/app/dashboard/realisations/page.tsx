@@ -2,6 +2,7 @@ import { PageTitle } from '@/components/layout/PageTitle'
 import { getCurrentUserAndProfile } from '@/lib/auth/current-user'
 import { redirect } from 'next/navigation'
 import { RealisationsBoard, type RealisationEntry } from '@/components/realisations/RealisationsBoard'
+import { colorForPaletteIndex, fallbackIndexForName } from '@/lib/colors'
 
 // Onglet "Réalisations" (nom provisoire, 19/09/2026) : fil façon blog des
 // travaux/améliorations entrepris dans la maison (tonte, réparation,
@@ -17,8 +18,19 @@ export default async function RealisationsPage() {
 
   const { data: entries } = await supabase
     .from('house_log')
-    .select('*, profile:profiles(first_name, last_name, family_group)')
+    .select('*, profile:profiles(first_name, last_name, family_group, color_hue)')
     .order('created_at', { ascending: false })
+
+  // Pastille de nouveaute (design retenu du 03/11/2026, voir TileNav.tsx
+  // et RealisationsBoard.tsx) : posts deja vus par CE compte -- voir
+  // supabase/migration_item_seen.sql. Marquage "vu" fait cote client, au
+  // montage de RealisationsBoard (voir ce fichier).
+  const { data: seenRows } = await supabase
+    .from('item_seen')
+    .select('item_id')
+    .eq('user_id', user.id)
+    .eq('item_type', 'house_log')
+  const seenEntryIds = new Set((seenRows ?? []).map((r) => r.item_id))
 
   const entryIds = (entries ?? []).map((e) => e.id)
   const { data: photos } = entryIds.length > 0
@@ -81,6 +93,18 @@ export default async function RealisationsPage() {
     likeCount: likesByEntry.get(e.id)?.count ?? 0,
     likedByMe: likesByEntry.get(e.id)?.likedByMe ?? false,
     comments: commentsByEntry.get(e.id) ?? [],
+    // Design retenu du 03/11/2026 : "nouveau" seulement si quelqu'un
+    // d'autre l'a poste et que CE compte ne l'a pas encore vu -- jamais
+    // pour son propre post (AskUserQuestion du meme jour).
+    isNew: e.created_by !== null && e.created_by !== user.id && !seenEntryIds.has(e.id),
+    authorColor: e.profile
+      ? colorForPaletteIndex(
+          e.profile.family_group,
+          typeof e.profile.color_hue === 'number'
+            ? e.profile.color_hue
+            : fallbackIndexForName(`${e.profile.first_name} ${e.profile.last_name}`)
+        )
+      : null,
   }))
 
   return (

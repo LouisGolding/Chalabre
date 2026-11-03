@@ -358,6 +358,22 @@ export function shouldUseWhiteText(hex: string): boolean {
   return relativeLuminance(hex) < WHITE_TEXT_LUMINANCE_THRESHOLD
 }
 
+/**
+ * Couleur en rgba(), meme teinte que `hex` a une opacite donnee --
+ * utilise pour le fond teinte des lignes "nouveau" (Entretien /
+ * Realisations, design retenu du 03/11/2026, voir TasksBoard.tsx /
+ * RealisationsBoard.tsx) : la bande d'accent pleine couleur a gauche,
+ * le fond juste teinte derriere le texte (reste lisible, ne couvre pas
+ * la couleur du texte).
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const c = hex.replace('#', '')
+  const r = parseInt(c.substring(0, 2), 16)
+  const g = parseInt(c.substring(2, 4), 16)
+  const b = parseInt(c.substring(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 export function coloredTextureStyle(color: string) {
   return {
     backgroundColor: color,

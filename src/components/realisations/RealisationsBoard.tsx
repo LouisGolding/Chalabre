@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { format, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { Plus, X, Pencil, Trash2, ChevronDown, ChevronRight, ChevronLeft, Heart, MessageCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { actionPillClass, cn, properCase } from '@/lib/utils'
+import { withAlpha } from '@/lib/colors'
 import type { HouseLogEntry, HouseLogComment } from '@/types'
 
 export type RealisationComment = HouseLogComment
@@ -20,6 +21,13 @@ export type RealisationEntry = Omit<HouseLogEntry, 'photos'> & {
   likeCount: number
   likedByMe: boolean
   comments: RealisationComment[]
+  // Design retenu du 03/11/2026 (Artifact "notif-nouveaute-mockup",
+  // valide par Nicolas) : bande d'accent + fond teinte sur le post quand
+  // il a ete cree par quelqu'un d'autre et pas encore vu par CE compte
+  // (jamais pour son propre post, voir dashboard/realisations/page.tsx
+  // et supabase/migration_item_seen.sql).
+  isNew: boolean
+  authorColor: string | null
 }
 
 const PHOTO_BUCKET = 'house-log'
@@ -60,6 +68,21 @@ export function RealisationsBoard({
 }) {
   const supabase = useMemo(() => createClient(), [])
   const [entries, setEntries] = useState(initialEntries)
+
+  // Marquage "vu" automatique a l'ouverture de l'onglet (AskUserQuestion
+  // du 03/11/2026, "Automatique a l'ouverture (Recommande)") -- une
+  // seule fois au montage, sur les posts de ce premier chargement crees
+  // par quelqu'un d'autre. Idempotent cote serveur (upsert).
+  useEffect(() => {
+    const ids = initialEntries.filter((e) => e.created_by && e.created_by !== currentUserId).map((e) => e.id)
+    if (ids.length === 0) return
+    fetch('/api/notifications/seen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_type: 'house_log', item_ids: ids }),
+    }).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
@@ -444,8 +467,12 @@ function RealisationCard({
     }
   }
 
+  const newCardStyle = entry.isNew && entry.authorColor
+    ? { borderLeft: `3px solid ${entry.authorColor}`, backgroundColor: withAlpha(entry.authorColor, 0.08) }
+    : undefined
+
   return (
-    <article className="rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10">
+    <article className="rounded-xl bg-card/60 backdrop-blur-sm p-4 ring-1 ring-foreground/10" style={newCardStyle}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm md:text-base font-normal uppercase text-foreground">{entry.title || 'Réalisation'}</p>
