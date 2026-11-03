@@ -40,9 +40,26 @@ export interface CsGuestBalance extends CsBalanceBucket {
   isDelegated: boolean
 }
 
+// Séjour PROPRE (sans accompagnant) d'un autre membre de la famille
+// nucléaire qui a SON PROPRE compte (ex. Aurélie, à la différence d'Otto
+// qui n'en a pas) -- demande de Nicolas le 03/11/2026 : "Option famille"
+// (NextStayCard.tsx) doit refléter sa vraie contribution séjour déjà
+// saisie sur son propre compte, pas seulement celle des accompagnants
+// sans compte comme Otto -- distinct de CsGuestBalance ci-dessus, qui ne
+// couvre que les accompagnants.
+export interface CsFamilyOwnStay {
+  memberId: string
+  bookingId: string
+  checkIn: string
+  checkOut: string
+  pending: number
+  ids: string[]
+}
+
 export interface CsBalanceResult {
   own: CsBalanceBucket
   guests: CsGuestBalance[]
+  familyOwnStays: CsFamilyOwnStay[]
 }
 
 type RawCsPayment = { id: string; amount: number; status: string }
@@ -167,14 +184,17 @@ export async function computeCsBalance(
     familyMembers.map((m) => [m.id, [m.first_name, `${m.first_name} ${m.last_name}`]])
   )
 
-  const { data: familyGuestBookings } =
+  // Plus de filtre `.not('guest_name', 'is', null)` ici (03/11/2026) : on a
+  // désormais besoin aussi des séjours PROPRES (guest_name vide ou
+  // auto-étiqueté) de ces comptes, pour familyOwnStays plus bas --
+  // distingués des vrais accompagnants dans la boucle qui suit.
+  const { data: familyMemberBookings } =
     familyMemberIds.length > 0
       ? await supabase
           .from('bookings')
-          .select('id, guest_name, user_id, check_out, cs_payments(id, amount, status)')
+          .select('id, guest_name, user_id, check_in, check_out, cs_payments(id, amount, status)')
           .in('user_id', familyMemberIds)
-          .not('guest_name', 'is', null)
-      : { data: [] as (RawBooking & { user_id: string })[] }
+      : { data: [] as (RawBooking & { user_id: string; check_in: string })[] }
 
   const ownItems: CsBalanceItem[] = []
   let ownPending = 0
@@ -230,22 +250,39 @@ export async function computeCsBalance(
     addToGuestBucket(guestName, payments, booking.check_out, booking.id)
   }
 
-  // Séjours d'accompagnants saisis par un autre membre de la même
-  // famille nucléaire (voir le grand commentaire au-dessus de la
-  // fonction) : même bucket "guests" que ci-dessus, à l'exclusion de ceux
-  // qui correspondent en réalité au titulaire du compte lui-même (comptés
-  // dans "own" par la boucle suivante à la place, jamais les deux).
-  for (const booking of (familyGuestBookings ?? []) as (RawBooking & { user_id: string })[]) {
+  // Séjours des autres membres de la même famille nucléaire : soit un
+  // accompagnant (guest_name renseigné, voir le grand commentaire
+  // au-dessus de la fonction) -- même bucket "guests" que ci-dessus --
+  // soit le séjour PROPRE de ce membre (guest_name vide ou
+  // auto-étiqueté à son propre nom) -- qui va dans familyOwnStays,
+  // JAMAIS dans "own" (ce "own" est réservé au titulaire DE CE compte,
+  // voir CsBalanceResult.own) ni dans "guests" (réservé aux
+  // accompagnants). Demande de Nicolas le 03/11/2026 : "Option famille"
+  // doit pouvoir afficher et régler la vraie contribution d'un parent
+  // qui a déjà réservé sur SON PROPRE compte (ex. Aurélie), pas
+  // seulement celle d'un accompagnant sans compte (ex. Otto).
+  const familyOwnStays: CsFamilyOwnStay[] = []
+  for (const booking of (familyMemberBookings ?? []) as (RawBooking & { user_id: string; check_in: string })[]) {
     const guestName = booking.guest_name?.trim()
-    if (!guestName) continue
-    // Exclu si c'est en réalité le PROPRE séjour de celui qui l'a saisi
-    // (guest_name = son propre nom par erreur) -- jamais un accompagnant,
-    // jamais partagé (voir le commentaire au-dessus de la fonction).
     const registrantCandidates = familyMemberNameCandidatesById.get(booking.user_id)
-    if (registrantCandidates && findClosestNameMatch(guestName, registrantCandidates) !== -1) continue
-    // Exclu aussi si ça correspond au titulaire DU COMPTE QUI REGARDE --
-    // déjà compté dans "own" via otherBookings plus bas, jamais compté
-    // deux fois.
+    const isSelfTagged = !!guestName && !!registrantCandidates && findClosestNameMatch(guestName, registrantCandidates) !== -1
+    if (!guestName || isSelfTagged) {
+      const items: CsBalanceItem[] = []
+      let pending = 0
+      for (const payment of booking.cs_payments ?? []) pending += addUnpaid(items, payment, booking.check_out, booking.id)
+      familyOwnStays.push({
+        memberId: booking.user_id,
+        bookingId: booking.id,
+        checkIn: booking.check_in,
+        checkOut: booking.check_out,
+        pending,
+        ids: items.map((i) => i.id),
+      })
+      continue
+    }
+    // Exclu si ça correspond au titulaire DU COMPTE QUI REGARDE -- déjà
+    // compté dans "own" via otherBookings plus bas, jamais compté deux
+    // fois.
     if (myNameCandidates && findClosestNameMatch(guestName, myNameCandidates) !== -1) continue
     addToGuestBucket(guestName, booking.cs_payments ?? [], booking.check_out, booking.id)
   }
@@ -262,5 +299,6 @@ export async function computeCsBalance(
   return {
     own: { pending: ownPending, items: ownItems },
     guests: guestOrder.map((name) => guestMap.get(name)!),
+    familyOwnStays,
   }
 }

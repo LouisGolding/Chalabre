@@ -158,6 +158,23 @@ function findGuestBucket(csBalance: CsBalanceResult, fullName: string | null): C
   return csBalance.guests.find((g) => normalizeName(g.name) === target) ?? null
 }
 
+// Contribution séjour (pending + ids à régler) d'un membre de la famille
+// nucléaire qui a SON PROPRE compte (ex. Aurélie) -- distinct de
+// findGuestBucket ci-dessus (accompagnants sans compte, ex. Otto), voir
+// CsBalanceResult.familyOwnStays (03/11/2026, demande de Nicolas : "le
+// widget d'Aurélie [...] je ne vois pas [...] son calcul de CS" -- son
+// séjour est le sien propre, jamais un accompagnant, donc absent de
+// csBalance.guests). Un membre peut avoir plusieurs séjours propres non
+// réglés : on les cumule, même logique qu'un bucket "guests" classique.
+function findFamilyOwnStay(csBalance: CsBalanceResult, memberId: string): { pending: number; ids: string[] } | null {
+  const stays = csBalance.familyOwnStays.filter((s) => s.memberId === memberId)
+  if (stays.length === 0) return null
+  return {
+    pending: stays.reduce((sum, s) => sum + s.pending, 0),
+    ids: stays.flatMap((s) => s.ids),
+  }
+}
+
 // Montant compact ("90" ou "90,50"), sans le formatage de formatCurrency
 // (espace + decimales systematiques) -- meme convention que ContributionSejourPill,
 // pour que "CS : -90€" tienne sur une seule ligne a cote du titre (demande
@@ -566,15 +583,24 @@ export function NextStayCard({
   // affiché ci-dessous -- ids fusionnés pour régler tout en une seule
   // session Stripe (voir CSBalancePayButton). undefined quand l'option
   // n'est pas active : StayEntry garde alors son solde habituel.
+  // Contribution d'un membre affiché ci-dessous par le toggle Famille :
+  // son séjour PROPRE (findFamilyOwnStay, ex. Aurélie, déjà réservé sur
+  // SON compte) en priorité, sinon son bucket "accompagnant" (findGuestBucket,
+  // ex. Otto, sans compte) -- jamais les deux à la fois pour une même
+  // personne. Centralisé ici (03/11/2026) : utilisé à la fois pour le
+  // total ci-dessous et pour chaque bannière individuelle plus bas.
+  const memberCsContribution = (m: FamilyMemberOption): { pending: number; ids: string[] } => {
+    const ownStay = findFamilyOwnStay(csBalance, m.id)
+    if (ownStay) return ownStay
+    const bucket = findGuestBucket(csBalance, `${m.first_name} ${m.last_name}`.trim())
+    return { pending: bucket?.pending ?? 0, ids: bucket?.items.map((i) => i.id) ?? [] }
+  }
+
   const familyPendingOverride = familyOn
-    ? csBalance.own.pending +
-      activeFamilyMembers.reduce((sum, m) => sum + (findGuestBucket(csBalance, `${m.first_name} ${m.last_name}`)?.pending ?? 0), 0)
+    ? csBalance.own.pending + activeFamilyMembers.reduce((sum, m) => sum + memberCsContribution(m).pending, 0)
     : undefined
   const familyIdsOverride = familyOn
-    ? [
-        ...csBalance.own.items.map((i) => i.id),
-        ...activeFamilyMembers.flatMap((m) => findGuestBucket(csBalance, `${m.first_name} ${m.last_name}`)?.items.map((i) => i.id) ?? []),
-      ]
+    ? [...csBalance.own.items.map((i) => i.id), ...activeFamilyMembers.flatMap((m) => memberCsContribution(m).ids)]
     : undefined
 
   // Correctif du 02/11/2026 (demande de Nicolas : "dans le widget
@@ -631,7 +657,7 @@ export function NextStayCard({
           memberFamily,
           typeof m.color_hue === 'number' ? m.color_hue : fallbackIndexForName(fullName)
         )
-        const bucket = findGuestBucket(csBalance, fullName)
+        const { pending: memberPending, ids: memberIds } = memberCsContribution(m)
         const knownAge = m.date_of_birth && primaryBooking ? plausibleAgeAt(m.date_of_birth, primaryBooking.check_in) : null
         return (
           <StayEntry
@@ -648,8 +674,8 @@ export function NextStayCard({
             titleWhenEmpty={`Séjour ${fullName}`}
             titleWhenUpcoming={`Séjour ${fullName}`}
             titleWhenOngoing={`Séjour ${fullName}`}
-            pending={bucket?.pending ?? 0}
-            ids={bucket?.items.map((i) => i.id) ?? []}
+            pending={memberPending}
+            ids={memberIds}
             bgColor={memberColor}
             lockedDates={primaryBooking ? { checkIn: primaryBooking.check_in, checkOut: primaryBooking.check_out } : undefined}
             hideLogistics

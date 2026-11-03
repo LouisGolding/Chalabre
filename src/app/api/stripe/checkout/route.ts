@@ -242,10 +242,18 @@ async function handleCheckout(request: Request) {
     const isSelfTagged =
       !!guestName && !!registrantNameCandidates && findClosestNameMatch(guestName, registrantNameCandidates) !== -1
     // Uniquement pour un vrai séjour d'accompagnant (guestName non vide,
-    // et pas auto-étiqueté comme ci-dessus) -- le séjour PROPRE d'un
-    // autre membre de la famille nucléaire reste réservé à son titulaire
-    // (ou à un admin), jamais payable par les autres.
+    // et pas auto-étiqueté comme ci-dessus).
     const isFamilyMember = !!guestName && !isSelfTagged && familyMemberIds.has(booking.user_id)
+    // Séjour PROPRE (sans accompagnant, ou auto-étiqueté) d'un autre
+    // membre de la même famille nucléaire (ex. Aurélie) -- ouvert le
+    // 03/11/2026, demande de Nicolas : "Option famille" (NextStayCard.tsx,
+    // voir cs-balance.ts/CsFamilyOwnStay) doit pouvoir régler, depuis son
+    // propre compte, la contribution séjour d'un parent qui a déjà
+    // réservé sur LE SIEN -- revient volontairement sur la restriction
+    // plus haute (qui ne partageait que les accompagnants) : seuls les
+    // DEUX comptes d'une même famille nucléaire se débloquent l'un
+    // l'autre ainsi, jamais un tiers.
+    const isFamilyMemberOwnStay = (!guestName || isSelfTagged) && familyMemberIds.has(booking.user_id)
     // Paiement delegue (01/11/2026, cas unique Alexandre -> Guy, voir
     // profiles.cs_payer_id et NextStayCard.tsx/DelegatedStay).
     // Corrigé le 02/11/2026 (signalé par Nicolas : dans son cas concret,
@@ -262,7 +270,7 @@ async function handleCheckout(request: Request) {
     const isDelegatedPayer = guestName
       ? delegateProfilesList.some((d) => d.cs_payer_id === user.id && findClosestNameMatch(guestName, d.candidates) !== -1)
       : registrantProfile?.cs_payer_id === user.id
-    if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isDelegatedPayer && !isAdmin) {
+    if (!isRegistrant && !isBeneficiary && !isFamilyMember && !isFamilyMemberOwnStay && !isDelegatedPayer && !isAdmin) {
       return NextResponse.json({ error: 'Ce paiement ne vous appartient pas' }, { status: 403 })
     }
     if (!resolvedFirstName) {
