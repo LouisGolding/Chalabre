@@ -660,14 +660,25 @@ export function TasksBoard({ initialTasks, canEdit, servicesContacts, currentUse
 
   // --- Répartition dans les 4 listes (voir le grand commentaire en tête
   //     de fichier pour la logique complète) ---
+  // Seules les tâches jardin réellement PÉRIODIQUES (récurrence
+  // 'monthly'/'yearly') suivent le fonctionnement spécial de cette
+  // liste (jamais archivée, réapparaît à la prochaine échéance). Une
+  // tâche jardin en "1 fois" est en réalité une tâche ponctuelle comme
+  // les autres -- demande de Nicolas le 04/11/2026 (capture annotée :
+  // une tâche jardin "1 fois" apparaissait à tort dans "Périodique" au
+  // lieu d'"À faire") : elle doit donc suivre le fonctionnement
+  // standard (À faire -> Tâches réalisées -> Archives au bout de 30
+  // jours), exactement comme les autres catégories.
+  const isPeriodicJardin = (t: TaskItem) => t.category === 'jardin' && !!t.recurrence && t.recurrence !== 'once'
+
   const jardinVisible = tasks.filter((t) => {
-    if (t.category !== 'jardin') return false
+    if (!isPeriodicJardin(t)) return false
     if (!t.completed) return true
     const d = daysSince(t.completedAt)
     return d === null || d < 15
   })
 
-  const nonJardin = tasks.filter((t) => t.category !== 'jardin')
+  const nonJardin = tasks.filter((t) => !isPeriodicJardin(t))
 
   const archived = nonJardin.filter((t) => {
     if (!t.completed) return false

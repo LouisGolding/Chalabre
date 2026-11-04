@@ -84,6 +84,15 @@ const TILES: Tile[] = [
 // et supabase/migration_item_seen.sql.
 type TileBadge = { count: number; color: string } | null
 
+// Durée d'ouverture "démonstrative" de la grille à l'arrivée sur
+// l'accueil avant sa fermeture automatique (04/11/2026, demande de
+// Nicolas : "je prefere finalement que la grille des tuiles soit par
+// defaut baissee, mais ... des qu'on arrive sur la page d'accueil,
+// cette grille soit en train de descendre") -- voir son utilisation
+// plus bas (useState(isOpen) + les deux useEffect qui la referment
+// automatiquement après ce délai).
+const HOME_PEEK_DELAY_MS = 1200
+
 export function TileNav({ role }: { role: UserRole }) {
   const pathname = usePathname()
   // Comptes "friend" n'ont jamais ces deux tuiles (hiddenForFriend) --
@@ -131,6 +140,14 @@ export function TileNav({ role }: { role: UserRole }) {
   // poignée et peut être repliée -- seule différence : elle s'affiche
   // DÉPLIÉE par défaut (hasPhotoBackground au lieu de false), là où
   // toutes les autres pages démarrent repliées.
+  // Mise à jour le 04/11/2026 (demande de Nicolas) : repliée PAR DÉFAUT
+  // désormais sur l'accueil aussi, comme les autres pages -- mais pour
+  // signaler sa présence, elle s'ouvre quand même brièvement à chaque
+  // arrivée sur l'accueil puis se referme automatiquement d'elle-même
+  // après HOME_PEEK_DELAY_MS (voir les deux useEffect plus bas qui
+  // appellent setIsOpen(false) après ce délai) -- l'utilisateur voit
+  // donc la grille "descendre" (se refermer) juste après être arrivé,
+  // plutôt que de la voir rester ouverte comme avant cette date.
   const [isOpen, setIsOpen] = useState(hasPhotoBackground)
   // Repliée par défaut à CHAQUE arrivée sur un onglet, pas seulement au tout
   // premier chargement (demandé par Nicolas le 02/10/2026) : TileNav vit
@@ -149,6 +166,22 @@ export function TileNav({ role }: { role: UserRole }) {
     setIsOpen(hasPhotoBackground)
   }
 
+  // Referme automatiquement la grille, laissée ouverte ci-dessus pour
+  // signaler sa présence, après HOME_PEEK_DELAY_MS (04/11/2026, voir le
+  // commentaire sur isOpen plus haut) -- couvre le tout premier montage
+  // sur l'accueil et toute arrivée dessus par navigation interne (ce
+  // useEffect se redéclenche à chaque changement de pathname/
+  // hasPhotoBackground, donc aussi en revenant sur l'accueil après être
+  // passé par un autre onglet). Le cas "retour sur l'onglet navigateur
+  // SANS navigation" (refocus/visibilitychange) est couvert séparément
+  // par le useEffect suivant, qui programme son propre délai à chaque
+  // réouverture.
+  useEffect(() => {
+    if (!hasPhotoBackground) return
+    const timer = setTimeout(() => setIsOpen(false), HOME_PEEK_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [hasPhotoBackground, pathname])
+
   // Rouvre la grille sur l'accueil en revenant dessus SANS navigation
   // (demande d'Aurélie le 26/10/2026 : "des que tu arrives sur cette
   // page, peu importe d'ou tu viens, [...] un autre onglet, ou si tu
@@ -166,7 +199,13 @@ export function TileNav({ role }: { role: UserRole }) {
   useEffect(() => {
     if (!hasPhotoBackground) return
     const reopen = () => {
-      if (document.visibilityState === 'visible') setIsOpen(true)
+      if (document.visibilityState === 'visible') {
+        setIsOpen(true)
+        // Même "démonstration" qu'à l'arrivée (04/11/2026, voir plus
+        // haut) : se referme toute seule après le même délai, plutôt
+        // que de rester ouverte comme avant cette date.
+        setTimeout(() => setIsOpen(false), HOME_PEEK_DELAY_MS)
+      }
     }
     document.addEventListener('visibilitychange', reopen)
     window.addEventListener('focus', reopen)
