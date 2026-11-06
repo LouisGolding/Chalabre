@@ -65,16 +65,43 @@ export function constructWebhookEvent(
 // montant gonflé caché dans une seule ligne.
 export const TRANSACTION_FEE_RATE = 0.015
 
+// Correctif du 06/11/2026 (Nicolas : "pourquoi encore une taxe, d'où ça
+// vient ?", après avoir remarqué que le paiement de Guy -- 71,05€
+// facturés -- n'avait rapporté que 69,73€ net, pas les 70,00€ visés) :
+// Stripe prélève en réalité, sur une carte européenne, 1,5 % + 0,25€ FIXE
+// par paiement -- pas 1,5 % seul. Vérifié directement sur deux paiements
+// réels dans Stripe : 71,05€ facturés -> 1,32€ de frais réels (1,5 % de
+// 71,05 + 0,25 = 1,32, pas 1,07) ; 86,28€ facturés -> 1,54€ de frais
+// réels (1,5 % de 86,28 + 0,25 = 1,54, pas 1,29). En ne répercutant que
+// le pourcentage, l'ancienne formule ci-dessous manquait ces 0,25€ fixes
+// à chaque paiement : le compte bancaire recevait donc systématiquement
+// 0,25 à 0,30€ de moins que le montant rond visé, malgré l'intention
+// d'origine énoncée juste au-dessus. STRIPE_FIXED_FEE_CENTS capture ce
+// second morceau, pour que transactionFeeLineItem calcule le montant à
+// facturer par résolution directe (plutôt que par simple ajout d'un
+// pourcentage) : charge - (charge * TRANSACTION_FEE_RATE +
+// STRIPE_FIXED_FEE_CENTS) = baseAmountCents, donc charge = (baseAmountCents
+// + STRIPE_FIXED_FEE_CENTS) / (1 - TRANSACTION_FEE_RATE).
+const STRIPE_FIXED_FEE_CENTS = 25
+
 export function transactionFeeLineItem(baseAmountCents: number) {
+  // Arrondi au centime SUPÉRIEUR (jamais à l'inférieur) : Stripe arrondit
+  // lui-même sa part proportionnelle au centime le plus proche, ce qui
+  // peut provoquer un écart d'une fraction de centime dans un sens ou
+  // l'autre -- en arrondissant ici vers le haut, le compte reçoit au pire
+  // un centime de plus que le montant visé, jamais un centime de moins
+  // (l'objectif étant justement que le montant reçu soit rond).
+  const chargeCents = Math.ceil((baseAmountCents + STRIPE_FIXED_FEE_CENTS) / (1 - TRANSACTION_FEE_RATE))
+  const feeCents = chargeCents - baseAmountCents
   return {
     price_data: {
       currency: 'eur',
       product_data: {
-        name: 'Frais de transaction (1,5 %)',
+        name: 'Frais de transaction',
         description:
-          "Coût de la transaction bancaire, prélevé par Stripe sur chaque paiement par carte — La Bâtisse",
+          "Frais Stripe (environ 1,5 % + 0,25€) prélevés sur chaque paiement par carte, répercutés ici pour que La Bâtisse reçoive le montant exact — La Bâtisse",
       },
-      unit_amount: Math.round(baseAmountCents * TRANSACTION_FEE_RATE),
+      unit_amount: feeCents,
     },
     quantity: 1,
   }
