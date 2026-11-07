@@ -38,8 +38,30 @@ function buildColorResolver(colorByName: Map<string, PaletteRef>) {
   return function resolveColor(
     guestName: string | null,
     ownerFamily: FamilyGroup | null | undefined,
-    ownerIndex: number | null | undefined
+    ownerIndex: number | null | undefined,
+    // Correctif du 07/11/2026 (Nicolas, a nouveau -- meme symptome qu'un
+    // bug deja signale et "resolu" le 02-03/11/2026 : "aurelie n'a pas sa
+    // bonne couleur" quand elle apparait via le toggle Famille). Racine
+    // reelle trouvee en verifiant en base : un vieux sejour d'Aurelie
+    // auto-saisi sous "Aurelie" seul (sans nom de famille ni accent, cree
+    // le 23/10, avant la mise en place du toggle Famille) ne correspond a
+    // aucune cle de colorByName (indexee sur "prenom nom" exact, accents
+    // compris) -- sur le planning, ce sejour retombe donc sur une couleur
+    // recalculee par hachage du texte saisi, qui se trouve coincider avec
+    // celle d'Alexandre. Le meme genre de repli ("est-ce que ce texte
+    // saisi designe en fait le titulaire lui-meme ?") existe deja ailleurs
+    // dans ce fichier (myNameCandidatesForFamily, delegateNameCandidatesById,
+    // via findClosestNameMatch) mais n'avait jamais ete applique ici, au
+    // calcul de la couleur. ownerNameCandidates permet de le faire,
+    // UNIQUEMENT scope au titulaire reel de CE sejour (jamais une
+    // recherche globale) -- donc jamais a risque de confondre deux
+    // personnes differentes qui partageraient un meme prenom (il y a par
+    // exemple deux "Otto" et deux "Aurelie" dans la base).
+    ownerNameCandidates?: string[]
   ): string {
+    if (guestName && ownerNameCandidates && findClosestNameMatch(guestName, ownerNameCandidates) !== -1) {
+      if (ownerFamily && ownerIndex !== null && ownerIndex !== undefined) return colorForPaletteIndex(ownerFamily, ownerIndex)
+    }
     if (guestName) {
       const ref = colorByName.get(guestName.trim().toLowerCase())
       if (ref) return colorForPaletteIndex(ref.family, ref.index)
@@ -471,7 +493,12 @@ export default async function PlanningPage() {
             date_of_birth: profileObj.date_of_birth ?? null,
           }
         : null,
-      color: resolveColor(b.guest_name ?? null, profileObj?.family_group as FamilyGroup | undefined, profileObj?.color_hue),
+      color: resolveColor(
+        b.guest_name ?? null,
+        profileObj?.family_group as FamilyGroup | undefined,
+        profileObj?.color_hue,
+        profileObj ? [profileObj.first_name, `${profileObj.first_name} ${profileObj.last_name}`] : undefined
+      ),
     }
   })
 
