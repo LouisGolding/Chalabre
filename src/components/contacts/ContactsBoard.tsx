@@ -1,7 +1,40 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Trash2, ChevronDown, Phone, Mail, ArrowRightLeft } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  ChevronDown,
+  Phone,
+  Mail,
+  ArrowRightLeft,
+  Pencil,
+  Briefcase,
+  Zap,
+  Droplet,
+  Flame,
+  Home,
+  HardHat,
+  Trees,
+  KeyRound,
+  Paintbrush,
+  Sparkles,
+  Waves,
+  Wind,
+  Wifi,
+  Stethoscope,
+  Pill,
+  Cross,
+  PawPrint,
+  UtensilsCrossed,
+  ShoppingBasket,
+  Store,
+  Mountain,
+  Truck,
+  Car,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { actionPillClass, cn } from '@/lib/utils'
 import { CONTACT_CATEGORIES } from '@/lib/contact-categories'
@@ -125,6 +158,87 @@ function EditableCell({
   )
 }
 
+// Pictogramme par type de service (06/11/2026, demande de Nicolas : "à
+// côté de chaque type de service, propose un petit pictogramme juste
+// avant, pour qu'on se repère plus facilement, à la manière des pannes
+// électriques ou fuites d'eau") -- même principe que CATEGORY_ICONS dans
+// EmergencyGuide.tsx, mais ici le "type de service" est un texte libre
+// (pas une catégorie fixe comme dans le Guide ou dans TasksBoard.tsx),
+// donc la correspondance se fait par mots-clés plutôt que par identifiant
+// exact. roleIconKey() ne renvoie qu'une clé (jamais le composant icône
+// lui-même) : le choix du composant se fait par un lookup direct dans
+// ROLE_ICON_MAP au moment du rendu (voir MobileContactCard) -- seule forme
+// qu'accepte le linter (règle react-hooks/static-components) pour un
+// composant choisi dynamiquement. Comparaison insensible à la casse et
+// aux accents, première entrée dont un mot-clé est contenu dans le rôle
+// qui l'emporte ; Briefcase sert de pictogramme par défaut pour tout rôle
+// qui ne correspond à rien ici (texte libre, donc forcément incomplet --
+// le compléter au besoin plutôt que d'en faire un champ figé).
+const ROLE_ICON_MAP: Record<string, LucideIcon> = {
+  electricite: Zap,
+  plomberie: Droplet,
+  chauffage: Flame,
+  toiture: Home,
+  maconnerie: HardHat,
+  jardin: Trees,
+  serrurerie: KeyRound,
+  peinture: Paintbrush,
+  menage: Sparkles,
+  piscine: Waves,
+  climatisation: Wind,
+  informatique: Wifi,
+  medecin: Stethoscope,
+  pharmacie: Pill,
+  sante: Cross,
+  veterinaire: PawPrint,
+  restauration: UtensilsCrossed,
+  alimentation: ShoppingBasket,
+  boutique: Store,
+  tourisme: Mountain,
+  transport: Truck,
+  automobile: Car,
+  bricolage: Wrench,
+}
+
+const ROLE_ICON_KEYWORDS: { key: string; keywords: string[] }[] = [
+  { key: 'electricite', keywords: ['electric'] },
+  { key: 'plomberie', keywords: ['plomb', 'fuite', 'eau'] },
+  { key: 'chauffage', keywords: ['chauffage', 'chaudiere', 'cheminee', 'ramon'] },
+  { key: 'toiture', keywords: ['couvert', 'toitur', 'toit', 'charpent', 'facade', 'ravalement'] },
+  { key: 'maconnerie', keywords: ['macon', 'construction', 'batiment', 'terrassement'] },
+  { key: 'jardin', keywords: ['jardin', 'elagu', 'tond', 'tonte', 'paysag', 'arbre'] },
+  { key: 'serrurerie', keywords: ['serrur'] },
+  { key: 'peinture', keywords: ['peintre', 'peinture'] },
+  { key: 'menage', keywords: ['menage', 'nettoyage'] },
+  { key: 'piscine', keywords: ['piscine'] },
+  { key: 'climatisation', keywords: ['climatisation', 'clim'] },
+  { key: 'informatique', keywords: ['internet', 'informatique', 'reseau', 'wifi'] },
+  { key: 'medecin', keywords: ['medecin', 'docteur', 'generaliste'] },
+  { key: 'pharmacie', keywords: ['pharmaci'] },
+  { key: 'sante', keywords: ['dentist', 'infirmi', 'kine', 'osteopath'] },
+  { key: 'veterinaire', keywords: ['veterinaire', 'veto'] },
+  { key: 'restauration', keywords: ['restaurant', 'pizzeria', 'bar', 'auberge', 'bistrot'] },
+  { key: 'alimentation', keywords: ['boulanger', 'patissier', 'epicerie', 'marche', 'primeur', 'fromager', 'maraich', 'vigneron', 'producteur'] },
+  { key: 'boutique', keywords: ['brocante', 'boutique', 'potier', 'artisan'] },
+  { key: 'tourisme', keywords: ['rando', 'musee', 'chateau', 'visite', 'tourisme'] },
+  { key: 'transport', keywords: ['livraison', 'transport', 'demenag'] },
+  { key: 'automobile', keywords: ['garage', 'mecanicien', 'automobile'] },
+  { key: 'bricolage', keywords: ['bricolage', 'homme a tout faire', 'multiservice', 'reparation'] },
+]
+
+function normalizeRoleForMatch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+}
+
+function roleIconKey(role: string): string {
+  const normalized = normalizeRoleForMatch(role)
+  const match = ROLE_ICON_KEYWORDS.find(({ keywords }) => keywords.some((k) => normalized.includes(k)))
+  return match ? match.key : ''
+}
+
 type SortKey = 'role' | 'name' | 'notes' | 'phone' | 'address' | 'email'
 type SortDir = 'asc' | 'desc'
 
@@ -229,6 +343,12 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
   // (02/11/2026, demande de Nicolas) -- une seule à la fois, voir
   // MobileContactCard.
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  // Carte en cours d'édition explicite (06/11/2026, demande de Nicolas :
+  // symbole d'édition dédié plutôt que des champs cliquables directement
+  // -- voir le gros commentaire dans MobileContactCard). Toujours remise à
+  // null quand on déplie/replie une carte, pour ne jamais rouvrir une
+  // carte déjà en mode édition par surprise.
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // --- Largeur des colonnes (27/10/2026, demande d'Aurelie) : voir le
   //     grand commentaire au-dessus de MIN_COL_WIDTH plus haut. ---
@@ -631,7 +751,12 @@ function CategoryPanel({ categoryId, contacts, canEdit }: { categoryId: string; 
                 key={c.id}
                 contact={c}
                 isExpanded={isExpanded}
-                onToggle={() => setExpandedId(isExpanded ? null : c.id)}
+                onToggle={() => {
+                  setExpandedId(isExpanded ? null : c.id)
+                  setEditingId(null)
+                }}
+                isEditing={canEdit && editingId === c.id}
+                onToggleEdit={() => setEditingId(editingId === c.id ? null : c.id)}
                 topRound={isFirst || isExpanded || prevExpanded}
                 bottomRound={isLast || isExpanded || nextExpanded}
                 flushTop={!(isFirst || isExpanded || prevExpanded)}
@@ -679,6 +804,8 @@ function MobileContactCard({
   contact: c,
   isExpanded,
   onToggle,
+  isEditing,
+  onToggleEdit,
   topRound,
   bottomRound,
   flushTop,
@@ -693,6 +820,8 @@ function MobileContactCard({
   contact: Contact
   isExpanded: boolean
   onToggle: () => void
+  isEditing: boolean
+  onToggleEdit: () => void
   topRound: boolean
   bottomRound: boolean
   flushTop: boolean
@@ -704,6 +833,7 @@ function MobileContactCard({
   movingId: string | null
   setMovingId: (id: string | null) => void
 }) {
+  const RoleIcon = ROLE_ICON_MAP[roleIconKey(c.role)] ?? Briefcase
   return (
     <div
       className={cn('relative border border-border bg-card px-4 py-3 transition-shadow', isExpanded ? 'z-10 shadow-md' : 'shadow-none')}
@@ -716,26 +846,48 @@ function MobileContactCard({
       }}
     >
       {isExpanded ? (
-        <>
+        // Carte dépliée (06/11/2026, demande de Nicolas) : en dehors du
+        // mode édition, cliquer n'importe où sur la carte la referme --
+        // le nom, le type de service, l'email et l'historique ne sont
+        // donc plus directement cliquables (ancien comportement du
+        // 03/11/2026 pour le nom, remplacé ici). Deux exceptions
+        // explicitement demandées, chacune en stopPropagation pour ne
+        // pas aussi refermer la carte : le téléphone (appel direct) et
+        // l'adresse (recherche Google Maps). L'édition elle-même passe
+        // maintenant par le bouton crayon dédié ci-dessous (onToggleEdit),
+        // qui désactive ce "clic pour refermer" tant que la carte est en
+        // édition.
+        <div onClick={!isEditing ? onToggle : undefined}>
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1 space-y-1">
-              {/* Seul le nom reste editable au clic ici -- le type de
-                  service est affiche en majuscules, en lecture seule
-                  (03/11/2026, demande de Nicolas : "il faut que la zone
-                  editable soit uniquement le nom de la personne"). */}
-              <EditableCell value={c.name} editable={canEdit} placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} fitContent />
-              <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
-                {c.role || <span className="text-muted-foreground/40">Type de service</span>}
+              {isEditing ? (
+                <EditableCell value={c.name} editable placeholder="Nom" onSave={(v) => patch(c.id, 'name', v)} fitContent />
+              ) : (
+                <div className="truncate font-medium text-foreground">
+                  {c.name || <span className="text-muted-foreground/60">Nom</span>}
+                </div>
+              )}
+              <div className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
+                <RoleIcon className="h-3 w-3 shrink-0" />
+                <span className="truncate">{c.role || <span className="text-muted-foreground/40">Type de service</span>}</span>
               </div>
             </div>
-            <button type="button" onClick={onToggle} aria-label="Replier" className="mt-1 shrink-0 text-muted-foreground">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggle()
+              }}
+              aria-label="Replier"
+              className="mt-1 shrink-0 text-muted-foreground"
+            >
               <ChevronDown className="h-4 w-4 rotate-180" />
             </button>
           </div>
           <div className="mt-3 space-y-2 border-t border-border pt-3 text-sm">
             <div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Téléphone</div>
-              {canEdit ? (
+              {isEditing ? (
                 <EditableCell
                   value={formatPhoneFR(c.phone ?? '')}
                   editable
@@ -744,7 +896,11 @@ function MobileContactCard({
                   onSave={(v) => patch(c.id, 'phone', v)}
                 />
               ) : c.phone ? (
-                <a href={`tel:${c.phone}`} className="flex items-center gap-1 text-primary">
+                <a
+                  href={`tel:${c.phone}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1 text-primary"
+                >
                   <Phone className="h-3.5 w-3.5" />
                   {formatPhoneFR(c.phone)}
                 </a>
@@ -754,27 +910,52 @@ function MobileContactCard({
             </div>
             <div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Email</div>
-              {canEdit ? (
+              {isEditing ? (
                 <EditableCell value={c.email ?? ''} editable type="email" placeholder="Email" onSave={(v) => patch(c.id, 'email', v)} />
-              ) : c.email ? (
-                <a href={`mailto:${c.email}`} className="flex items-center gap-1 text-primary">
-                  <Mail className="h-3.5 w-3.5" />
-                  {c.email}
+              ) : (
+                <span className={cn('block truncate', c.email ? 'text-foreground' : 'text-muted-foreground/60')}>
+                  {c.email || '—'}
+                </span>
+              )}
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Adresse</div>
+              {isEditing ? (
+                <EditableCell value={c.address ?? ''} editable placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
+              ) : c.address ? (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="block text-primary"
+                >
+                  {c.address}
                 </a>
               ) : (
                 <span className="text-muted-foreground/60">—</span>
               )}
             </div>
             <div>
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Adresse</div>
-              <EditableCell value={c.address ?? ''} editable={canEdit} placeholder="Adresse" onSave={(v) => patch(c.id, 'address', v)} />
-            </div>
-            <div>
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Historique</div>
-              <EditableCell value={c.notes ?? ''} editable={canEdit} placeholder="Historique" onSave={(v) => patch(c.id, 'notes', v)} multiline />
+              {isEditing ? (
+                <EditableCell value={c.notes ?? ''} editable placeholder="Historique" onSave={(v) => patch(c.id, 'notes', v)} multiline />
+              ) : (
+                <span className={cn('block whitespace-pre-wrap break-words', c.notes ? 'text-foreground' : 'text-muted-foreground/60')}>
+                  {c.notes || '—'}
+                </span>
+              )}
             </div>
             {canEdit && (
-              <div className="flex items-center gap-4 pt-1">
+              <div className="flex items-center gap-4 pt-1" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={onToggleEdit}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {isEditing ? 'Terminer' : 'Modifier'}
+                </button>
                 {movingId === c.id ? (
                   <select
                     autoFocus
@@ -816,15 +997,16 @@ function MobileContactCard({
               </div>
             )}
           </div>
-        </>
+        </div>
       ) : (
         <button type="button" onClick={onToggle} className="flex w-full items-start justify-between gap-2 text-left">
           <div className="min-w-0">
             <div className="truncate font-medium text-foreground">
               {c.name || <span className="text-muted-foreground/60">Nom</span>}
             </div>
-            <div className="truncate text-xs uppercase tracking-wide text-muted-foreground">
-              {c.role || <span className="text-muted-foreground/40">Type de service</span>}
+            <div className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
+              <RoleIcon className="h-3 w-3 shrink-0" />
+              <span className="truncate">{c.role || <span className="text-muted-foreground/40">Type de service</span>}</span>
             </div>
           </div>
           <div className="shrink-0 text-xs text-primary">{c.phone ? formatPhoneFR(c.phone) : ''}</div>
